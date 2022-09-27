@@ -1,5 +1,7 @@
 // Copyright (c) 2020-2023 by the Zeek Project. See LICENSE for details.
 
+#include <optional>
+
 #include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/module.h>
 #include <hilti/ast/types/all.h>
@@ -17,12 +19,14 @@ using util::fmt;
 
 namespace {
 
-struct VisitorDeclaration : hilti::visitor::PreOrder<cxx::declaration::Type, VisitorDeclaration> {
+struct VisitorDeclaration : hilti::visitor::PreOrder<void, VisitorDeclaration>, type::Visitor {
     VisitorDeclaration(CodeGen* cg, util::Cache<cxx::ID, cxx::declaration::Type>* cache) : cg(cg), cache(cache) {}
 
     CodeGen* cg;
     util::Cache<cxx::ID, cxx::declaration::Type>* cache;
     std::list<cxx::declaration::Type> dependencies;
+
+    std::optional<cxx::declaration::Type> _result;
 
     void addDependency(const Type& t) {
         for ( auto&& t : cg->typeDependencies(t) )
@@ -32,7 +36,7 @@ struct VisitorDeclaration : hilti::visitor::PreOrder<cxx::declaration::Type, Vis
     auto typeID(const Node& n) { return n.as<Type>().typeID(); }
     auto cxxID(const Node& n) { return n.as<Type>().cxxID(); }
 
-    result_t operator()(const type::Struct& n, const position_t p) {
+    result_t operator()(const type::Struct& n, type::Visitor::position_t& p) override {
         assert(typeID(p.node));
 
         auto scope = cxx::ID{cg->unit()->cxxNamespace()};
@@ -43,7 +47,7 @@ struct VisitorDeclaration : hilti::visitor::PreOrder<cxx::declaration::Type, Vis
 
         auto id = cxx::ID(scope, sid);
 
-        return cache->getOrCreate(
+        _result = cache->getOrCreate(
             id,
             []() {
                 // Just return an empty dummy for now to avoid cyclic recursion.
@@ -78,7 +82,7 @@ struct VisitorDeclaration : hilti::visitor::PreOrder<cxx::declaration::Type, Vis
                         // potentially expensive copies or let us hold on to
                         // objects longer than they'd otherwise stick around.
                         assert(type::isReferenceType(p.type()));
-                        internal_type = cg->compile(type::WeakReference(p.type().dereferencedType(), p.meta()),
+                        internal_type = cg->compile(type::WeakReference(*p.type().dereferencedType(), p.meta()),
                                                     codegen::TypeUsage::Storage);
                     }
 
@@ -262,18 +266,16 @@ struct VisitorDeclaration : hilti::visitor::PreOrder<cxx::declaration::Type, Vis
                                            .add_ctors = true};
                 return cxx::declaration::Type{id, t, t.inlineCode()};
             });
-
-        util::cannot_be_reached();
     }
 
-    result_t operator()(const type::Tuple& n) {
+    result_t operator()(const type::Tuple& n, type::Visitor::position_t&) override {
         for ( const auto& e : n.elements() )
             addDependency(e.type());
 
-        return {};
+        _result = cxx::declaration::Type();
     }
 
-    result_t operator()(const type::Union& n, const position_t p) {
+    result_t operator()(const type::Union& n, type::Visitor::position_t& p) override {
         assert(typeID(p.node));
 
         auto scope = cxx::ID{cg->unit()->cxxNamespace()};
@@ -298,17 +300,17 @@ struct VisitorDeclaration : hilti::visitor::PreOrder<cxx::declaration::Type, Vis
         }
 
         auto t = cxx::type::Union{.members = std::move(fields), .type_name = cxx::ID(id.local())};
-        return cxx::declaration::Type{id, t};
+        _result = cxx::declaration::Type{id, t};
     }
 
-    result_t operator()(const type::Vector& n, const position_t p) {
+    result_t operator()(const type::Vector& n, type::Visitor::position_t& p) override {
         if ( n.elementType() != type::unknown )
-            addDependency(n.elementType());
+            addDependency(*n.elementType());
 
-        return {};
+        _result = cxx::declaration::Type();
     }
 
-    result_t operator()(const type::Enum& n, const position_t p) {
+    result_t operator()(const type::Enum& n, type::Visitor::position_t& p) override {
         assert(typeID(p.node));
 
         auto scope = cxx::ID{cg->unit()->cxxNamespace()};
@@ -325,10 +327,10 @@ struct VisitorDeclaration : hilti::visitor::PreOrder<cxx::declaration::Type, Vis
         auto t = cxx::type::Enum{.labels = std::move(labels), .type_name = cxx::ID(id.local())};
         auto decl = cxx::declaration::Type{id, t, {}, true, false, true};
         dependencies.push_back(decl);
-        return decl;
+        _result = decl;
     }
 
-    result_t operator()(const type::Exception& n, const position_t p) {
+    result_t operator()(const type::Exception& n, type::Visitor::position_t& p) override {
         assert(typeID(p.node));
 
         auto scope = cxx::ID{cg->unit()->cxxNamespace()};
@@ -357,12 +359,12 @@ struct VisitorDeclaration : hilti::visitor::PreOrder<cxx::declaration::Type, Vis
         auto func = cxx::Function{.declaration = std::move(decl), .body = cxx::Block()};
         cg->unit()->add(func);
 
-        return cxx::declaration::Type(id, fmt("HILTI_EXCEPTION_NS(%s, %s, %s)", id.local(), base_ns, base_cls), {},
+        _result = cxx::declaration::Type(id, fmt("HILTI_EXCEPTION_NS(%s, %s, %s)", id.local(), base_ns, base_cls), {},
                                       false, false, true);
     }
 };
 
-struct VisitorStorage : hilti::visitor::PreOrder<CxxTypes, VisitorStorage> {
+struct VisitorStorage : hilti::visitor::PreOrder<void, VisitorStorage>, type::Visitor {
     VisitorStorage(CodeGen* cg, util::Cache<cxx::ID, CxxTypes>* cache, codegen::TypeUsage usage)
         : cg(cg), cache(cache), usage(usage) {}
 
@@ -370,24 +372,39 @@ struct VisitorStorage : hilti::visitor::PreOrder<CxxTypes, VisitorStorage> {
     util::Cache<cxx::ID, CxxTypes>* cache;
     codegen::TypeUsage usage;
 
+    std::optional<CxxTypes> _result;
+
+
     auto typeID(const Node& n) { return n.as<Type>().typeID(); }
     auto cxxID(const Node& n) { return n.as<Type>().cxxID(); }
 
-    result_t operator()(const type::Address& n) { return CxxTypes{.base_type = "::hilti::rt::Address"}; }
+    result_t operator()(const type::Address& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "::hilti::rt::Address"};
+    }
 
-    result_t operator()(const type::Any& n) { return CxxTypes{.base_type = "::hilti::rt::any"}; }
+    result_t operator()(const type::Any& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "::hilti::rt::any"};
+    }
 
-    result_t operator()(const type::Bool& n) { return CxxTypes{.base_type = "::hilti::rt::Bool"}; }
+    result_t operator()(const type::Bool& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "::hilti::rt::Bool"};
+    }
 
-    result_t operator()(const type::Bytes& n) { return CxxTypes{.base_type = "::hilti::rt::Bytes"}; }
+    result_t operator()(const type::Bytes& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "::hilti::rt::Bytes"};
+    }
 
-    result_t operator()(const type::Real& n) { return CxxTypes{.base_type = "double"}; }
+    result_t operator()(const type::Real& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "double"};
+    }
 
-    result_t operator()(const type::Enum& n, position_t p) {
+    result_t operator()(const type::Enum& n, type::Visitor::position_t& p) override {
         assert(typeID(p.node));
 
-        if ( auto cxx = cxxID(p.node) )
-            return CxxTypes{.base_type = cxx::Type(*cxx), .default_ = cxx::Expression(cxx::ID(*cxx, "Undef"))};
+        if ( auto cxx = cxxID(p.node) ) {
+            _result = CxxTypes{.base_type = cxx::Type(*cxx), .default_ = cxx::Expression(cxx::ID(*cxx, "Undef"))};
+            return;
+        }
 
         auto tid = typeID(p.node);
         assert(tid);
@@ -441,86 +458,95 @@ struct VisitorStorage : hilti::visitor::PreOrder<CxxTypes, VisitorStorage> {
         cg->unit()->add(render_impl);
 
         cg->addDeclarationFor(p.node.as<Type>());
-        return CxxTypes{.base_type = std::string(sid), .default_ = cxx::Expression(cxx::ID(sid, "Undef"))};
+        _result = CxxTypes{.base_type = std::string(sid), .default_ = cxx::Expression(cxx::ID(sid, "Undef"))};
     }
 
-    result_t operator()(const type::Error& n) { return CxxTypes{.base_type = "::hilti::rt::result::Error"}; }
+    result_t operator()(const type::Error& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "::hilti::rt::result::Error"};
+    }
 
-    result_t operator()(const type::Exception& n, const position_t p) {
-        if ( auto cxx = cxxID(p.node) )
-            return CxxTypes{.base_type = cxx::Type(*cxx)};
+    result_t operator()(const type::Exception& n, type::Visitor::position_t& p) override {
+        if ( auto cxx = cxxID(p.node) ) {
+            _result = CxxTypes{.base_type = cxx::Type(*cxx)};
+            return;
+        }
 
         if ( auto id = typeID(p.node) ) {
             cg->addDeclarationFor(p.node.as<Type>());
-            return CxxTypes{.base_type = std::string(*id), .storage = "::hilti::rt::Exception"};
+            _result = CxxTypes{.base_type = std::string(*id), .storage = "::hilti::rt::Exception"};
+            return;
         }
         else
-            return CxxTypes{.base_type = "::hilti::rt::Exception"};
+            _result = CxxTypes{.base_type = "::hilti::rt::Exception"};
     }
 
-    result_t operator()(const type::Function& n) { return CxxTypes{}; }
+    result_t operator()(const type::Function& n, type::Visitor::position_t&) override { _result = CxxTypes{}; }
 
-    result_t operator()(const type::Interval& n) { return CxxTypes{.base_type = "::hilti::rt::Interval"}; }
-
-    result_t operator()(const type::bytes::Iterator& n) {
-        return CxxTypes{.base_type = "::hilti::rt::bytes::Iterator"};
+    result_t operator()(const type::Interval& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "::hilti::rt::Interval"};
     }
 
-    result_t operator()(const type::stream::Iterator& n) {
-        return CxxTypes{.base_type = "::hilti::rt::stream::SafeConstIterator"};
+    result_t operator()(const type::bytes::Iterator& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "::hilti::rt::bytes::Iterator"};
     }
 
-    result_t operator()(const type::list::Iterator& n) {
+    result_t operator()(const type::stream::Iterator& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "::hilti::rt::stream::SafeConstIterator"};
+    }
+
+    result_t operator()(const type::list::Iterator& n, type::Visitor::position_t&) override {
         auto t =
-            fmt("::hilti::rt::Vector<%s>::iterator_t", cg->compile(n.dereferencedType(), codegen::TypeUsage::Storage));
-        return CxxTypes{.base_type = fmt("%s", t)};
+            fmt("::hilti::rt::Vector<%s>::iterator_t", cg->compile(*n.dereferencedType(), codegen::TypeUsage::Storage));
+        _result = CxxTypes{.base_type = fmt("%s", t)};
     }
 
-    result_t operator()(const type::map::Iterator& n) {
+    result_t operator()(const type::map::Iterator& n, type::Visitor::position_t&) override {
         auto i = (n.isConstant() ? "const_iterator" : "iterator");
         auto k = cg->compile(n.keyType(), codegen::TypeUsage::Storage);
         auto v = cg->compile(n.valueType(), codegen::TypeUsage::Storage);
 
         auto t = fmt("::hilti::rt::Map<%s, %s>::%s", k, v, i);
-        return CxxTypes{.base_type = fmt("%s", t)};
+        _result = CxxTypes{.base_type = fmt("%s", t)};
     }
 
-    result_t operator()(const type::set::Iterator& n) {
+    result_t operator()(const type::set::Iterator& n, type::Visitor::position_t&) override {
         auto i = (n.isConstant() ? "const_iterator" : "iterator");
-        auto x = cg->compile(n.dereferencedType(), codegen::TypeUsage::Storage);
+        auto x = cg->compile(*n.dereferencedType(), codegen::TypeUsage::Storage);
 
         auto t = fmt("::hilti::rt::Set<%s>::%s", x, i);
-        return CxxTypes{.base_type = fmt("%s", t)};
+        _result = CxxTypes{.base_type = fmt("%s", t)};
     }
 
 
-    result_t operator()(const type::vector::Iterator& n) {
+    result_t operator()(const type::vector::Iterator& n, type::Visitor::position_t&) override {
         auto i = (n.isConstant() ? "const_iterator" : "iterator");
-        auto x = cg->compile(n.dereferencedType(), codegen::TypeUsage::Storage);
+        auto x = cg->compile(*n.dereferencedType(), codegen::TypeUsage::Storage);
 
         std::string allocator;
-        if ( auto def = cg->typeDefaultValue(n.dereferencedType()) )
+        if ( auto def = cg->typeDefaultValue(*n.dereferencedType()) )
             allocator = fmt(", hilti::rt::vector::Allocator<%s, %s>", x, *def);
 
         auto t = fmt("::hilti::rt::Vector<%s%s>::%s", x, allocator, i);
-        return CxxTypes{.base_type = fmt("%s", t)};
+        _result = CxxTypes{.base_type = fmt("%s", t)};
     }
 
-    result_t operator()(const type::Library& n) { return CxxTypes{.base_type = fmt("%s", n.cxxName())}; }
+    result_t operator()(const type::Library& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = fmt("%s", n.cxxName())};
+    }
 
-    result_t operator()(const type::List& n) {
+    result_t operator()(const type::List& n, type::Visitor::position_t&) override {
         std::string t;
 
         if ( n.elementType() == type::unknown )
             // Can only be the empty list.
             t = "::hilti::rt::vector::Empty";
         else
-            t = fmt("::hilti::rt::Vector<%s>", cg->compile(n.elementType(), codegen::TypeUsage::Storage));
+            t = fmt("::hilti::rt::Vector<%s>", cg->compile(*n.elementType(), codegen::TypeUsage::Storage));
 
-        return CxxTypes{.base_type = fmt("%s", t)};
+        _result = CxxTypes{.base_type = fmt("%s", t)};
     }
 
-    result_t operator()(const type::Map& n) {
+    result_t operator()(const type::Map& n, type::Visitor::position_t&) override {
         std::string t;
 
         if ( n.elementType() == type::unknown )
@@ -528,22 +554,30 @@ struct VisitorStorage : hilti::visitor::PreOrder<CxxTypes, VisitorStorage> {
             t = "::hilti::rt::map::Empty";
         else {
             auto k = cg->compile(n.keyType(), codegen::TypeUsage::Storage);
-            auto v = cg->compile(n.elementType(), codegen::TypeUsage::Storage);
+            auto v = cg->compile(*n.elementType(), codegen::TypeUsage::Storage);
             t = fmt("::hilti::rt::Map<%s, %s>", k, v);
         }
 
-        return CxxTypes{.base_type = fmt("%s", t)};
+        _result = CxxTypes{.base_type = fmt("%s", t)};
     }
 
-    result_t operator()(const type::Network& n) { return CxxTypes{.base_type = "::hilti::rt::Network"}; }
+    result_t operator()(const type::Network& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "::hilti::rt::Network"};
+    }
 
-    result_t operator()(const type::Null& n) { return CxxTypes{.base_type = "::hilti::rt::Null"}; }
+    result_t operator()(const type::Null& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "::hilti::rt::Null"};
+    }
 
-    result_t operator()(const type::Port& n) { return CxxTypes{.base_type = "::hilti::rt::Port"}; }
+    result_t operator()(const type::Port& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "::hilti::rt::Port"};
+    }
 
-    result_t operator()(const type::RegExp& n) { return CxxTypes{.base_type = "::hilti::rt::RegExp"}; }
+    result_t operator()(const type::RegExp& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "::hilti::rt::RegExp"};
+    }
 
-    result_t operator()(const type::SignedInteger& n) {
+    result_t operator()(const type::SignedInteger& n, type::Visitor::position_t&) override {
         cxx::Type t;
 
         switch ( n.width() ) {
@@ -554,30 +588,34 @@ struct VisitorStorage : hilti::visitor::PreOrder<CxxTypes, VisitorStorage> {
             default: logger().internalError("codegen: unexpected integer width", n);
         }
 
-        return CxxTypes{.base_type = t};
+        _result = CxxTypes{.base_type = t};
     }
 
-    result_t operator()(const type::Set& n) {
+    result_t operator()(const type::Set& n, type::Visitor::position_t&) override {
         std::string t;
 
         if ( n.elementType() == type::unknown )
             // Can only be the empty list.
             t = "::hilti::rt::set::Empty";
         else {
-            auto x = cg->compile(n.elementType(), codegen::TypeUsage::Storage);
+            auto x = cg->compile(*n.elementType(), codegen::TypeUsage::Storage);
             t = fmt("::hilti::rt::Set<%s>", x);
         }
 
-        return CxxTypes{.base_type = fmt("%s", t)};
+        _result = CxxTypes{.base_type = fmt("%s", t)};
     }
 
-    result_t operator()(const type::Stream& n) { return CxxTypes{.base_type = "::hilti::rt::Stream"}; }
+    result_t operator()(const type::Stream& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "::hilti::rt::Stream"};
+    }
 
-    result_t operator()(const type::Union& n, position_t p) {
+    result_t operator()(const type::Union& n, type::Visitor::position_t& p) override {
         assert(typeID(p.node));
 
-        if ( auto x = cxxID(p.node) )
-            return CxxTypes{.base_type = cxx::Type(*x)};
+        if ( auto x = cxxID(p.node) ) {
+            _result = CxxTypes{.base_type = cxx::Type(*x)};
+            return;
+        }
 
         auto scope = cxx::ID{cg->unit()->cxxNamespace().namespace_()};
         auto sid = cxx::ID{scope, *typeID(p.node)};
@@ -586,7 +624,7 @@ struct VisitorStorage : hilti::visitor::PreOrder<CxxTypes, VisitorStorage> {
         if ( cg->prioritizeTypes() )
             cg->unit()->prioritizeType(sid);
 
-        return cache->getOrCreate(
+        _result = cache->getOrCreate(
             sid, [&]() { return CxxTypes{.base_type = std::string(sid)}; },
             [&](auto& cxx_types) {
                 auto render_body = cxx::Block();
@@ -611,28 +649,30 @@ struct VisitorStorage : hilti::visitor::PreOrder<CxxTypes, VisitorStorage> {
             });
     }
 
-    result_t operator()(const type::Vector& n) {
+    result_t operator()(const type::Vector& n, type::Visitor::position_t&) override {
         std::string t;
 
         if ( n.elementType() == type::unknown )
             // Can only be the empty list.
             t = "::hilti::rt::vector::Empty";
         else {
-            auto x = cg->compile(n.elementType(), codegen::TypeUsage::Storage);
+            auto x = cg->compile(*n.elementType(), codegen::TypeUsage::Storage);
 
             std::string allocator;
-            if ( auto def = cg->typeDefaultValue(n.elementType()) )
+            if ( auto def = cg->typeDefaultValue(*n.elementType()) )
                 allocator = fmt(", hilti::rt::vector::Allocator<%s, %s>", x, *def);
 
             t = fmt("::hilti::rt::Vector<%s%s>", x, allocator);
         }
 
-        return CxxTypes{.base_type = fmt("%s", t)};
+        _result = CxxTypes{.base_type = fmt("%s", t)};
     }
 
-    result_t operator()(const type::Time& n) { return CxxTypes{.base_type = "::hilti::rt::Time"}; }
+    result_t operator()(const type::Time& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "::hilti::rt::Time"};
+    }
 
-    result_t operator()(const type::UnsignedInteger& n) {
+    result_t operator()(const type::UnsignedInteger& n, type::Visitor::position_t&) override {
         cxx::Type t;
 
         switch ( n.width() ) {
@@ -645,24 +685,24 @@ struct VisitorStorage : hilti::visitor::PreOrder<CxxTypes, VisitorStorage> {
             default: logger().internalError("codegen: unexpected integer width", n);
         }
 
-        return CxxTypes{.base_type = t};
+        _result = CxxTypes{.base_type = t};
     }
 
-    result_t operator()(const type::Optional& n) {
+    result_t operator()(const type::Optional& n, type::Visitor::position_t&) override {
         std::string t;
 
-        if ( const auto& ct = n.dereferencedType(); ! ct.isWildcard() )
+        if ( const auto& ct = *n.dereferencedType(); ! ct.isWildcard() )
             t = fmt("std::optional<%s>", cg->compile(ct, codegen::TypeUsage::Storage));
         else
             t = "*";
 
-        return CxxTypes{.base_type = t};
+        _result = CxxTypes{.base_type = t};
     }
 
-    result_t operator()(const type::StrongReference& n) {
+    result_t operator()(const type::StrongReference& n, type::Visitor::position_t&) override {
         std::string t;
 
-        if ( const auto& ct = n.dereferencedType(); ! ct.isWildcard() )
+        if ( const auto& ct = *n.dereferencedType(); ! ct.isWildcard() )
             t = fmt("::hilti::rt::StrongReference<%s>", cg->compile(ct, codegen::TypeUsage::Ctor)); // XXX
         else
             t = "*";
@@ -670,26 +710,32 @@ struct VisitorStorage : hilti::visitor::PreOrder<CxxTypes, VisitorStorage> {
         return CxxTypes{.base_type = t, .param_in = fmt("%s", t), .param_inout = fmt("%s", t)};
     }
 
-    result_t operator()(const type::stream::View& n) { return CxxTypes{.base_type = "::hilti::rt::stream::View"}; }
+    result_t operator()(const type::stream::View& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "::hilti::rt::stream::View"};
+    }
 
-    result_t operator()(const type::Result& n) {
+    result_t operator()(const type::Result& n, type::Visitor::position_t&) override {
         std::string t;
 
-        if ( const auto& ct = n.dereferencedType(); ! ct.isWildcard() )
+        if ( const auto& ct = *n.dereferencedType(); ! ct.isWildcard() )
             t = fmt("::hilti::rt::Result<%s>", cg->compile(ct, codegen::TypeUsage::Storage));
         else
             t = "*";
 
-        return CxxTypes{.base_type = t};
+        _result = CxxTypes{.base_type = t};
     }
 
-    result_t operator()(const type::String& n) { return CxxTypes{.base_type = "std::string"}; }
+    result_t operator()(const type::String& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "std::string"};
+    }
 
-    result_t operator()(const type::Struct& n, position_t p) {
+    result_t operator()(const type::Struct& n, type::Visitor::position_t& p) override {
         assert(typeID(p.node));
 
-        if ( auto x = cxxID(p.node) )
-            return CxxTypes{.base_type = cxx::Type(*x)};
+        if ( auto x = cxxID(p.node) ) {
+            _result = CxxTypes{.base_type = cxx::Type(*x)};
+            return;
+        }
 
         auto scope = cxx::ID{cg->unit()->cxxNamespace().namespace_()};
         auto sid = cxx::ID{scope, *typeID(p.node)};
@@ -698,7 +744,7 @@ struct VisitorStorage : hilti::visitor::PreOrder<CxxTypes, VisitorStorage> {
         if ( cg->prioritizeTypes() )
             cg->unit()->prioritizeType(sid);
 
-        return cache->getOrCreate(
+        _result = cache->getOrCreate(
             sid, [&]() { return CxxTypes{.base_type = std::string(sid)}; },
             [&](auto& cxx_types) {
                 auto render_body = cxx::Block();
@@ -723,145 +769,198 @@ struct VisitorStorage : hilti::visitor::PreOrder<CxxTypes, VisitorStorage> {
             });
     }
 
-    result_t operator()(const type::Tuple& n) {
+    result_t operator()(const type::Tuple& n, type::Visitor::position_t&) override {
         auto x = node::transform(n.elements(),
                                  [this](auto e) { return cg->compile(e.type(), codegen::TypeUsage::Storage); });
         auto t = fmt("std::tuple<%s>", util::join(x, ", "));
-        return CxxTypes{.base_type = t};
+        _result = CxxTypes{.base_type = t};
     }
 
-    result_t operator()(const type::UnresolvedID& n) {
+    result_t operator()(const type::UnresolvedID& n, type::Visitor::position_t&) override {
         logger().internalError(fmt("codegen: unresolved type ID %s", n.id()), n);
     }
 
-    result_t operator()(const type::Void& n) { return CxxTypes{.base_type = "void"}; }
+    result_t operator()(const type::Void& n, type::Visitor::position_t&) override {
+        _result = CxxTypes{.base_type = "void"};
+    }
 
-    result_t operator()(const type::Auto& n) {
+    result_t operator()(const type::Auto& n, type::Visitor::position_t&) override {
         logger().internalError("codegen: automatic type has not been replaced");
     }
 
-    result_t operator()(const type::WeakReference& n) {
+    result_t operator()(const type::WeakReference& n, type::Visitor::position_t&) override {
         std::string t;
 
-        if ( const auto& ct = n.dereferencedType(); ! ct.isWildcard() )
+        if ( const auto& ct = *n.dereferencedType(); ! ct.isWildcard() )
             t = fmt("::hilti::rt::WeakReference<%s>", cg->compile(ct, codegen::TypeUsage::Ctor));
         else
             t = "*";
 
-        return CxxTypes{.base_type = t};
+        _result = CxxTypes{.base_type = t};
     }
 
-    result_t operator()(const type::ValueReference& n) {
+    result_t operator()(const type::ValueReference& n, type::Visitor::position_t&) override {
         std::string t;
 
-        if ( const auto& ct = n.dereferencedType(); ! ct.isWildcard() ) {
+        if ( const auto& ct = *n.dereferencedType(); ! ct.isWildcard() ) {
             auto element_type = cg->compile(ct, codegen::TypeUsage::Ctor);
-            return CxxTypes{.base_type = fmt("::hilti::rt::ValueReference<%s>", element_type), .ctor = element_type};
+            _result = CxxTypes{.base_type = fmt("::hilti::rt::ValueReference<%s>", element_type), .ctor = element_type};
         }
         else
-            return CxxTypes{.base_type = "*"};
+            _result = CxxTypes{.base_type = "*"};
     }
 };
 
 // Visitor returning the ID of static, predefined type information instances for types that provide it.
-struct VisitorTypeInfoPredefined : hilti::visitor::PreOrder<cxx::Expression, VisitorTypeInfoPredefined> {
+struct VisitorTypeInfoPredefined : hilti::visitor::PreOrder<void, VisitorTypeInfoPredefined>, type::Visitor {
     VisitorTypeInfoPredefined(CodeGen* cg) : cg(cg) {}
 
     CodeGen* cg;
 
-    result_t operator()(const type::Address& n) { return "::hilti::rt::type_info::address"; }
-    result_t operator()(const type::Any& n) { return "::hilti::rt::type_info::any"; }
-    result_t operator()(const type::Bool& n) { return "::hilti::rt::type_info::bool_"; }
-    result_t operator()(const type::Bytes& n) { return "::hilti::rt::type_info::bytes"; }
-    result_t operator()(const type::bytes::Iterator& n) { return "::hilti::rt::type_info::bytes_iterator"; }
-    result_t operator()(const type::Error& n) { return "::hilti::rt::type_info::error"; }
-    result_t operator()(const type::Interval& n) { return "::hilti::rt::type_info::interval"; }
-    result_t operator()(const type::Network& n) { return "::hilti::rt::type_info::network"; }
-    result_t operator()(const type::Port& n) { return "::hilti::rt::type_info::port"; }
-    result_t operator()(const type::Real& n) { return "::hilti::rt::type_info::real"; }
-    result_t operator()(const type::RegExp& n) { return "::hilti::rt::type_info::regexp"; }
-    result_t operator()(const type::SignedInteger& n) { return fmt("::hilti::rt::type_info::int%d", n.width()); }
-    result_t operator()(const type::Stream& n) { return "::hilti::rt::type_info::stream"; }
-    result_t operator()(const type::stream::Iterator& n) { return "::hilti::rt::type_info::stream_iterator"; }
-    result_t operator()(const type::stream::View& n) { return "::hilti::rt::type_info::stream_view"; }
-    result_t operator()(const type::String& n) { return "::hilti::rt::type_info::string"; }
-    result_t operator()(const type::Time& n) { return "::hilti::rt::type_info::time"; }
-    result_t operator()(const type::UnsignedInteger& n) { return fmt("::hilti::rt::type_info::uint%d", n.width()); }
-    result_t operator()(const type::Void& n) { return "::hilti::rt::type_info::void_"; }
+    std::optional<cxx::Expression> _result;
 
-    result_t operator()(const type::UnresolvedID& n) {
+    result_t operator()(const type::Address& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::address";
+    }
+    result_t operator()(const type::Any& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::any";
+    }
+    result_t operator()(const type::Bool& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::bool_";
+    }
+    result_t operator()(const type::Bytes& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::bytes";
+    }
+    result_t operator()(const type::bytes::Iterator& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::bytes_iterator";
+    }
+    result_t operator()(const type::Error& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::error";
+    }
+    result_t operator()(const type::Interval& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::interval";
+    }
+    result_t operator()(const type::Network& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::network";
+    }
+    result_t operator()(const type::Port& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::port";
+    }
+    result_t operator()(const type::Real& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::real";
+    }
+    result_t operator()(const type::RegExp& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::regexp";
+    }
+    result_t operator()(const type::SignedInteger& n, type::Visitor::position_t&) override {
+        _result = fmt("::hilti::rt::type_info::int%d", n.width());
+    }
+    result_t operator()(const type::Stream& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::stream";
+    }
+    result_t operator()(const type::stream::Iterator& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::stream_iterator";
+    }
+    result_t operator()(const type::stream::View& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::stream_view";
+    }
+    result_t operator()(const type::String& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::string";
+    }
+    result_t operator()(const type::Time& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::time";
+    }
+    result_t operator()(const type::UnsignedInteger& n, type::Visitor::position_t&) override {
+        _result = fmt("::hilti::rt::type_info::uint%d", n.width());
+    }
+    result_t operator()(const type::Void& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::void_";
+    }
+
+    result_t operator()(const type::UnresolvedID& n, type::Visitor::position_t&) override {
         logger().internalError(fmt("codegen: unresolved type ID %s", n.id()), n);
     }
 
-    result_t operator()(const type::Auto& n) {
+    result_t operator()(const type::Auto& n, type::Visitor::position_t&) override {
         logger().internalError("codegen: automatic type has not been replaced");
     }
 };
 
 // Visitor creaating dynamic type information instances for types that do not provide predefined static ones.
-struct VisitorTypeInfoDynamic : hilti::visitor::PreOrder<cxx::Expression, VisitorTypeInfoDynamic> {
+struct VisitorTypeInfoDynamic : hilti::visitor::PreOrder<void, VisitorTypeInfoDynamic>, type::Visitor {
     VisitorTypeInfoDynamic(CodeGen* cg) : cg(cg) {}
     CodeGen* cg;
+
+    std::optional<cxx::Expression> _result;
 
     auto typeID(const Node& n) { return n.as<Type>().typeID(); }
     auto cxxID(const Node& n) { return n.as<Type>().cxxID(); }
 
-    result_t operator()(const type::Enum& n) {
+    result_t operator()(const type::Enum& n, type::Visitor::position_t&) override {
         std::vector<std::string> labels;
 
         for ( const auto& l : n.labels() )
             labels.push_back(
                 fmt("::hilti::rt::type_info::enum_::Label{ \"%s\", %d }", cxx::ID(l.get().id()), l.get().value()));
 
-        return fmt("::hilti::rt::type_info::Enum(std::vector<::hilti::rt::type_info::enum_::Label>({%s}))",
+        _result = fmt("::hilti::rt::type_info::Enum(std::vector<::hilti::rt::type_info::enum_::Label>({%s}))",
                    util::join(labels, ", "));
     }
 
-    result_t operator()(const type::Exception& n, position_t p) { return "::hilti::rt::type_info::Exception()"; }
-
-    result_t operator()(const type::Function& n) { return "::hilti::rt::type_info::Function()"; }
-
-    result_t operator()(const type::Library& n) { return "::hilti::rt::type_info::Library()"; }
-
-    result_t operator()(const type::Map& n) {
-        auto ktype = cg->compile(n.keyType(), codegen::TypeUsage::Storage);
-        auto vtype = cg->compile(n.elementType(), codegen::TypeUsage::Storage);
-        auto deref_type = type::Tuple({n.keyType(), n.elementType()});
-        return fmt("::hilti::rt::type_info::Map(%s, %s, ::hilti::rt::type_info::Map::accessor<%s, %s>())",
-                   cg->typeInfo(n.keyType()), cg->typeInfo(n.elementType()),
-                   cg->compile(n.keyType(), codegen::TypeUsage::Storage),
-                   cg->compile(n.elementType(), codegen::TypeUsage::Storage));
+    result_t operator()(const type::Exception& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::Exception()";
     }
 
-    result_t operator()(const type::map::Iterator& n) {
-        return fmt(
-            "::hilti::rt::type_info::MapIterator(%s, %s, ::hilti::rt::type_info::MapIterator::accessor<%s, %s>())",
+    result_t operator()(const type::Function& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::Function()";
+    }
+
+    result_t operator()(const type::Library& n, type::Visitor::position_t&) override {
+        _result = "::hilti::rt::type_info::Library()";
+    }
+
+    result_t operator()(const type::Map& n, type::Visitor::position_t&) override {
+        auto ktype = cg->compile(n.keyType(), codegen::TypeUsage::Storage);
+        auto vtype = cg->compile(*n.elementType(), codegen::TypeUsage::Storage);
+        auto deref_type = type::Tuple({n.keyType(), *n.elementType()});
+        _result = fmt("::hilti::rt::type_info::Map(%s, %s, ::hilti::rt::type_info::Map::accessor<%s, %s>())",
+                      cg->typeInfo(n.keyType()), cg->typeInfo(*n.elementType()),
+                      cg->compile(n.keyType(), codegen::TypeUsage::Storage),
+                      cg->compile(*n.elementType(), codegen::TypeUsage::Storage));
+    }
+
+    result_t operator()(const type::map::Iterator& n, type::Visitor::position_t&) override {
+        _result =
+            fmt("::hilti::rt::type_info::MapIterator(%s, %s, ::hilti::rt::type_info::MapIterator::accessor<%s, %s>())",
             cg->typeInfo(n.keyType()), cg->typeInfo(n.valueType()),
             cg->compile(n.keyType(), codegen::TypeUsage::Storage),
             cg->compile(n.valueType(), codegen::TypeUsage::Storage));
     }
 
-    result_t operator()(const type::Optional& n) {
-        return fmt("::hilti::rt::type_info::Optional(%s, ::hilti::rt::type_info::Optional::accessor<%s>())",
-                   cg->typeInfo(n.dereferencedType()), cg->compile(n.dereferencedType(), codegen::TypeUsage::Storage));
+    result_t operator()(const type::Optional& n, type::Visitor::position_t&) override {
+        _result =
+            fmt("::hilti::rt::type_info::Optional(%s, ::hilti::rt::type_info::Optional::accessor<%s>())",
+                cg->typeInfo(*n.dereferencedType()), cg->compile(*n.dereferencedType(), codegen::TypeUsage::Storage));
     }
 
-    result_t operator()(const type::Result& n) {
-        return fmt("::hilti::rt::type_info::Result(%s, ::hilti::rt::type_info::Result::accessor<%s>())",
-                   cg->typeInfo(n.dereferencedType()), cg->compile(n.dereferencedType(), codegen::TypeUsage::Storage));
+    result_t operator()(const type::Result& n, type::Visitor::position_t&) override {
+        _result =
+            fmt("::hilti::rt::type_info::Result(%s, ::hilti::rt::type_info::Result::accessor<%s>())",
+                cg->typeInfo(*n.dereferencedType()), cg->compile(*n.dereferencedType(), codegen::TypeUsage::Storage));
     }
 
-    result_t operator()(const type::Set& n) {
-        return fmt("::hilti::rt::type_info::Set(%s, ::hilti::rt::type_info::Set::accessor<%s>())",
-                   cg->typeInfo(n.elementType()), cg->compile(n.elementType(), codegen::TypeUsage::Storage));
+    result_t operator()(const type::Set& n, type::Visitor::position_t&) override {
+        _result = fmt("::hilti::rt::type_info::Set(%s, ::hilti::rt::type_info::Set::accessor<%s>())",
+                      cg->typeInfo(*n.elementType()), cg->compile(*n.elementType(), codegen::TypeUsage::Storage));
     }
 
-    result_t operator()(const type::set::Iterator& n) {
-        return fmt("::hilti::rt::type_info::SetIterator(%s, ::hilti::rt::type_info::SetIterator::accessor<%s>())",
-                   cg->typeInfo(n.dereferencedType()), cg->compile(n.dereferencedType(), codegen::TypeUsage::Storage));
+    result_t operator()(const type::set::Iterator& n, type::Visitor::position_t&) override {
+        _result =
+            fmt("::hilti::rt::type_info::SetIterator(%s, ::hilti::rt::type_info::SetIterator::accessor<%s>())",
+                cg->typeInfo(*n.dereferencedType()), cg->compile(*n.dereferencedType(), codegen::TypeUsage::Storage));
     }
 
-    result_t operator()(const type::Struct& n, position_t p) {
+    result_t operator()(const type::Struct& n, type::Visitor::position_t& p) override {
         std::vector<std::string> fields;
 
         for ( const auto& f : n.fields() ) {
@@ -886,11 +985,11 @@ struct VisitorTypeInfoDynamic : hilti::visitor::PreOrder<cxx::Expression, Visito
                                  accessor));
         }
 
-        return fmt("::hilti::rt::type_info::Struct(std::vector<::hilti::rt::type_info::struct_::Field>({%s}))",
+        _result = fmt("::hilti::rt::type_info::Struct(std::vector<::hilti::rt::type_info::struct_::Field>({%s}))",
                    util::join(fields, ", "));
     }
 
-    result_t operator()(const type::Tuple& n, position_t p) {
+    result_t operator()(const type::Tuple& n, type::Visitor::position_t& p) override {
         std::vector<std::string> elems;
         auto ttype = cg->compile(p.node.as<Type>(), codegen::TypeUsage::Storage);
 
@@ -899,66 +998,68 @@ struct VisitorTypeInfoDynamic : hilti::visitor::PreOrder<cxx::Expression, Visito
                 fmt("::hilti::rt::type_info::tuple::Element{ \"%s\", %s, hilti::rt::tuple::elementOffset<%s, %d>() }",
                     e.id() ? *e.id() : ID(), cg->typeInfo(e.type()), ttype, i));
 
-        return fmt("::hilti::rt::type_info::Tuple(std::vector<::hilti::rt::type_info::tuple::Element>({%s}))",
+        _result = fmt("::hilti::rt::type_info::Tuple(std::vector<::hilti::rt::type_info::tuple::Element>({%s}))",
                    util::join(elems, ", "));
     }
 
-    result_t operator()(const type::Union& n, position_t p) {
+    result_t operator()(const type::Union& n, type::Visitor::position_t& p) override {
         std::vector<std::string> fields;
 
         for ( const auto& f : n.fields() )
             fields.push_back(
                 fmt("::hilti::rt::type_info::union_::Field{ \"%s\", %s }", cxx::ID(f.id()), cg->typeInfo(f.type())));
 
-        return fmt(
-            "::hilti::rt::type_info::Union(std::vector<::hilti::rt::type_info::union_::Field>({%s}), "
+        _result =
+            fmt("::hilti::rt::type_info::Union(std::vector<::hilti::rt::type_info::union_::Field>({%s}), "
             "::hilti::rt::type_info::Union::accessor<%s>())",
             util::join(fields, ", "), cg->compile(p.node.as<Type>(), codegen::TypeUsage::Storage));
     }
-    result_t operator()(const type::StrongReference& n) {
-        return fmt(
-            "::hilti::rt::type_info::StrongReference(%s, ::hilti::rt::type_info::StrongReference::accessor<%s>())",
-            cg->typeInfo(n.dereferencedType()), cg->compile(n.dereferencedType(), codegen::TypeUsage::Storage));
+    result_t operator()(const type::StrongReference& n, type::Visitor::position_t&) override {
+        _result =
+            fmt("::hilti::rt::type_info::StrongReference(%s, ::hilti::rt::type_info::StrongReference::accessor<%s>())",
+                cg->typeInfo(*n.dereferencedType()), cg->compile(*n.dereferencedType(), codegen::TypeUsage::Storage));
     }
 
-    result_t operator()(const type::ValueReference& n) {
-        return fmt("::hilti::rt::type_info::ValueReference(%s, ::hilti::rt::type_info::ValueReference::accessor<%s>())",
-                   cg->typeInfo(n.dereferencedType()), cg->compile(n.dereferencedType(), codegen::TypeUsage::Storage));
+    result_t operator()(const type::ValueReference& n, type::Visitor::position_t&) override {
+        _result =
+            fmt("::hilti::rt::type_info::ValueReference(%s, ::hilti::rt::type_info::ValueReference::accessor<%s>())",
+                cg->typeInfo(*n.dereferencedType()), cg->compile(*n.dereferencedType(), codegen::TypeUsage::Storage));
     }
 
-    result_t operator()(const type::WeakReference& n) {
-        return fmt("::hilti::rt::type_info::WeakReference(%s, ::hilti::rt::type_info::WeakReference::accessor<%s>())",
-                   cg->typeInfo(n.dereferencedType()), cg->compile(n.dereferencedType(), codegen::TypeUsage::Storage));
+    result_t operator()(const type::WeakReference& n, type::Visitor::position_t&) override {
+        _result =
+            fmt("::hilti::rt::type_info::WeakReference(%s, ::hilti::rt::type_info::WeakReference::accessor<%s>())",
+                cg->typeInfo(*n.dereferencedType()), cg->compile(*n.dereferencedType(), codegen::TypeUsage::Storage));
     }
 
-    result_t operator()(const type::Vector& n) {
-        auto x = cg->compile(n.elementType(), codegen::TypeUsage::Storage);
+    result_t operator()(const type::Vector& n, type::Visitor::position_t&) override {
+        auto x = cg->compile(*n.elementType(), codegen::TypeUsage::Storage);
 
         std::string allocator;
-        if ( auto def = cg->typeDefaultValue(n.elementType()) )
+        if ( auto def = cg->typeDefaultValue(*n.elementType()) )
             allocator = fmt(", hilti::rt::vector::Allocator<%s, %s>", x, *def);
 
-        return fmt("::hilti::rt::type_info::Vector(%s, ::hilti::rt::type_info::Vector::accessor<%s%s>())",
-                   cg->typeInfo(n.elementType()), x, allocator);
+        _result = fmt("::hilti::rt::type_info::Vector(%s, ::hilti::rt::type_info::Vector::accessor<%s%s>())",
+                      cg->typeInfo(*n.elementType()), x, allocator);
     }
 
-    result_t operator()(const type::vector::Iterator& n) {
-        auto x = cg->compile(n.dereferencedType(), codegen::TypeUsage::Storage);
+    result_t operator()(const type::vector::Iterator& n, type::Visitor::position_t&) override {
+        auto x = cg->compile(*n.dereferencedType(), codegen::TypeUsage::Storage);
 
         std::string allocator;
-        if ( auto def = cg->typeDefaultValue(n.dereferencedType()) )
+        if ( auto def = cg->typeDefaultValue(*n.dereferencedType()) )
             allocator = fmt(", hilti::rt::vector::Allocator<%s, %s>", x, *def);
 
-        return fmt(
-            "::hilti::rt::type_info::VectorIterator(%s, ::hilti::rt::type_info::VectorIterator::accessor<%s%s>())",
-            cg->typeInfo(n.dereferencedType()), x, allocator);
+        _result =
+            fmt("::hilti::rt::type_info::VectorIterator(%s, ::hilti::rt::type_info::VectorIterator::accessor<%s%s>())",
+                cg->typeInfo(*n.dereferencedType()), x, allocator);
     }
 
-    result_t operator()(const type::Auto& n) {
+    result_t operator()(const type::Auto& n, type::Visitor::position_t&) override {
         logger().internalError("codegen: automatic type has not been replaced");
     }
 
-    result_t operator()(const type::UnresolvedID& n) {
+    result_t operator()(const type::UnresolvedID& n, type::Visitor::position_t&) override {
         logger().internalError(fmt("codegen: unresolved type ID %s", n.id()), n);
     }
 };
@@ -966,7 +1067,9 @@ struct VisitorTypeInfoDynamic : hilti::visitor::PreOrder<cxx::Expression, Visito
 } // anonymous namespace
 
 cxx::Type CodeGen::compile(const hilti::Type& t, codegen::TypeUsage usage) {
-    auto x = VisitorStorage(this, &_cache_types_storage, usage).dispatch(t);
+    auto v = VisitorStorage(this, &_cache_types_storage, usage);
+    v.dispatch(t);
+    auto& x = v._result;
 
     if ( ! x ) {
         hilti::render(std::cerr, t);
@@ -1051,7 +1154,9 @@ cxx::Type CodeGen::compile(const hilti::Type& t, codegen::TypeUsage usage) {
 }
 
 std::optional<cxx::Expression> CodeGen::typeDefaultValue(const hilti::Type& t) {
-    auto x = VisitorStorage(this, &_cache_types_storage, codegen::TypeUsage::None).dispatch(t);
+    auto v = VisitorStorage(this, &_cache_types_storage, codegen::TypeUsage::None);
+    v.dispatch(t);
+    auto& x = v._result;
 
     if ( ! x ) {
         hilti::render(std::cerr, t);
@@ -1069,7 +1174,9 @@ std::list<cxx::declaration::Type> CodeGen::typeDependencies(const hilti::Type& t
 };
 
 std::optional<cxx::declaration::Type> CodeGen::typeDeclaration(const hilti::Type& t) {
-    return VisitorDeclaration(this, &_cache_types_declarations).dispatch(t);
+    auto v = VisitorDeclaration(this, &_cache_types_declarations);
+    v.dispatch(t);
+    return v._result;
 };
 
 const CxxTypeInfo& CodeGen::_getOrCreateTypeInfo(const hilti::Type& t) {
@@ -1094,7 +1201,9 @@ const CxxTypeInfo& CodeGen::_getOrCreateTypeInfo(const hilti::Type& t) {
     return _cache_type_info.getOrCreate(
         tid,
         [&]() {
-            if ( auto x = VisitorTypeInfoPredefined(this).dispatch(t); x && *x )
+            auto v = VisitorTypeInfoPredefined(this);
+            v.dispatch(t);
+            if ( auto x = v._result; x && *x )
                 return CxxTypeInfo{.predefined = true, .reference = fmt("&%s", *x)};
 
             auto forward = cxx::declaration::Constant{.id = tid,
@@ -1110,7 +1219,9 @@ const CxxTypeInfo& CodeGen::_getOrCreateTypeInfo(const hilti::Type& t) {
             if ( ti.predefined )
                 return ti;
 
-            auto x = VisitorTypeInfoDynamic(this).dispatch(t);
+            auto v = VisitorTypeInfoDynamic(this);
+            v.dispatch(t);
+            auto& x = v._result;
 
             if ( ! x )
                 logger().internalError(fmt("codegen: type %s does not have a dynamic type info visitor", t), t);

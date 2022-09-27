@@ -1,5 +1,6 @@
 // Copyright (c) 2020-2023 by the Zeek Project. See LICENSE for details.
 
+#include <optional>
 #include <utility>
 
 #include <hilti/ast/builder/all.h>
@@ -56,31 +57,40 @@ enum class FieldType {
 };
 
 // Visitor determining a unit field type.
-struct FieldTypeVisitor : public hilti::visitor::PreOrder<Type, FieldTypeVisitor> {
+struct FieldTypeVisitor : public hilti::visitor::PreOrder<void, FieldTypeVisitor>, type::Visitor {
     explicit FieldTypeVisitor(FieldType ft) : ft(ft) {}
 
     FieldType ft;
 
-    result_t operator()(const type::Bitfield& t) {
+    std::optional<Type> _result;
+
+    result_t operator()(const type::Bitfield& t, type::Visitor::position_t&) override {
         switch ( ft ) {
             case FieldType::DDType:
-            case FieldType::ItemType: return t.type();
-
-            case FieldType::ParseType: return t;
-        };
-
-        hilti::util::cannot_be_reached();
+            case FieldType::ItemType: {
+                _result = t.type();
+                break;
     }
 
-    result_t operator()(const hilti::type::RegExp& /* t */) { return hilti::type::Bytes(); }
+            case FieldType::ParseType: {
+                _result = t;
+                break;
+            }
+        };
+    }
+
+    result_t operator()(const hilti::type::RegExp& /* t */, type::Visitor::position_t&) override {
+        _result = hilti::type::Bytes();
+    }
 };
 
 // Helper function to compute one of several kinds of a field's types.
 std::optional<Type> _fieldType(const type::unit::item::Field& f, const Type& type, FieldType ft, bool is_container,
                                const Meta& meta) {
     Type nt;
-    if ( auto e = FieldTypeVisitor(ft).dispatch(type) )
-        nt = std::move(*e);
+    auto v = FieldTypeVisitor(ft);
+    if ( v.dispatch(type); v._result )
+        nt = std::move(*v._result);
     else
         nt = type;
 
@@ -93,7 +103,9 @@ std::optional<Type> _fieldType(const type::unit::item::Field& f, const Type& typ
         return nt;
 }
 
-struct Visitor : public hilti::visitor::PreOrder<void, Visitor> {
+struct Visitor : hilti::visitor::PreOrder<void, Visitor>, type::Visitor {
+    using position_t = hilti::visitor::PreOrder<void, Visitor>::position_t;
+
     explicit Visitor(hilti::Unit* unit) : unit(unit) {}
     hilti::Unit* unit;
     bool modified = false;
@@ -187,7 +199,7 @@ struct Visitor : public hilti::visitor::PreOrder<void, Visitor> {
         modified = true;
     }
 
-    void operator()(const type::Bitfield& b, position_t p) {
+    void operator()(const type::Bitfield& b, type::Visitor::position_t& p) override {
         if ( type::isResolved(b.type()) )
             return;
 
@@ -244,7 +256,7 @@ struct Visitor : public hilti::visitor::PreOrder<void, Visitor> {
                     // If there's list comprehension, morph the type into a vector.
                     // Assignment will transparently work.
                     if ( auto x = t->tryAs<type::List>() )
-                        t = hilti::type::Vector(x->elementType(), x->meta());
+                        t = hilti::type::Vector(*x->elementType(), x->meta());
                 }
             }
             else if ( const auto& i = f.item(); i && i->isA<type::unit::item::Field>() ) {

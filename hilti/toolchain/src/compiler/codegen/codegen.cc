@@ -391,10 +391,10 @@ struct Visitor : hilti::visitor::PreOrder<void, Visitor> {
                 auto type = p.type();
 
                 if ( type::isIterable(type) )
-                    type = type.elementType();
+                    type = *type.elementType();
 
                 while ( type::isReferenceType(type) )
-                    type = type.dereferencedType();
+                    type = *type.dereferencedType();
 
                 if ( ! type.isA<type::Struct>() )
                     continue;
@@ -451,7 +451,7 @@ struct Visitor : hilti::visitor::PreOrder<void, Visitor> {
                 auto type = p.type();
 
                 while ( type::isReferenceType(type) )
-                    type = type.dereferencedType();
+                    type = *type.dereferencedType();
 
                 if ( ! type.isA<type::Struct>() )
                     continue;

@@ -29,7 +29,7 @@
 namespace hilti::type {
 
 /** AST node for a struct type. */
-class Struct : public TypeBase, trait::isAllocable, trait::isParameterized, trait::takesArguments, trait::isMutable {
+class Struct : public TypeBase {
 public:
     Struct(std::vector<Declaration> fields, Meta m = Meta())
         : TypeBase(nodes(node::none, std::move(fields)), std::move(m)) {}
@@ -57,7 +57,11 @@ public:
     }
 
     auto hasFinalizer() const { return field("~finally").has_value(); }
-    auto parameters() const { return childrenOfType<type::function::Parameter>(); }
+
+    node::Set<type::function::Parameter> parameters() const override {
+        return childrenOfType<type::function::Parameter>();
+    }
+
     auto parameterRefs() const { return childRefsOfType<type::function::Parameter>(); }
 
     auto fields() const { return childrenOfType<declaration::Field>(); }
@@ -88,8 +92,7 @@ public:
 
     bool operator==(const Struct& other) const { return fields() == other.fields(); }
 
-    /** Implements the `Type` interface. */
-    auto isEqual(const Type& other) const {
+    bool isEqual(const Type& other) const override {
         if ( auto x = other.tryAs<type::Struct>() ) {
             // Anonymous structs only compare successfully to themselves.
             if ( _anon_struct >= 0 || x->_anon_struct >= 0 )
@@ -99,8 +102,7 @@ public:
         return node::isEqual(this, other);
     }
 
-    /** Implements the `Type` interface. */
-    auto _isResolved(ResolvedState* rstate) const {
+    bool _isResolved(ResolvedState* rstate) const override {
         const auto& cs = children();
 
         return std::all_of(cs.begin(), cs.end(), [&](const auto& c) {
@@ -114,18 +116,20 @@ public:
         });
     }
 
-    /** Implements the `Type` interface. */
-    auto typeParameters() const {
+    std::vector<Node> typeParameters() const override {
         std::vector<Node> params;
         for ( const auto& f : fields() )
             params.emplace_back(f.type());
         return params;
     }
-    /** Implements the `Type` interface. */
-    auto isWildcard() const { return _wildcard; }
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    bool isWildcard() const override { return _wildcard; }
+
+    node::Properties properties() const override { return node::Properties{}; }
+
+    bool _isAllocable() const override { return true; }
+    bool _isMutable() const override { return true; }
+    bool _isParameterized() const override { return true; }
 
     /**
      * Given an existing node wrapping a struct type, updates the contained
@@ -141,11 +145,15 @@ public:
         n->children()[0] = d;
     }
 
+    HILTI_TYPE_VISITOR_IMPLEMENT
+
 private:
     bool _wildcard = false;
     int64_t _anon_struct = -1;
 
     static int64_t _anon_struct_counter;
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
 };
 
 } // namespace hilti::type

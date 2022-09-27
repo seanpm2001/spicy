@@ -18,11 +18,15 @@ using hilti::util::fmt;
 
 namespace {
 
-struct Visitor : public hilti::visitor::PreOrder<Production, Visitor> {
+struct Visitor : hilti::visitor::PreOrder<void, Visitor>, type::Visitor {
+    using position_t = hilti::visitor::PreOrder<void, Visitor>::position_t;
+
     Visitor(CodeGen* cg, codegen::GrammarBuilder* gb, Grammar* g) : cg(cg), gb(gb), grammar(g) {}
     CodeGen* cg;
     codegen::GrammarBuilder* gb;
     Grammar* grammar;
+
+    std::optional<Production> _result;
 
     using CurrentField = std::pair<const spicy::type::unit::item::Field&, NodeRef>;
     std::vector<CurrentField> fields;
@@ -38,12 +42,13 @@ struct Visitor : public hilti::visitor::PreOrder<Production, Visitor> {
         if ( field )
             pushField({*field, NodeRef(item)});
 
-        auto p = dispatch(item);
+        _result.reset();
+        dispatch(item);
 
         if ( field )
             popField();
 
-        return p;
+        return _result;
     }
 
     Production productionForCtor(const Ctor& c, const ID& id) {
@@ -51,8 +56,9 @@ struct Visitor : public hilti::visitor::PreOrder<Production, Visitor> {
     }
 
     Production productionForType(const Type& t, const ID& id) {
-        if ( auto prod = dispatch(t) )
-            return std::move(*prod);
+        _result.reset();
+        if ( dispatch(t); _result )
+            return std::move(*_result);
 
         // Fallback: Just a plain type.
         return production::Variable(cg->uniquer()->get(id), t, t.meta().location());
@@ -179,10 +185,10 @@ struct Visitor : public hilti::visitor::PreOrder<Production, Visitor> {
         m.setField(NodeRef(currentField().second), true);
         prod.setMeta(std::move(m));
 
-        return prod;
+        _result = prod;
     }
 
-    Production operator()(const spicy::type::unit::item::Switch& n, position_t p) {
+    void operator()(const spicy::type::unit::item::Switch& n, position_t p) {
         auto productionForCase = [this](const spicy::type::unit::item::switch_::Case& c, const std::string& label) {
             std::vector<Production> prods;
 
@@ -215,7 +221,7 @@ struct Visitor : public hilti::visitor::PreOrder<Production, Visitor> {
             if ( auto a = n.attributes() )
                 attributes = *a;
 
-            return production::Switch(switch_sym, *n.expression(), std::move(cases), std::move(default_),
+            _result = production::Switch(switch_sym, *n.expression(), std::move(cases), std::move(default_),
                                       std::move(attributes), n.meta().location());
         }
 
@@ -251,13 +257,17 @@ struct Visitor : public hilti::visitor::PreOrder<Production, Visitor> {
                 prev = std::move(lah);
             }
 
-            return *prev;
+            _result = *prev;
         }
     }
 
-    Production operator()(const hilti::declaration::Type& t) { return *dispatch(t.type()); }
+    void operator()(const hilti::declaration::Type& t) {
+        _result.reset();
+        dispatch(t.type());
+        assert(_result);
+    }
 
-    Production operator()(const type::Unit& n, position_t p) {
+    void operator()(const type::Unit& n, type::Visitor::position_t& p) override {
         auto prod = cache.getOrCreate(
             *n.id(), []() { return production::Unresolved(); },
             [&](auto& unresolved) {
@@ -284,19 +294,19 @@ struct Visitor : public hilti::visitor::PreOrder<Production, Visitor> {
         // would normally have a shared one.
         // TODO(robin): Rename _setMetaInstance(), or give it clearMeta() or such.
         prod._setMetaInstance(std::make_shared<production::Meta>());
-        return prod;
+        _result = prod;
     }
 
-    Production operator()(const type::ValueReference& n, position_t /* p */) {
+    void operator()(const type::ValueReference& n, type::Visitor::position_t& /* p */) override {
         // Forward to referenced type, which will usually be a unit.
-        auto x = dispatch(n.dereferencedType());
-        assert(x);
-        return *x;
+        _result.reset();
+        dispatch(*n.dereferencedType());
+        assert(_result);
     }
 
-    Production operator()(const type::Vector& n, position_t p) {
-        auto sub = productionForType(n.elementType(), ID(fmt("%s", n.elementType())));
-        return productionForLoop(std::move(sub), p);
+    void operator()(const type::Vector& n, type::Visitor::position_t& p) override {
+        auto sub = productionForType(*n.elementType(), ID(fmt("%s", *n.elementType())));
+        _result = productionForLoop(std::move(sub), p);
     }
 };
 
@@ -308,7 +318,8 @@ Result<Nothing> GrammarBuilder::run(const type::Unit& unit, Node* node, CodeGen*
     Grammar g(id, node->location());
     auto v = Visitor(cg, this, &g);
 
-    auto root = v.dispatch(node);
+    v.dispatch(node);
+    const auto& root = v._result;
     assert(root);
 
     g.setRoot(*root);

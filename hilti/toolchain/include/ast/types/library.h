@@ -15,25 +15,29 @@ namespace hilti::type {
  * making it accessible in the `hilti::*` namespace. HILTI assumes the
  * library type to be mutable.
  */
-class Library : public TypeBase, trait::isAllocable, trait::isMutable {
+class Library : public TypeBase {
 public:
     Library(std::string cxx_name, Meta m = Meta());
 
     const std::string& cxxName() const { return _cxx_name; }
     bool operator==(const Library& other) const { return _cxx_name == other._cxx_name; }
 
-    /** Implements the `Type` interface. */
-    auto isEqual(const Type& other) const {
+    bool isEqual(const Type& other) const override {
         if ( other.cxxID() == _cxx_name )
             return true;
 
         return node::isEqual(this, other);
     }
 
-    /** Implements the `Type` interface. */
-    auto _isResolved(ResolvedState* rstate) const { return true; }
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{{"cxx_name", _cxx_name}}; }
+    bool _isResolved(ResolvedState* rstate) const override { return true; }
+    node::Properties properties() const override { return node::Properties{{"cxx_name", _cxx_name}}; }
+
+    bool _isAllocable() const override { return true; }
+    bool _isMutable() const override { return true; }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 
 private:
     std::string _cxx_name;

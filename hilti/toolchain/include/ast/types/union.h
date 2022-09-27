@@ -18,7 +18,7 @@
 namespace hilti::type {
 
 /** AST node for a struct type. */
-class Union : public TypeBase, trait::isAllocable, trait::isParameterized, trait::isMutable {
+class Union : public TypeBase {
 public:
     Union(std::vector<Declaration> fields, Meta m = Meta())
         : TypeBase(nodes(node::none, std::move(fields)), std::move(m)) {}
@@ -46,11 +46,9 @@ public:
 
     bool operator==(const Union& other) const { return fields() == other.fields(); }
 
-    /** Implements the `Type` interface. */
-    auto isEqual(const Type& other) const { return node::isEqual(this, other); }
+    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
 
-    /** Implements the `Type` interface. */
-    auto _isResolved(ResolvedState* rstate) const {
+    bool _isResolved(ResolvedState* rstate) const override {
         for ( auto c = ++children().begin(); c != children().end(); c++ ) {
             if ( ! c->as<declaration::Field>().isResolved(rstate) )
                 return false;
@@ -59,18 +57,22 @@ public:
         return true;
     }
 
-    /** Implements the `Type` interface. */
-    auto typeParameters() const {
+    std::vector<Node> typeParameters() const override {
         std::vector<Node> params;
         for ( auto c = ++children().begin(); c != children().end(); c++ )
             params.emplace_back(c->as<declaration::Field>().type());
         return params;
     }
-    /** Implements the `Type` interface. */
-    auto isWildcard() const { return _wildcard; }
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    bool isWildcard() const override { return _wildcard; }
+
+    node::Properties properties() const override { return node::Properties{}; }
+
+    bool _isAllocable() const override { return true; }
+    bool _isMutable() const override { return true; }
+    bool _isParameterized() const override { return true; }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
 
     /**
      * Copies an existing type and adds a new field to the copy.
@@ -84,6 +86,8 @@ public:
         x.addChild(std::move(f));
         return x;
     }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 
 private:
     bool _wildcard = false;

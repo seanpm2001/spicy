@@ -13,7 +13,7 @@ namespace detail {
 
 // CHECK: IntegerBase = TypeBase
 /** Base class for an AST node representing an integer type. */
-class IntegerBase : public TypeBase, trait::isAllocable, trait::isParameterized, trait::isSortable {
+class IntegerBase : public TypeBase {
 public:
     IntegerBase(Wildcard /*unused*/, Meta m = Meta()) : TypeBase(std::move(m)), _wildcard(true) {}
     IntegerBase(int width, Meta m = Meta()) : TypeBase(std::move(m)), _width(width) {}
@@ -21,12 +21,17 @@ public:
 
     auto width() const { return _width; }
 
-    /** Implements the `Type` interface. */
-    auto isWildcard() const { return _wildcard; }
-    /** Implements the `Type` interface. */
-    auto _isResolved(ResolvedState* rstate) const { return true; }
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{{"width", _width}}; }
+    bool isWildcard() const override { return _wildcard; }
+    bool _isResolved(ResolvedState* rstate) const override { return true; }
+    node::Properties properties() const override { return node::Properties{{"width", _width}}; }
+
+    bool _isAllocable() const override { return true; }
+    bool _isSortable() const override { return true; }
+    bool _isParameterized() const override { return true; }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 
 private:
     bool _wildcard = false;
@@ -42,11 +47,13 @@ public:
 
     bool operator==(const SignedInteger& other) const { return width() == other.width(); }
 
-    /** Implements the `Type` interface. */
-    std::vector<Node> typeParameters() const;
+    std::vector<Node> typeParameters() const override;
 
-    /** Implements the `Node` interface. */
-    auto isEqual(const Type& other) const { return node::isEqual(this, other); }
+    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 };
 
 /** AST node for an unsigned integer type. */
@@ -56,11 +63,13 @@ public:
 
     bool operator==(const UnsignedInteger& other) const { return width() == other.width(); }
 
-    /** Implements the `Type` interface. */
-    std::vector<Node> typeParameters() const;
+    std::vector<Node> typeParameters() const override;
 
-    /** Implements the `Node` interface. */
-    auto isEqual(const Type& other) const { return node::isEqual(this, other); }
+    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 };
 
 } // namespace hilti::type

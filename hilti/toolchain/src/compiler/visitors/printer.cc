@@ -100,7 +100,8 @@ static std::string renderOperand(operator_::Operand op, const node::Range<Expres
 
 namespace {
 
-struct Visitor : visitor::PreOrder<void, Visitor> {
+struct Visitor : visitor::PreOrder<void, Visitor>, type::Visitor {
+    using position_t = visitor::PreOrder<void, Visitor>::position_t;
     Visitor(printer::Stream& out) : out(out) {} // NOLINT
 
     void printFunctionType(const type::Function& ftype, const std::optional<ID>& id) {
@@ -275,7 +276,7 @@ struct Visitor : visitor::PreOrder<void, Visitor> {
         // C99 snprintf instead.
         constexpr size_t size = 256;
         char buf[size];
-        std::snprintf(buf, size, "%a", n.value());
+        assert(std::snprintf(buf, size, "%a", n.value()) >= 0);
         out << buf;
     }
 
@@ -789,19 +790,19 @@ struct Visitor : visitor::PreOrder<void, Visitor> {
 
     ////// Types
 
-    void operator()(const type::Any& n) { out << const_(n) << "any"; }
+    void operator()(const type::Any& n, type::Visitor::position_t&) override { out << const_(n) << "any"; }
 
-    void operator()(const type::Address& n) { out << const_(n) << "addr"; }
+    void operator()(const type::Address& n, type::Visitor::position_t&) override { out << const_(n) << "addr"; }
 
-    void operator()(const type::Auto& n) { out << const_(n) << "auto"; }
+    void operator()(const type::Auto& n, type::Visitor::position_t&) override { out << const_(n) << "auto"; }
 
-    void operator()(const type::Bool& n) { out << const_(n) << "bool"; }
+    void operator()(const type::Bool& n, type::Visitor::position_t&) override { out << const_(n) << "bool"; }
 
-    void operator()(const type::Bytes& n) { out << const_(n) << "bytes"; }
+    void operator()(const type::Bytes& n, type::Visitor::position_t&) override { out << const_(n) << "bytes"; }
 
     void operator()(const type::enum_::Label& n) { out << n.id() << " = " << n.value(); }
 
-    void operator()(const type::Enum& n, position_t p) {
+    void operator()(const type::Enum& n, type::Visitor::position_t& p) override {
         if ( ! out.isExpandSubsequentType() ) {
             out.setExpandSubsequentType(false);
             if ( auto id = p.node.as<Type>().typeID() ) {
@@ -818,9 +819,9 @@ struct Visitor : visitor::PreOrder<void, Visitor> {
         out << const_(n) << "enum { " << std::make_pair(std::move(x), ", ") << " }";
     }
 
-    void operator()(const type::Error& n) { out << const_(n) << "error"; }
+    void operator()(const type::Error& n, type::Visitor::position_t&) override { out << const_(n) << "error"; }
 
-    void operator()(const type::Exception& n) {
+    void operator()(const type::Exception& n, type::Visitor::position_t&) override {
         out << const_(n) << "exception";
 
         if ( auto t = n.baseType() ) {
@@ -832,85 +833,93 @@ struct Visitor : visitor::PreOrder<void, Visitor> {
         }
     }
 
-    void operator()(const type::Function& n) {
+    void operator()(const type::Function& n, type::Visitor::position_t&) override {
         out << const_(n) << "function ";
         printFunctionType(n, {});
     }
 
-    void operator()(const type::Interval& n) { out << const_(n) << "interval"; }
+    void operator()(const type::Interval& n, type::Visitor::position_t&) override { out << const_(n) << "interval"; }
 
     void operator()(const type::Member& n) { out << const_(n) << n.id(); }
 
-    void operator()(const type::Network& n) { out << const_(n) << "net"; }
+    void operator()(const type::Network& n, type::Visitor::position_t&) override { out << const_(n) << "net"; }
 
-    void operator()(const type::Null& n) { out << const_(n) << "<null type>"; }
+    void operator()(const type::Null& n, type::Visitor::position_t&) override { out << const_(n) << "<null type>"; }
 
-    void operator()(const type::OperandList& n) { out << const_(n) << "<operand list>"; }
+    void operator()(const type::OperandList& n, type::Visitor::position_t&) override {
+        out << const_(n) << "<operand list>";
+    }
 
-    void operator()(const type::Optional& n) {
+    void operator()(const type::Optional& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "optional<*>";
         else {
-            out << const_(n) << "optional<" << n.dereferencedType() << ">";
+            out << const_(n) << "optional<" << *n.dereferencedType() << ">";
         }
     }
 
-    void operator()(const type::Port& n) { out << const_(n) << "port"; }
+    void operator()(const type::Port& n, type::Visitor::position_t&) override { out << const_(n) << "port"; }
 
-    void operator()(const type::Real& n) { out << const_(n) << "real"; }
+    void operator()(const type::Real& n, type::Visitor::position_t&) override { out << const_(n) << "real"; }
 
-    void operator()(const type::StrongReference& n) {
+    void operator()(const type::StrongReference& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "strong_ref<*>";
         else
-            out << const_(n) << "strong_ref<" << n.dereferencedType() << ">";
+            out << const_(n) << "strong_ref<" << *n.dereferencedType() << ">";
     }
 
-    void operator()(const type::Stream& n) { out << const_(n) << "stream"; }
+    void operator()(const type::Stream& n, type::Visitor::position_t&) override { out << const_(n) << "stream"; }
 
-    void operator()(const type::bytes::Iterator& n) { out << const_(n) << "iterator<bytes>"; }
+    void operator()(const type::bytes::Iterator& n, type::Visitor::position_t&) override {
+        out << const_(n) << "iterator<bytes>";
+    }
 
-    void operator()(const type::list::Iterator& n) {
+    void operator()(const type::list::Iterator& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "iterator<list<*>>";
         else
-            out << const_(n) << fmt("iterator<list<%s>>", n.dereferencedType());
+            out << const_(n) << fmt("iterator<list<%s>>", *n.dereferencedType());
     }
 
-    void operator()(const type::stream::Iterator& n) { out << const_(n) << "iterator<stream>"; }
+    void operator()(const type::stream::Iterator& n, type::Visitor::position_t&) override {
+        out << const_(n) << "iterator<stream>";
+    }
 
-    void operator()(const type::vector::Iterator& n) {
+    void operator()(const type::vector::Iterator& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "iterator<vector<*>>";
         else
-            out << const_(n) << fmt("iterator<vector<%s>>", n.dereferencedType());
+            out << const_(n) << fmt("iterator<vector<%s>>", *n.dereferencedType());
     }
 
-    void operator()(const type::stream::View& n) { out << const_(n) << "view<stream>"; }
+    void operator()(const type::stream::View& n, type::Visitor::position_t& p) override {
+        out << const_(n) << "view<stream>";
+    }
 
-    void operator()(const type::Library& n, position_t p) {
+    void operator()(const type::Library& n, type::Visitor::position_t& p) override {
         if ( auto id = p.node.as<Type>().typeID() )
             out << const_(n) << *id;
         else
             out << const_(n) << fmt("__library_type(\"%s\")", n.cxxName());
     }
 
-    void operator()(const type::List& n) {
+    void operator()(const type::List& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "list<*>";
         else {
-            out << const_(n) << "list<" << n.elementType() << ">";
+            out << const_(n) << "list<" << *n.elementType() << ">";
         }
     }
 
-    void operator()(const type::map::Iterator& n) {
+    void operator()(const type::map::Iterator& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "iterator<map<*>>";
         else
-            out << const_(n) << fmt("iterator<map<%s>>", n.dereferencedType());
+            out << const_(n) << fmt("iterator<map<%s>>", *n.dereferencedType());
     }
 
-    void operator()(const type::Map& n) {
+    void operator()(const type::Map& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "map<*>";
         else {
@@ -918,41 +927,41 @@ struct Visitor : visitor::PreOrder<void, Visitor> {
         }
     }
 
-    void operator()(const type::RegExp& n) { out << const_(n) << "regexp"; }
+    void operator()(const type::RegExp& n, type::Visitor::position_t&) override { out << const_(n) << "regexp"; }
 
-    void operator()(const type::Result& n) {
+    void operator()(const type::Result& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "result<*>";
         else {
-            out << const_(n) << "result<" << n.dereferencedType() << ">";
+            out << const_(n) << "result<" << *n.dereferencedType() << ">";
         }
     }
 
-    void operator()(const type::set::Iterator& n) {
+    void operator()(const type::set::Iterator& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "iterator<set<*>>";
         else
-            out << const_(n) << fmt("iterator<set<%s>>", n.dereferencedType());
+            out << const_(n) << fmt("iterator<set<%s>>", *n.dereferencedType());
     }
 
-    void operator()(const type::Set& n) {
+    void operator()(const type::Set& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "set<*>";
         else {
-            out << const_(n) << "set<" << n.elementType() << ">";
+            out << const_(n) << "set<" << *n.elementType() << ">";
         }
     }
 
-    void operator()(const type::SignedInteger& n) {
+    void operator()(const type::SignedInteger& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "int<*>";
         else
             out << const_(n) << fmt("int<%d>", n.width());
     }
 
-    void operator()(const type::String& n) { out << const_(n) << "string"; }
+    void operator()(const type::String& n, type::Visitor::position_t&) override { out << const_(n) << "string"; }
 
-    void operator()(const type::Struct& n, position_t p) {
+    void operator()(const type::Struct& n, type::Visitor::position_t& p) override {
         if ( ! out.isExpandSubsequentType() ) {
             if ( auto id = p.node.as<Type>().typeID() ) {
                 out << *id;
@@ -982,11 +991,13 @@ struct Visitor : visitor::PreOrder<void, Visitor> {
         out << "}";
     }
 
-    void operator()(const type::Time& n) { out << const_(n) << "time"; }
+    void operator()(const type::Time& n, type::Visitor::position_t&) override { out << const_(n) << "time"; }
 
-    void operator()(const type::Type_& n) { out << const_(n) << fmt("type<%s>", n.typeValue()); }
+    void operator()(const type::Type_& n, type::Visitor::position_t&) override {
+        out << const_(n) << fmt("type<%s>", n.typeValue());
+    }
 
-    void operator()(const type::Union& n, position_t p) {
+    void operator()(const type::Union& n, type::Visitor::position_t& p) override {
         if ( ! out.isExpandSubsequentType() ) {
             if ( auto id = p.node.as<Type>().typeID() ) {
                 out << *id;
@@ -1004,16 +1015,18 @@ struct Visitor : visitor::PreOrder<void, Visitor> {
         out << "}";
     }
 
-    void operator()(const type::Unknown& n) { out << const_(n) << "<unknown type>"; }
+    void operator()(const type::Unknown& n, type::Visitor::position_t&) override {
+        out << const_(n) << "<unknown type>";
+    }
 
-    void operator()(const type::UnsignedInteger& n) {
+    void operator()(const type::UnsignedInteger& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "uint<*>";
         else
             out << const_(n) << fmt("uint<%d>", n.width());
     }
 
-    void operator()(const type::Tuple& n) {
+    void operator()(const type::Tuple& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "tuple<*>";
         else {
@@ -1027,30 +1040,30 @@ struct Visitor : visitor::PreOrder<void, Visitor> {
         }
     }
 
-    void operator()(const type::UnresolvedID& n) { out << const_(n) << n.id(); }
+    void operator()(const type::UnresolvedID& n, type::Visitor::position_t&) override { out << const_(n) << n.id(); }
 
-    void operator()(const type::Vector& n) {
+    void operator()(const type::Vector& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "vector<*>";
         else {
-            out << const_(n) << "vector<" << n.elementType() << ">";
+            out << const_(n) << "vector<" << *n.elementType() << ">";
         }
     }
 
-    void operator()(const type::Void& n) { out << const_(n) << "void"; }
+    void operator()(const type::Void& n, type::Visitor::position_t&) override { out << const_(n) << "void"; }
 
-    void operator()(const type::WeakReference& n) {
+    void operator()(const type::WeakReference& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "weak_ref<*>";
         else
-            out << const_(n) << "weak_ref<" << n.dereferencedType() << ">";
+            out << const_(n) << "weak_ref<" << *n.dereferencedType() << ">";
     }
 
-    void operator()(const type::ValueReference& n) {
+    void operator()(const type::ValueReference& n, type::Visitor::position_t&) override {
         if ( n.isWildcard() )
             out << const_(n) << "value_ref<*>";
         else
-            out << const_(n) << "value_ref<" << n.dereferencedType() << ">";
+            out << const_(n) << "value_ref<" << *n.dereferencedType() << ">";
     }
 
 private:

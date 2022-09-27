@@ -14,11 +14,13 @@ using namespace spicy;
 
 namespace {
 
-struct Visitor : public hilti::visitor::PostOrder<void, Visitor> {
+struct Visitor : hilti::visitor::PostOrder<void, Visitor>, type::Visitor {
+    using position_t = hilti::visitor::PostOrder<void, Visitor>::position_t;
+
     explicit Visitor(hilti::Unit* unit) : unit(unit) {}
     hilti::Unit* unit;
 
-    void operator()(const type::Unit& t, position_t p) {
+    void operator()(const type::Unit& t, type::Visitor::position_t& p) override {
         if ( auto d = t.selfRef() )
             p.node.scope()->insert(std::move(d));
 
@@ -79,7 +81,7 @@ struct Visitor : public hilti::visitor::PostOrder<void, Visitor> {
             if ( ! type::isResolved(pt) )
                 return;
 
-            auto dd = hilti::expression::Keyword::createDollarDollarDeclaration(pt.elementType());
+            auto dd = hilti::expression::Keyword::createDollarDollarDeclaration(*pt.elementType());
             auto n = unit->module().as<Module>().preserve(std::move(dd));
             p.node.scope()->insert(std::move(n));
         }

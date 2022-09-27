@@ -74,10 +74,7 @@ inline hilti::Node to_node(Bits f) { return hilti::Node(std::move(f)); }
 } // namespace bitfield
 
 /** AST node for a struct type. */
-class Bitfield : public hilti::TypeBase,
-                 hilti::type::trait::isAllocable,
-                 hilti::type::trait::isParameterized,
-                 hilti::type::trait::isMutable {
+class Bitfield : public hilti::TypeBase {
 public:
     Bitfield(int width, std::vector<bitfield::Bits> bits, const Meta& m = Meta())
         : TypeBase(nodes(type::UnsignedInteger(width, m), hilti::type::auto_, std::move(bits)), m), _width(width) {}
@@ -96,16 +93,19 @@ public:
 
     bool operator==(const Bitfield& other) const { return width() == other.width() && bits() == other.bits(); }
 
-    /** Implements the `Type` interface. */
-    auto isEqual(const Type& other) const { return node::isEqual(this, other); }
-    /** Implements the `Type` interface. */
-    auto _isResolved(ResolvedState* rstate) const { return true; }
-    /** Implements the `Type` interface. */
-    auto typeParameters() const { return hilti::util::slice(children(), 1); }
-    /** Implements the `Type` interface. */
-    auto isWildcard() const { return _wildcard; }
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
+    bool _isResolved(ResolvedState* rstate) const override { return true; }
+    std::vector<hilti::Node> typeParameters() const override { return hilti::util::slice(children(), 1); }
+    bool isWildcard() const override { return _wildcard; }
+    node::Properties properties() const override { return node::Properties{}; }
+
+    bool _isAllocable() const override { return true; }
+    bool _isMutable() const override { return true; }
+    bool _isParameterized() const override { return true; }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 
 private:
     int _width = 0;

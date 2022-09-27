@@ -12,7 +12,7 @@
 namespace hilti::type {
 
 /** AST node for a type representing a member of another type. */
-class Member : public TypeBase, trait::isParameterized {
+class Member : public TypeBase {
 public:
     Member(Wildcard /*unused*/, Meta m = Meta()) : TypeBase({ID("<wildcard>")}, std::move(m)), _wildcard(true) {}
     Member(::hilti::ID id, Meta m = Meta()) : TypeBase({std::move(id)}, std::move(m)) {}
@@ -21,17 +21,16 @@ public:
 
     bool operator==(const Member& other) const { return id() == other.id(); }
 
-    /** Implements the `Type` interface. */
-    auto isEqual(const Type& other) const { return node::isEqual(this, other); }
-    /** Implements the `Type` interface. */
-    auto _isResolved(ResolvedState* rstate) const { return true; }
-    /** Implements the `Type` interface. */
-    auto typeParameters() const { return std::vector<Node>{id()}; }
-    /** Implements the `Type` interface. */
-    auto isWildcard() const { return _wildcard; }
+    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
+    bool _isResolved(ResolvedState* rstate) const override { return true; }
+    std::vector<Node> typeParameters() const override { return std::vector<Node>{id()}; }
+    bool isWildcard() const override { return _wildcard; }
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    node::Properties properties() const override { return node::Properties{}; }
+
+    bool _isParameterized() const override { return true; }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
 
 private:
     bool _wildcard = false;

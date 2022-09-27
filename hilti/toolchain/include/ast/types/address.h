@@ -9,18 +9,22 @@
 namespace hilti::type {
 
 /** AST node for a address type. */
-class Address : public TypeBase, trait::isAllocable, trait::isSortable {
+class Address : public TypeBase {
 public:
     Address(Meta m = Meta()) : TypeBase(std::move(m)) {}
 
     bool operator==(const Address& /* other */) const { return true; }
 
-    /** Implements the `Type` interface. */
-    auto isEqual(const Type& other) const { return node::isEqual(this, other); }
-    /** Implements the `Type` interface. */
-    auto _isResolved(ResolvedState* rstate) const { return true; }
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
+    bool _isResolved(ResolvedState* rstate) const override { return true; }
+    node::Properties properties() const override { return node::Properties{}; }
+
+    bool _isAllocable() const override { return true; }
+    bool _isSortable() const override { return true; }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 };
 
 } // namespace hilti::type

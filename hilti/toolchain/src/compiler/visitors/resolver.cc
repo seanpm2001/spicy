@@ -42,7 +42,9 @@ inline const hilti::logging::DebugStream Operator("operator");
 
 namespace {
 
-struct Visitor : public visitor::PostOrder<void, Visitor> {
+struct Visitor : visitor::PostOrder<void, Visitor>, type::Visitor {
+    using position_t = visitor::PostOrder<void, Visitor>::position_t;
+
     Visitor(std::shared_ptr<hilti::Context> ctx, Node* module, Unit* unit)
         : _context(std::move(ctx)), unit(unit), _module(module->as<Module>()) {}
 
@@ -372,7 +374,7 @@ struct Visitor : public visitor::PostOrder<void, Visitor> {
                 return;
             }
 
-            const auto& et = container.elementType();
+            const auto& et = *container.elementType();
             logChange(p.node, et);
             p.node.as<expression::ListComprehension>().setLocalType(et);
             modified = true;
@@ -450,7 +452,7 @@ struct Visitor : public visitor::PostOrder<void, Visitor> {
             return;
         }
 
-        const auto& et = t.iteratorType(true).dereferencedType();
+        const auto& et = *t.iteratorType(true)->dereferencedType();
         logChange(p.node, et);
         p.node.as<statement::For>().setLocalType(et);
         modified = true;
@@ -474,7 +476,7 @@ struct Visitor : public visitor::PostOrder<void, Visitor> {
         }
     }
 
-    void operator()(const type::Enum& m, position_t p) {
+    void operator()(const type::Enum& m, type::Visitor::position_t& p) override {
         if ( type::isResolved(p.node.as<Type>()) )
             return;
 
@@ -487,7 +489,7 @@ struct Visitor : public visitor::PostOrder<void, Visitor> {
         modified = true;
     }
 
-    void operator()(const type::UnresolvedID& u, position_t p) {
+    void operator()(const type::UnresolvedID& u, type::Visitor::position_t& p) override {
         auto resolved = scope::lookupID<declaration::Type>(u.id(), p, "type");
         if ( ! resolved ) {
             p.node.addError(resolved.error(), node::ErrorPriority::High);
@@ -731,7 +733,11 @@ bool Visitor::resolveMethodCall(const expression::UnresolvedOperator& u, positio
 
     std::vector<Node> shadow_ops;
 
-    auto stype = operands[0].type().tryAs<type::Struct>();
+    auto ty0 = operands[0].type();
+    if ( type::isReferenceType(ty0) )
+        ty0 = *ty0.dereferencedType();
+
+    auto stype = ty0.tryAs<type::Struct>();
     if ( ! stype ) {
         // Allow a still unresolved ID here so that we can start resolving auto parameters below.
         if ( auto id = operands[0].tryAs<expression::UnresolvedID>() ) {
@@ -740,7 +746,12 @@ bool Visitor::resolveMethodCall(const expression::UnresolvedOperator& u, positio
                 shadow_ops.emplace_back(Expression(expression::ResolvedID(resolved->second, NodeRef(resolved->first))));
                 shadow_ops.emplace_back(operands[1]);
                 shadow_ops.emplace_back(operands[2]);
-                stype = shadow_ops[0].as<Expression>().type().tryAs<type::Struct>();
+
+                const auto& sty0 = shadow_ops[0].as<Expression>().type();
+                if ( type::isReferenceType(sty0) )
+                    stype = sty0.dereferencedType()->tryAs<type::Struct>();
+                else
+                    stype = sty0.tryAs<type::Struct>();
             }
         }
     }

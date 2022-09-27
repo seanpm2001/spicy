@@ -3,23 +3,19 @@
 #pragma once
 
 #include <utility>
+#include <vector>
 
 #include <hilti/ast/type.h>
 #include <hilti/ast/types/tuple.h>
 #include <hilti/ast/types/unknown.h>
+#include <hilti/base/optional-ref.h>
 
 namespace hilti::type {
 
 namespace map {
 
 /** AST node for a map iterator type. */
-class Iterator : public TypeBase,
-                 trait::isIterator,
-                 trait::isDereferenceable,
-                 trait::isAllocable,
-                 trait::isMutable,
-                 trait::isRuntimeNonTrivial,
-                 trait::isParameterized {
+class Iterator : public TypeBase {
 public:
     Iterator(Type ktype, Type vtype, bool const_, const Meta& m = Meta())
         : TypeBase(nodes(type::Tuple({std::move(ktype), std::move(vtype)}, m)), m), _const(const_) {}
@@ -43,22 +39,30 @@ public:
     /** Returns true if the container elements aren't modifiable. */
     bool isConstant() const { return _const; }
 
-    /** Implements the `Type` interface. */
-    auto isEqual(const Type& other) const { return node::isEqual(this, other); }
-    /** Implements the `Type` interface. */
-    auto _isResolved(ResolvedState* rstate) const { return type::detail::isResolved(dereferencedType(), rstate); }
-    /** Implements the `Type` interface. */
-    const Type& dereferencedType() const { return child<Type>(0); }
-    /** Implements the `Type` interface. */
-    auto isWildcard() const { return _wildcard; }
-    /** Implements the `Type` interface. */
-    auto typeParameters() const { return children(); }
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{{"const", _const}}; }
+    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
+
+    bool _isResolved(ResolvedState* rstate) const override {
+        return type::detail::isResolved(dereferencedType(), rstate);
+    }
+
+    optional_ref<const Type> dereferencedType() const override { return child<Type>(0); }
+    bool isWildcard() const override { return _wildcard; }
+    std::vector<Node> typeParameters() const override { return children(); }
+    node::Properties properties() const override { return node::Properties{{"const", _const}}; }
+
+    bool _isAllocable() const override { return true; }
+    bool _isIterator() const override { return true; }
+    bool _isMutable() const override { return true; }
+    bool _isParameterized() const override { return true; }
+    bool _isRuntimeNonTrivial() const override { return true; }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
 
     bool operator==(const Iterator& other) const {
         return keyType() == other.keyType() && valueType() == other.valueType();
     }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 
 private:
     bool _wildcard = false;
@@ -68,12 +72,7 @@ private:
 } // namespace map
 
 /** AST node for a map type. */
-class Map : public TypeBase,
-            trait::isAllocable,
-            trait::isMutable,
-            trait::isIterable,
-            trait::isRuntimeNonTrivial,
-            trait::isParameterized {
+class Map : public TypeBase {
 public:
     Map(const Type& k, const Type& v, const Meta& m = Meta())
         : TypeBase(nodes(map::Iterator(k, v, true, m), map::Iterator(k, v, false, m)), m) {}
@@ -84,25 +83,33 @@ public:
     const Type& keyType() const { return child<map::Iterator>(0).keyType(); }
     const Type& valueType() const { return child<map::Iterator>(0).valueType(); }
 
-    /** Implements the `Type` interface. */
-    auto isEqual(const Type& other) const { return node::isEqual(this, other); }
-    /** Implements the `Type` interface. */
-    auto _isResolved(ResolvedState* rstate) const {
+    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
+
+    bool _isResolved(ResolvedState* rstate) const override {
         return type::detail::isResolved(iteratorType(true), rstate) &&
                type::detail::isResolved(iteratorType(false), rstate);
     }
-    /** Implements the `Type` interface. */
-    const Type& elementType() const { return valueType(); }
-    /** Implements the `Type` interface. */
-    const Type& iteratorType(bool const_) const { return const_ ? child<Type>(0) : child<Type>(1); }
-    /** Implements the `Type` interface. */
-    auto isWildcard() const { return _wildcard; }
-    /** Implements the `Type` interface. */
-    auto typeParameters() const { return children(); }
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+
+    optional_ref<const Type> elementType() const override { return valueType(); }
+
+    optional_ref<const Type> iteratorType(bool const_) const override {
+        return const_ ? child<Type>(0) : child<Type>(1);
+    }
+
+    bool isWildcard() const override { return _wildcard; }
+    std::vector<Node> typeParameters() const override { return children(); }
+    node::Properties properties() const override { return node::Properties{}; }
+
+    bool _isAllocable() const override { return true; }
+    bool _isMutable() const override { return true; }
+    bool _isParameterized() const override { return true; }
+    bool _isRuntimeNonTrivial() const override { return true; }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
 
     bool operator==(const Map& other) const { return iteratorType(true) == other.iteratorType(true); }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 
 private:
     bool _wildcard = false;

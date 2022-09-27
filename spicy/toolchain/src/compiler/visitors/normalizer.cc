@@ -227,7 +227,7 @@ struct Visitor : public hilti::visitor::PostOrder<void, Visitor> {
         }
     }
 
-    void operator()(const type::Unit& u, position_t p) {
+    void operator()(const type::Unit& u, type::Visitor::position_t& p) override {
         if ( ! p.node.as<Type>().typeID() )
             return;
 

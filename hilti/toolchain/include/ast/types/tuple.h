@@ -36,7 +36,7 @@ inline Node to_node(Element f) { return Node(std::move(f)); }
 } // namespace tuple
 
 /** AST node for a tuple type. */
-class Tuple : public TypeBase, trait::isAllocable, trait::isParameterized, trait::isSortable {
+class Tuple : public TypeBase {
 public:
     Tuple(std::vector<Type> t, Meta m = Meta()) : TypeBase(nodes(_typesToElements(std::move(t))), std::move(m)) {}
     Tuple(std::vector<tuple::Element> e, Meta m = Meta()) : TypeBase(nodes(std::move(e)), std::move(m)) {}
@@ -52,10 +52,9 @@ public:
         return elements() == other.elements();
     }
 
-    /** Implements the `Type` interface. */
-    auto isEqual(const Type& other) const { return node::isEqual(this, other); }
-    /** Implements the `Type` interface. */
-    auto _isResolved(ResolvedState* rstate) const {
+    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
+
+    bool _isResolved(ResolvedState* rstate) const override {
         const auto& cs = children();
 
         return std::all_of(cs.begin(), cs.end(), [&](const auto& c) {
@@ -64,13 +63,18 @@ public:
         });
     }
 
-    /** Implements the `Type` interface. */
-    auto typeParameters() const { return children(); }
-    /** Implements the `Type` interface. */
-    auto isWildcard() const { return _wildcard; }
+    bool isWildcard() const override { return _wildcard; }
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{{"wildcard", _wildcard}}; }
+    node::Properties properties() const override { return node::Properties{{"wildcard", _wildcard}}; }
+
+    std::vector<Node> typeParameters() const override { return children(); }
+    bool _isAllocable() const override { return true; }
+    bool _isSortable() const override { return true; }
+    bool _isParameterized() const override { return true; }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 
 private:
     std::vector<tuple::Element> _typesToElements(std::vector<Type>&& types) {

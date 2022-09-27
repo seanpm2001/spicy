@@ -15,13 +15,14 @@ public:
 
     bool operator==(const Null& /* other */) const { return true; }
 
-    /** Implements the `Type` interface. */
-    auto isEqual(const Type& other) const { return node::isEqual(this, other); }
-    /** Implements the `Type` interface. */
-    auto _isResolved(ResolvedState* rstate) const { return true; }
+    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
+    bool _isResolved(ResolvedState* rstate) const override { return true; }
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    node::Properties properties() const override { return node::Properties{}; }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 };
 
 } // namespace hilti::type

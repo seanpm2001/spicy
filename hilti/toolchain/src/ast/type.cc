@@ -1,6 +1,7 @@
 // Copyright (c) 2020-2023 by the Zeek Project. See LICENSE for details.
 
-#include <hilti/ast/type.h>
+#include "hilti/ast/type.h"
+
 #include <hilti/ast/types/auto.h>
 #include <hilti/ast/types/unknown.h>
 #include <hilti/ast/types/unresolved-id.h>
@@ -9,7 +10,13 @@ using namespace hilti;
 
 bool type::isResolved(const Type& t) {
     ResolvedState rstate;
-    return isResolved(t, &rstate);
+    return detail::isResolved(t, &rstate);
+}
+
+Type Type::_clone() const {
+    auto t = Type(*this);
+    t._data_ = std::make_shared<TypeBase>(*_data_);
+    return t;
 }
 
 bool type::detail::isResolved(const hilti::Type& t, ResolvedState* rstate) {

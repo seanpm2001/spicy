@@ -54,12 +54,7 @@ struct AssignIndices {
 } // namespace detail
 
 /** AST node for a Spicy unit. */
-class Unit : detail::AssignIndices,
-             public hilti::TypeBase,
-             hilti::type::trait::isAllocable,
-             hilti::type::trait::isParameterized,
-             hilti::type::trait::takesArguments,
-             hilti::type::trait::isMutable {
+class Unit : detail::AssignIndices, public hilti::TypeBase {
 public:
     Unit(const std::vector<type::function::Parameter>& params, std::vector<unit::Item> i,
          const std::optional<AttributeSet>& /* attrs */ = {}, Meta m = Meta())
@@ -82,7 +77,11 @@ public:
     }
 
     auto id() const { return children()[1].tryAs<ID>(); }
-    auto parameters() const { return childrenOfType<type::function::Parameter>(); }
+
+    hilti::node::Set<type::function::Parameter> parameters() const override {
+        return childrenOfType<type::function::Parameter>();
+    }
+
     auto parameterRefs() const { return childRefsOfType<type::function::Parameter>(); }
     auto items() const { return childrenOfType<unit::Item>(); }
     auto itemRefs() const { return childRefsOfType<unit::Item>(); }
@@ -180,20 +179,21 @@ public:
         return false;
     }
 
-    // Type interface.
-    auto isEqual(const Type& other) const { return node::isEqual(this, other); }
+    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
 
-    auto _isResolved(ResolvedState* rstate) const {
+    bool _isResolved(ResolvedState* rstate) const override {
         auto xs = items();
         return std::all_of(xs.begin(), xs.end(), [](const auto& x) { return x.isResolved(); });
     }
 
-    // type::trait::Parameterized interface.
-    auto typeParameters() const { return children(); }
-    auto isWildcard() const { return _wildcard; }
+    std::vector<Node> typeParameters() const override { return children(); }
+    bool isWildcard() const override { return _wildcard; }
 
-    // Node interface.
-    auto properties() const { return node::Properties{{"public", _public}}; }
+    node::Properties properties() const override { return node::Properties{{"public", _public}}; }
+
+    bool _isAllocable() const override { return true; }
+    bool _isMutable() const override { return true; }
+    bool _isParameterized() const override { return true; }
 
     /**
      * Given an existing node wrapping a unit type, updates the contained unit
@@ -209,6 +209,10 @@ public:
             hilti::declaration::Expression("self", std::move(self), declaration::Linkage::Private, n->meta());
         n->children()[0] = d;
     }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 
 private:
     bool _public = false;

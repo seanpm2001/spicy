@@ -17,6 +17,11 @@
 #include <hilti/base/optional-ref.h>
 #include <hilti/base/util.h>
 
+namespace hilti {
+class Type;
+class TypeBase;
+} // namespace hilti
+
 namespace hilti::util::type_erasure {
 
 // If this defined, we track the number of type-erased instances by their
@@ -230,11 +235,25 @@ public:
     auto& data() { return _data; }
 
     /** For internal use. */
-    uintptr_t identity() const { return _data ? _data->identity() : 0; }
+    uintptr_t identity() const {
+        if ( const auto& t = tryAs<hilti::Type>() )
+            return t->identity();
+
+        return _data ? _data->identity() : 0;
+    }
 
 private:
     template<typename T>
     const T* _tryAs() const {
+        // TypeBase maintains its own hierarchy.
+        if constexpr ( std::is_base_of_v<TypeBase, T> )
+            if ( auto&& t = _tryAs<Type>() ) {
+                if ( t->template isA<T>() )
+                    return &t->template as<T>();
+                else
+                    return nullptr;
+            }
+
         if constexpr ( std::is_base_of<ErasedBase, T>::value )
             return static_cast<const T*>(this);
 
@@ -255,6 +274,15 @@ private:
 
     template<typename T>
     T* _tryAs() {
+        // TypeBase maintains its own hierarchy.
+        if constexpr ( std::is_base_of_v<TypeBase, T> )
+            if ( auto&& t = _tryAs<Type>() ) {
+                if ( t->template isA<T>() )
+                    return &t->template as<T>();
+                else
+                    return nullptr;
+            }
+
         if constexpr ( std::is_base_of<ErasedBase, T>::value )
             return static_cast<T*>(this);
 

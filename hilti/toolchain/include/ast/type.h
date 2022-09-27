@@ -2,11 +2,16 @@
 
 #pragma once
 
+#include <memory>
+#include <type_traits>
+#include <typeinfo>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include <hilti/ast/id.h>
 #include <hilti/ast/node.h>
+#include <hilti/base/optional-ref.h>
 #include <hilti/base/type_erase.h>
 #include <hilti/base/util.h>
 
@@ -18,6 +23,7 @@ class isType : public isNode {};
 } // namespace trait
 
 class Type;
+class TypeBase;
 
 namespace declaration {
 class Parameter;
@@ -28,22 +34,6 @@ namespace type {
 namespace function {
 using Parameter = declaration::Parameter;
 }
-
-namespace trait {
-class isAllocable {};
-class isSortable {};
-class isDereferenceable {};
-class isIterable {};
-class isIterator {};
-class isMutable {};
-class isParameterized {};
-class isReferenceType {};
-class isRuntimeNonTrivial {};
-class isView {};
-class isViewable {};
-class supportsWildcard {};
-class takesArguments {};
-} // namespace trait
 
 using ResolvedState = std::unordered_set<uintptr_t>;
 
@@ -155,11 +145,236 @@ struct State {
 #include <hilti/autogen/__type.h>
 } // namespace detail
 
+class Address;
+class Any;
+class Auto;
+class Bool;
+class Bytes;
+class DocOnly;
+class Enum;
+class Error;
+class Exception;
+class Function;
+class Interval;
+class Library;
+class List;
+class Map;
+class Member;
+class Network;
+class Null;
+class OperandList;
+class Optional;
+class Port;
+class Real;
+class Real;
+class RegExp;
+class Result;
+class Set;
+class SignedInteger;
+class Stream;
+class String;
+class StrongReference;
+class Struct;
+class Time;
+class Tuple;
+class Type_;
+class Union;
+class Unknown;
+class UnresolvedID;
+class UnsignedInteger;
+class ValueReference;
+class Vector;
+class Void;
+class WeakReference;
+
+namespace bytes {
+class Iterator;
+}
+
+namespace detail {
+class IntegerBase;
+}
+
+namespace list {
+class Iterator;
+}
+
+namespace map {
+class Iterator;
+}
+
+namespace set {
+class Iterator;
+}
+
+namespace stream {
+class Iterator;
+class View;
+} // namespace stream
+
+namespace vector {
+class Iterator;
+}
+
+class Visitor {
+public:
+    using position_t = visitor::Position<Node&>;
+
+    virtual void operator()(const hilti::TypeBase&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Address&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Any&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Auto&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Bool&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Bytes&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::DocOnly&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Enum&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Error&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Exception&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Function&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Interval&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Library&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::List&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Map&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Member&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Network&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Null&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::OperandList&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Optional&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Port&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Real&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::RegExp&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Result&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Set&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::SignedInteger&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Stream&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::String&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::StrongReference&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Struct&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Time&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Tuple&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Type_&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Union&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Unknown&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::UnresolvedID&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::UnsignedInteger&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::ValueReference&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Vector&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::Void&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::WeakReference&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::bytes::Iterator&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::detail::IntegerBase&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::list::Iterator&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::map::Iterator&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::set::Iterator&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::stream::Iterator&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::stream::View&, position_t&) { _not_visited = true; }
+    virtual void operator()(const hilti::type::vector::Iterator&, position_t&) { _not_visited = true; }
+    virtual void operator()(const spicy::type::Bitfield&, position_t&) { _not_visited = true; }
+    virtual void operator()(const spicy::type::Sink&, position_t&) { _not_visited = true; }
+    virtual void operator()(const spicy::type::Unit&, position_t&) { _not_visited = true; }
+
+    bool did_visit() const { return ! _not_visited; }
+
+private:
+    bool _not_visited = false;
+};
+
 } // namespace type
+
+/**
+ * Base class for classes implementing the `Type` interface. This class
+ * provides implementations for some interface methods that are shared
+ * by all types.
+ */
+class TypeBase : public NodeBase {
+public:
+    using NodeBase::NodeBase;
+
+    virtual ~TypeBase() = default;
+
+    /** Returns the type of elements the iterator traverse. */
+    virtual optional_ref<const Type> dereferencedType() const { return {}; }
+
+    /** Returns the type of elements the container stores. */
+    virtual optional_ref<const hilti::Type> elementType() const { return {}; }
+
+    /** Returns true if the type is equivalent to another HILTI type. */
+    virtual bool isEqual(const hilti::Type& other) const { return false; }
+
+    /** Returns the type of an iterator for this type. */
+    virtual optional_ref<const hilti::Type> iteratorType(bool const_) const { return {}; }
+
+    /**
+     * Returns true if all instances of the same type class can be coerced
+     * into the current instance, independent of their pararameters. In HILTI
+     * source code, this typically corresponds to a type `T<*>`.
+     */
+    virtual bool isWildcard() const { return false; }
+
+    /** Returns any parameters the type expects. */
+    virtual hilti::node::Set<type::function::Parameter> parameters() const { return {}; }
+
+    /**
+     * Returns any parameters associated with type. If a type is declared as
+     * `T<A,B,C>` this returns a vector of the AST nodes for `A`, `B`, and
+     * `C`.
+     */
+    virtual std::vector<Node> typeParameters() const { return {}; }
+
+    /** Returns the type of an view for this type. */
+    virtual optional_ref<const hilti::Type> viewType() const { return {}; }
+
+    /** For internal use. Use ``type::isAllocable` instead. */
+    virtual bool _isAllocable() const { return false; }
+
+    /** For internal use. Use ``type::isIterator` instead. */
+    virtual bool _isIterator() const { return false; }
+
+    /** For internal use. Use ``type::isMutable` instead. */
+    virtual bool _isMutable() const { return false; }
+
+    /** For internal use. Use ``type::isParameterized` instead. */
+    virtual bool _isParameterized() const { return false; }
+
+    /** For internal use. Use ``type::isReferenceType` instead. */
+    virtual bool _isReferenceType() const { return false; }
+
+    /** For internal use. Use ``type::isResolved` instead. */
+    virtual bool _isResolved(type::ResolvedState* rstate) const { return false; }
+
+    /** For internal use. Use ``type::isRuntimeNonTrivial` instead. */
+    virtual bool _isRuntimeNonTrivial() const { return false; }
+
+    /** For internal use. Use ``type::isSortable` instead. */
+    virtual bool _isSortable() const { return false; }
+
+    /** Implements the `Node` interface. */
+    virtual node::Properties properties() const { return {}; }
+
+    virtual uintptr_t identity() const { return reinterpret_cast<uintptr_t>(this); }
+
+    virtual const std::type_info& typeid_() const { return typeid(decltype(*this)); }
+
+    virtual void dispatch(type::Visitor& v, type::Visitor::position_t& p) const { v(*this, p); }
+};
+
+#define HILTI_TYPE_VISITOR_IMPLEMENT                                                                                   \
+    void dispatch(hilti::type::Visitor& v, hilti::type::Visitor::position_t& p) const override { v(*this, p); }
+
 
 class Type : public type::detail::Type {
 public:
-    using type::detail::Type::Type;
+    Type() = default;
+    Type(const Type&) = default;
+    Type(Type&&) = default;
+
+    template<typename T, typename = std::enable_if_t<std::is_base_of_v<TypeBase, T>>>
+    Type(const T& data) : _data_(std::make_shared<T>(data)) {}
+
+    Type& operator=(const Type&) = default;
+    Type& operator=(Type&&) = default;
+
+    ~Type() override = default;
 
     std::optional<ID> resolvedID() const { return _state().resolved_id; }
 
@@ -174,22 +389,127 @@ public:
     void setTypeID(ID id) { _state().id = std::move(id); }
     void addFlag(type::Flag f) { _state().flags += f; }
 
-    /** Implements the `Type` interface. */
     bool hasFlag(type::Flag f) const { return _state().flags.has(f); }
-    /** Implements the `Type` interface. */
     const type::Flags& flags() const { return _state().flags; }
-    /** Implements the `Type` interface. */
     bool _isConstant() const { return _state().flags.has(type::Flag::Constant); }
-    /** Implements the `Type` interface. */
     const std::optional<ID>& typeID() const { return _state().id; }
-    /** Implements the `Type` interface. */
     const std::optional<ID>& cxxID() const { return _state().cxx; }
-    /** Implements the `Type` interface. */
     const type::detail::State& _state() const { return _state_; }
-    /** Implements the `Type` interface. */
     type::detail::State& _state() { return _state_; }
+
     /** Implements the `Node` interface. */
     bool pruneWalk() const { return hasFlag(type::Flag::PruneWalk); }
+    node::Properties properties() const { return _data_->properties(); }
+    const std::vector<hilti::Node>& children() const { return _data_->children(); }
+    std::vector<hilti::Node>& children() { return _data_->children(); }
+    const Meta& meta() const { return _data_->meta(); }
+    void setMeta(Meta m) { return _data_->setMeta(std::move(m)); }
+
+    uintptr_t identity() const { return _data_->identity(); }
+
+    template<typename T, typename = std::enable_if<std::is_base_of_v<TypeBase, T>>>
+    bool isA() const {
+        if constexpr ( std::is_same_v<Type, T> )
+            return true;
+
+        return dynamic_cast<const T*>(&*_data_);
+    }
+
+    template<typename T, typename = std::enable_if<std::is_base_of_v<TypeBase, T>>>
+    const T& as() const {
+        if constexpr ( std::is_same_v<Type, T> )
+            return *this;
+
+        return *dynamic_cast<const T*>(&*_data_);
+    }
+
+    template<typename T, typename = std::enable_if<std::is_base_of_v<TypeBase, T>>>
+    T& as() {
+        if constexpr ( std::is_same_v<Type, T> )
+            return *this;
+
+        return *dynamic_cast<T*>(&*_data_);
+    }
+
+    template<typename T, typename = std::enable_if<std::is_base_of_v<TypeBase, T>>>
+    optional_ref<const T> tryAs() const {
+        if constexpr ( std::is_same_v<Type, T> )
+            return *this;
+
+        if ( auto d = dynamic_cast<const T*>(&*_data_) )
+            return {*d};
+        else
+            return {};
+    }
+
+    auto typename_() const { return util::demangle(_data_->typeid_().name()); }
+
+    const std::type_info& typeid_() const { return _data_->typeid_(); }
+
+    void dispatch(type::Visitor& v, type::Visitor::position_t& p) const { _data_->dispatch(v, p); }
+
+    Type _clone() const;
+
+    /** Implements the `Type interface. */
+
+    /** Returns true if the type is equivalent to another HILTI type. */
+    bool isEqual(const hilti::Type& other) const { return _data_->isEqual(other); }
+
+    /**
+     * Returns any parameters associated with type. If a type is declared as
+     * `T<A,B,C>` this returns a vector of the AST nodes for `A`, `B`, and
+     * `C`.
+     */
+    std::vector<Node> typeParameters() const { return _data_->typeParameters(); }
+
+    /**
+     * Returns true if all instances of the same type class can be coerced
+     * into the current instance, independent of their pararameters. In HILTI
+     * source code, this typically corresponds to a type `T<*>`.
+     */
+    bool isWildcard() const { return _data_->isWildcard(); }
+
+    /** Returns the type of an iterator for this type. */
+    optional_ref<const hilti::Type> iteratorType(bool const_) const { return _data_->iteratorType(const_); }
+
+    /** Returns the type of an view for this type. */
+    optional_ref<const hilti::Type> viewType() const { return _data_->viewType(); }
+
+    /** Returns the type of elements the iterator traverse. */
+    optional_ref<const hilti::Type> dereferencedType() const { return _data_->dereferencedType(); }
+
+    /** Returns the type of elements the container stores. */
+    optional_ref<const hilti::Type> elementType() const { return _data_->elementType(); }
+
+    /** Returns any parameters the type expects. */
+    hilti::node::Set<type::function::Parameter> parameters() const { return _data_->parameters(); }
+
+    /** For internal use. Use `type::isAllocable` instead. */
+    bool _isAllocable() const { return _data_->_isAllocable(); }
+
+    /** For internal use. Use `type::isSortable` instead. */
+    bool _isSortable() const { return _data_->_isSortable(); }
+
+    /** For internal use. Use `type::isIterator` instead. */
+    bool _isIterator() const { return _data_->_isIterator(); }
+
+    /** For internal use. Use `type::isParameterized` instead. */
+    bool _isParameterized() const { return _data_->_isParameterized(); }
+    /** For internal use. Use `type::isReferenceType` instead. */
+
+    bool _isReferenceType() const { return _data_->_isReferenceType(); }
+
+    /** For internal use. Use `type::isMutable` instead. */
+    bool _isMutable() const { return _data_->_isMutable(); }
+
+    /** For internal use. Use `type::isRuntimeNonTrivial` instead. */
+    bool _isRuntimeNonTrivial() const { return _data_->_isRuntimeNonTrivial(); }
+
+    /** For internal use. Use `type::isResolved` instead. */
+    bool _isResolved(type::ResolvedState* rstate) const { return _data_->_isResolved(rstate); }
+
+private:
+    std::shared_ptr<TypeBase> _data_;
 };
 
 /** Creates an AST node representing a `Type`. */
@@ -197,16 +517,6 @@ inline Node to_node(Type t) { return Node(std::move(t)); }
 
 /** Renders a type as HILTI source code. */
 inline std::ostream& operator<<(std::ostream& out, Type t) { return out << to_node(std::move(t)); }
-
-/**
- * Base class for classes implementing the `Type` interface. This class
- * provides implementations for some interface methods shared that are shared
- * by all types.
- */
-class TypeBase : public NodeBase, public hilti::trait::isType {
-public:
-    using NodeBase::NodeBase;
-};
 
 namespace type {
 namespace detail {
@@ -283,10 +593,7 @@ inline bool isAllocable(const Type& t) { return t._isAllocable(); }
 inline bool isSortable(const Type& t) { return t._isSortable(); }
 
 /** Returns true for HILTI types that one can iterator over. */
-inline bool isDereferenceable(const Type& t) { return t._isDereferenceable(); }
-
-/** Returns true for HILTI types that one can iterator over. */
-inline bool isIterable(const Type& t) { return t._isIterable(); }
+inline bool isIterable(const Type& t) { return t.iteratorType(true).has_value(); }
 
 /** Returns true for HILTI types that represent iterators. */
 inline bool isIterator(const Type& t) { return t._isIterator(); }
@@ -303,14 +610,11 @@ inline bool isMutable(const Type& t) { return t._isMutable(); }
 /** Returns true for HILTI types that, when compiled, correspond to non-POD C++ types. */
 inline bool isRuntimeNonTrivial(const Type& t) { return t._isRuntimeNonTrivial(); }
 
-/** Returns true for HILTI types that represent iterators. */
-inline bool isView(const Type& t) { return t._isView(); }
-
 /** Returns true for HILTI types that one can create a view for. */
-inline bool isViewable(const Type& t) { return t._isViewable(); }
+inline bool isViewable(const Type& t) { return t.viewType().has_value(); }
 
 /** Returns true for HILTI types that may receive type arguments on instantiations. */
-inline bool takesArguments(const Type& t) { return t._takesArguments(); }
+inline bool takesArguments(const Type& t) { return ! t.parameters().empty(); }
 
 /**
  * Returns true if the type is marked constant.
@@ -405,11 +709,5 @@ inline bool operator==(const Type& t1, const Type& t2) {
 }
 
 inline bool operator!=(const Type& t1, const Type& t2) { return ! (t1 == t2); }
-
-/** Constructs an AST node from any class implementing the `Type` interface. */
-template<typename T, typename std::enable_if_t<std::is_base_of<trait::isType, T>::value>* = nullptr>
-inline Node to_node(T t) {
-    return Node(Type(std::move(t)));
-}
 
 } // namespace hilti

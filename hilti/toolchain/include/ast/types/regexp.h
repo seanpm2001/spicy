@@ -9,18 +9,22 @@
 namespace hilti::type {
 
 /** AST node for a regexp type. */
-class RegExp : public TypeBase, trait::isAllocable, trait::isRuntimeNonTrivial {
+class RegExp : public TypeBase {
 public:
     RegExp(Meta m = Meta()) : TypeBase(std::move(m)) {}
 
     bool operator==(const RegExp& /* other */) const { return true; }
 
-    /** Implements the `Type` interface. */
-    auto isEqual(const Type& other) const { return node::isEqual(this, other); }
-    /** Implements the `Type` interface. */
-    auto _isResolved(ResolvedState* rstate) const { return true; }
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
+    bool _isResolved(ResolvedState* rstate) const override { return true; }
+    node::Properties properties() const override { return node::Properties{}; }
+
+    bool _isAllocable() const override { return true; }
+    bool _isRuntimeNonTrivial() const override { return true; }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 };
 
 } // namespace hilti::type

@@ -68,7 +68,7 @@ using Kind = declaration::parameter::Kind;
 
 } // namespace function
 
-class Function : public TypeBase, trait::isParameterized {
+class Function : public TypeBase {
 public:
     Function(Wildcard /*unused*/, Meta m = Meta())
         : TypeBase(nodes(function::Result(type::Error(m))), std::move(m)), _wildcard(true) {}
@@ -79,7 +79,14 @@ public:
           _flavor(flavor) {}
 
     const auto& result() const { return child<function::Result>(0); }
-    auto parameters() const { return children<function::Parameter>(1, -1); }
+
+    node::Set<type::function::Parameter> parameters() const override {
+        node::Set<type::function::Parameter> result;
+        for ( auto&& p : children<function::Parameter>(1, -1) )
+            result.insert(p);
+        return result;
+    }
+
     auto parameterRefs() const { return childRefsOfType<type::function::Parameter>(); }
     auto flavor() const { return _flavor; }
 
@@ -89,11 +96,9 @@ public:
         return result() == other.result() && parameters() == other.parameters();
     }
 
-    /** Implements the `Type` interface. */
-    auto isEqual(const Type& other) const { return node::isEqual(this, other); }
+    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
 
-    /** Implements the `Type` interface. */
-    auto _isResolved(ResolvedState* rstate) const {
+    bool _isResolved(ResolvedState* rstate) const override {
         if ( result().type().isA<type::Auto>() )
             // We treat this as resolved because (1) it doesn't need to hold up
             // other resolving, and (2) can lead to resolver dead-locks if we
@@ -111,13 +116,16 @@ public:
         return true;
     }
 
-    /** Implements the `Type` interface. */
-    auto typeParameters() const { return children(); }
-    /** Implements the `Type` interface. */
-    auto isWildcard() const { return _wildcard; }
+    std::vector<Node> typeParameters() const override { return children(); }
+    bool isWildcard() const override { return _wildcard; }
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{{"flavor", to_string(_flavor)}}; }
+    node::Properties properties() const override { return node::Properties{{"flavor", to_string(_flavor)}}; }
+
+    bool _isParameterized() const override { return true; }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 
 private:
     bool _wildcard = false;

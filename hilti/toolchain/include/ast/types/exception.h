@@ -3,13 +3,14 @@
 #pragma once
 
 #include <utility>
+#include <vector>
 
 #include <hilti/ast/type.h>
 
 namespace hilti::type {
 
 /** AST node for an `exception` type. */
-class Exception : public TypeBase, trait::isAllocable, trait::isParameterized {
+class Exception : public TypeBase {
 public:
     Exception(Meta m = Meta()) : TypeBase({node::none}, std::move(m)) {}
     Exception(Type base, Meta m = Meta()) : TypeBase({std::move(base)}, std::move(m)) {}
@@ -19,18 +20,22 @@ public:
 
     bool operator==(const Exception& other) const { return baseType() == other.baseType(); }
 
-    /** Implements the `Type` interface. */
-    auto isEqual(const Type& other) const { return node::isEqual(this, other); }
-    /** Implements the `Type` interface. */
-    auto _isResolved(ResolvedState* rstate) const {
+    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
+
+    bool _isResolved(ResolvedState* rstate) const override {
         return baseType().has_value() ? type::detail::isResolved(baseType(), rstate) : true;
     }
-    /** Implements the `Type` interface. */
-    auto typeParameters() const { return children(); }
-    /** Implements the `Type` interface. */
-    auto isWildcard() const { return _wildcard; }
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+
+    std::vector<Node> typeParameters() const override { return children(); }
+    bool isWildcard() const override { return _wildcard; }
+    node::Properties properties() const override { return node::Properties{}; }
+
+    bool _isAllocable() const override { return true; }
+    bool _isParameterized() const override { return true; }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 
 private:
     bool _wildcard = false;

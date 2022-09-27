@@ -48,7 +48,7 @@ inline Node to_node(Label l) { return Node(std::move(l)); }
 } // namespace enum_
 
 /** AST node for an enum type. */
-class Enum : public TypeBase, trait::isAllocable, trait::isParameterized, trait::isSortable {
+class Enum : public TypeBase {
 public:
     Enum(std::vector<enum_::Label> l, Meta m = Meta())
         : TypeBase(nodes(_normalizeLabels(std::move(l))), std::move(m)) {}
@@ -77,26 +77,31 @@ public:
         return children<Declaration>(0, -1) == other.children<Declaration>(0, -1);
     }
 
-    /** Implements the `Type` interface. */
-    auto isEqual(const Type& other) const { return node::isEqual(this, other); }
-    /** Implements the `Type` interface. */
-    auto _isResolved(ResolvedState* rstate) const { return _initialized; }
-    /** Implements the `Type` interface. */
-    auto typeParameters() const {
+    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
+    bool _isResolved(ResolvedState* rstate) const override { return _initialized; }
+
+    std::vector<Node> typeParameters() const override {
         std::vector<Node> params;
         for ( auto&& c : uniqueLabels() )
             params.emplace_back(c.get());
 
         return params;
     }
-    /** Implements the `Type` interface. */
-    auto isWildcard() const { return _wildcard; }
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    bool isWildcard() const override { return _wildcard; }
+
+    node::Properties properties() const override { return node::Properties{}; }
 
     /** Helper method for the resolver to link labels to their type. */
     static void initLabelTypes(Node* n);
+
+    bool _isAllocable() const override { return true; }
+    bool _isParameterized() const override { return true; }
+    bool _isSortable() const override { return true; }
+
+    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+
+    HILTI_TYPE_VISITOR_IMPLEMENT
 
 private:
     static std::vector<Declaration> _normalizeLabels(std::vector<enum_::Label> labels);

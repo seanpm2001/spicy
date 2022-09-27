@@ -52,7 +52,9 @@ struct VisitorConstants : public visitor::PreOrder<void, VisitorConstants> {
     }
 };
 
-struct VisitorNormalizer : public visitor::PreOrder<void, VisitorNormalizer> {
+struct VisitorNormalizer : visitor::PreOrder<void, VisitorNormalizer>, type::Visitor {
+    using position_t = visitor::PreOrder<void, VisitorNormalizer>::position_t;
+
     bool modified = false;
 
     // Log debug message recording resolving a expression.
@@ -204,7 +206,7 @@ struct VisitorNormalizer : public visitor::PreOrder<void, VisitorNormalizer> {
 
     void operator()(const statement::Switch& s, position_t p) { p.node.as<statement::Switch>().preprocessCases(); }
 
-    void operator()(const type::Library& t, position_t p) {
+    void operator()(const type::Library& t, type::Visitor::position_t& p) override {
         auto& type = p.node.as<Type>();
 
         if ( ! type.cxxID() )
@@ -212,7 +214,7 @@ struct VisitorNormalizer : public visitor::PreOrder<void, VisitorNormalizer> {
             type.setCxxID(ID(t.cxxName()));
     }
 
-    void operator()(const type::Struct& t, position_t p) {
+    void operator()(const type::Struct& t, type::Visitor::position_t& p) override {
         if ( ! t.selfRef() )
             type::Struct::setSelf(&p.node);
     }

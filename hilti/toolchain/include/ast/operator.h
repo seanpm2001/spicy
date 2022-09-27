@@ -93,7 +93,7 @@ inline auto elementType(unsigned int op, const char* doc = "<type of element>", 
                                              resolved_ops.size()));
 
         if ( type::isIterable(resolved_ops[op].type()) ) {
-            auto t = resolved_ops[op].type().elementType();
+            auto t = *resolved_ops[op].type().elementType();
             return (infer_const && resolved_ops[op].isConstant()) ? type::constant(t) : std::move(t);
         }
 
@@ -112,7 +112,7 @@ inline auto constantElementType(unsigned int op, const char* doc = "<type of ele
                                              resolved_ops.size()));
 
         if ( type::isIterable(resolved_ops[op].type()) )
-            return type::constant(resolved_ops[op].type().elementType());
+            return type::constant(*resolved_ops[op].type().elementType());
 
         return {};
     };
@@ -146,8 +146,8 @@ inline auto dereferencedType(unsigned int op, const char* doc = "<dereferenced t
                                              " ops available",
                                              op, resolved_ops.size()));
 
-        if ( type::isDereferenceable(resolved_ops[op].type()) ) {
-            auto t = resolved_ops[op].type().dereferencedType();
+        if ( auto d = resolved_ops[op].type().dereferencedType() ) {
+            auto t = *d;
 
             if ( ! infer_const )
                 return std::move(t);

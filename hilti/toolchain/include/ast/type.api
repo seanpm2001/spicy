@@ -10,71 +10,56 @@ class Type(hilti::trait::isType) : hilti::trait::isNode {
      * `T<A,B,C>` this returns a vector of the AST nodes for `A`, `B`, and
      * `C`.
      */
-    std::vector<Node> typeParameters() const if hilti::type::trait::isParameterized else {};
+    std::vector<Node> typeParameters() const;
 
     /**
      * Returns true if all instances of the same type class can be coerced
      * into the current instance, independent of their pararameters. In HILTI
      * source code, this typically corresponds to a type `T<*>`.
      */
-    bool isWildcard() const if hilti::type::trait::isParameterized else false;
+    bool isWildcard() const;
 
     /** Returns the type of an iterator for this type. */
-    const hilti::Type& iteratorType(bool const_) const if hilti::type::trait::isIterable or hilti::type::trait::isView;
+    const optional_ref<const hilti::Type> iteratorType(bool const_) const;
 
     /** Returns the type of an view for this type. */
-    const hilti::Type& viewType() const if hilti::type::trait::isViewable;
+    optional_ref<const hilti::Type> viewType() const;
 
     /** Returns the type of elements the iterator traverse. */
-    const hilti::Type& dereferencedType() const if hilti::type::trait::isDereferenceable;
+    optional_ref<const hilti::Type> dereferencedType() const;
 
     /** Returns the type of elements the container stores. */
-    const hilti::Type& elementType() const if hilti::type::trait::isIterable;
+    optional_ref<const hilti::Type> elementType() const;
 
     /** Returns any parameters the type expects. */
-    hilti::node::Set<type::function::Parameter> parameters() const if hilti::type::trait::takesArguments;
+    hilti::node::Set<type::function::Parameter> parameters() const;
 
     /** For internal use. Use ``type::isAllocable` instead. */
-    trait _isAllocable() from hilti::type::trait::isAllocable;
+    bool _isAllocable() const;
 
     /** For internal use. Use ``type::isSortable` instead. */
-    trait _isSortable() from hilti::type::trait::isSortable;
-
-    /** For internal use. Use ``type::isDereferenceable` instead. */
-    trait _isDereferenceable() from hilti::type::trait::isDereferenceable;
-
-    /** For internal use. Use ``type::isIterable` instead. */
-    trait _isIterable() from hilti::type::trait::isIterable;
-
-    /** For internal use. Use ``type::isViewable` instead. */
-    trait _isViewable() from hilti::type::trait::isViewable;
+    bool _isSortable() const;
 
     /** For internal use. Use ``type::isIterator` instead. */
-    trait _isIterator() from hilti::type::trait::isIterator;
-
-    /** For internal use. Use ``type::isView` instead. */
-    trait _isView() from hilti::type::trait::isView;
+    bool _isIterator() const;
 
     /** For internal use. Use ``type::isParameterized` instead. */
-    trait _isParameterized() from hilti::type::trait::isParameterized;
+    bool _isParameterized() const;
 
     /** For internal use. Use ``type::isReferenceType` instead. */
-    trait _isReferenceType() from hilti::type::trait::isReferenceType;
+    bool _isReferenceType() const;
 
     /** For internal use. Use ``type::isMutable` instead. */
-    trait _isMutable() from hilti::type::trait::isMutable;
+    bool _isMutable() const;
 
     /** For internal use. Use ``type::isRuntimeNonTrivial` instead. */
-    trait _isRuntimeNonTrivial() from hilti::type::trait::isRuntimeNonTrivial;
+    bool _isRuntimeNonTrivial() const;
 
     /** For internal use. Use ``type::isResolved` instead. */
     bool _isResolved(type::ResolvedState* rstate) const;
 
     /** Internal state managed by derived class. */
     member type::detail::State _state_;
-
-    /** For internal use. Use ``type::takesArguments` instead. */
-    trait _takesArguments() from hilti::type::trait::takesArguments;
 
     /** Implements the `Node` interface. */
     hilti::node::Properties properties() const;
