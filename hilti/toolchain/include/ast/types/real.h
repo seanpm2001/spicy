@@ -8,24 +8,20 @@
 
 namespace hilti::type {
 
-/** AST node for a floating point type. */
-class Real : public TypeBase {
+/** AST node for a `real` type. */
+class Real : public UnqualifiedType {
 public:
-    Real(Meta m = Meta()) : TypeBase(std::move(m)) {}
+    static auto create(ASTContext* ctx, Meta meta = {}) { return NodeDerivedPtr<Real>(new Real(std::move(meta))); }
 
-    bool operator==(const Real& /* other */) const { return true; }
+protected:
+    Real(Meta meta) : UnqualifiedType(std::move(meta)) {}
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return true; }
+    bool _isAllocable() const final { return true; }
+    bool _isSortable() const final { return true; }
 
-    node::Properties properties() const override { return node::Properties{}; }
+    bool isEqual(const Node& other) const override { return other.isA<Real>() && UnqualifiedType::isEqual(other); }
 
-    bool _isAllocable() const override { return true; }
-    bool _isSortable() const override { return true; }
-
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
-
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    HILTI_NODE(Real)
 };
 
 } // namespace hilti::type

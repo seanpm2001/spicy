@@ -8,7 +8,6 @@
 #include <hilti/compiler/plugin.h>
 
 #include <spicy/ast/declarations/unit-hook.h>
-#include <spicy/ast/detail/visitor.h>
 #include <spicy/compiler/detail/visitors.h>
 
 using namespace spicy;
@@ -37,7 +36,7 @@ struct Visitor : public hilti::visitor::PostOrder<void, Visitor> {
     }
 
     // Log debug message recording resolving a type.
-    void logChange(const Node& old, const Type& ntype, const char* msg = "type") {
+    void logChange(const Node& old, const TypePtr& ntype, const char* msg = "type") {
         HILTI_DEBUG(hilti::logging::debug::Normalizer,
                     hilti::util::fmt("[%s] %s -> %s %s (%s)", old.typename_(), old, msg, ntype, old.location()));
     }

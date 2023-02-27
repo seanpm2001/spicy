@@ -2,8 +2,8 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
-#include <vector>
 
 #include <hilti/ast/ctor.h>
 #include <hilti/ast/expression.h>
@@ -11,42 +11,32 @@
 
 namespace hilti::ctor {
 
-/** AST node for a constructor for a type's default value. */
-class Default : public NodeBase, public hilti::trait::isCtor {
+/** AST node for a `default` ctor. */
+class Default : public Ctor {
 public:
-    /** Constructs a default value of type `t`. */
-    Default(Type t, Meta m = Meta()) : NodeBase({std::move(t)}, std::move(m)) {}
+    QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
+    auto typeArguments() const { return children<Expression>(1, -1); }
 
-    /**
-     * Constructs a default value of type `t`, passing specified arguments to
-     * types with parameters.
-     */
-    Default(Type t, std::vector<Expression> type_args, Meta m = Meta())
-        : NodeBase(nodes(std::move(t), std::move(type_args)), std::move(m)) {}
-
-    auto typeArguments() const { return children<hilti::Expression>(1, -1); }
-
-    void setTypeArguments(std::vector<hilti::Expression> args) {
-        auto& c = children();
-        c.erase(c.begin() + 1, c.end());
-        for ( auto&& a : args )
-            c.emplace_back(std::move(a));
+    /** Constructs a default value of a given type. */
+    static auto create(ASTContext* ctx, const UnqualifiedTypePtr& type, const Meta& meta = {}) {
+        return NodeDerivedPtr<Default>(new Default({QualifiedType::create(ctx, type, true, meta)}, meta));
     }
 
-    bool operator==(const Default& other) const { return type() == other.type(); }
+    /**
+     * Constructs a default value of a given type, passing specified arguments to
+     * types with parameters.
+     */
+    static auto create(ASTContext* ctx, const UnqualifiedTypePtr& type, Expressions type_args, const Meta& meta = {}) {
+        return CtorPtr(
+            new Default(node::flatten(QualifiedType::create(ctx, type, true, meta), std::move(type_args)), meta));
+    }
 
-    /** Implements `Ctor` interface. */
-    const Type& type() const { return child<Type>(0); }
-    /** Implements `Ctor` interface. */
-    bool isConstant() const { return true; }
-    /** Implements `Ctor` interface. */
-    bool isLhs() const { return false; }
-    /** Implements `Ctor` interface. */
-    auto isTemporary() const { return true; }
-    /** Implements `Ctor` interface. */
-    auto isEqual(const Ctor& other) const { return node::isEqual(this, other); }
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+protected:
+    Default(Nodes children, Meta meta) : Ctor(std::move(children), std::move(meta)) {}
+
+    bool isEqual(const Node& other) const override { return other.isA<Default>() && Ctor::isEqual(other); }
+
+    HILTI_NODE(Default)
 };
 
 } // namespace hilti::ctor

@@ -5,7 +5,6 @@
 #include <hilti/compiler/printer.h>
 
 #include <spicy/ast/all.h>
-#include <spicy/ast/detail/visitor.h>
 #include <spicy/ast/hook.h>
 #include <spicy/compiler/detail/visitors.h>
 
@@ -17,7 +16,7 @@ namespace {
 struct Visitor : hilti::visitor::PreOrder<void, Visitor>, hilti::type::Visitor {
     explicit Visitor(hilti::printer::Stream& out) : out(out) {} // NOLINT
 
-    auto const_(const Type& t) { return (out.isCompact() && hilti::type::isConstant(t)) ? "const " : ""; }
+    auto const_(const TypePtr& t) { return (out.isCompact() && hilti::type::isConstant(t)) ? "const " : ""; }
 
     void operator()(const type::bitfield::Bits& n) {
         out << "    " << n.id() << ": ";

@@ -2,9 +2,11 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/expression.h>
+#include <hilti/ast/type.h>
 
 namespace hilti::expression {
 
@@ -12,29 +14,25 @@ namespace hilti::expression {
  *  The actual coercion expression will be generated later and replace the
  *  this node during the apply-coercions phase.
  */
-class PendingCoerced : public NodeBase, public trait::isExpression {
+class PendingCoerced : public Expression {
 public:
-    PendingCoerced(Expression e, Type t, Meta m = Meta()) : NodeBase({std::move(e), std::move(t)}, std::move(m)) {}
+    auto expression() const { return child<Expression>(0); }
 
-    const auto& expression() const { return child<Expression>(0); }
+    QualifiedTypePtr type() const final { return child<QualifiedType>(1); }
+    bool isLhs() const final { return expression()->isLhs(); }
+    bool isTemporary() const final { return expression()->isTemporary(); }
 
-    bool operator==(const PendingCoerced& other) const {
-        return expression() == other.expression() && type() == other.type();
+    static auto create(ASTContext* ctx, const ExpressionPtr& expr, const QualifiedTypePtr& type,
+                       const Meta& meta = {}) {
+        return NodeDerivedPtr<PendingCoerced>(new PendingCoerced({expr, type}, meta));
     }
 
-    /** Implements `Expression` interface. */
-    bool isLhs() const { return expression().isLhs(); }
-    /** Implements `Expression` interface. */
-    bool isTemporary() const { return expression().isTemporary(); }
-    /** Implements `Expression` interface. */
-    const Type& type() const { return child<Type>(1); }
-    /** Implements `Expression` interface. */
-    auto isConstant() const { return expression().isConstant(); }
-    /** Implements `Expression` interface. */
-    auto isEqual(const Expression& other) const { return node::isEqual(this, other); }
+protected:
+    PendingCoerced(Nodes children, Meta meta) : Expression(std::move(children), std::move(meta)) {}
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    bool isEqual(const Node& other) const override { return other.isA<PendingCoerced>() && Expression::isEqual(other); }
+
+    HILTI_NODE(PendingCoerced)
 };
 
 } // namespace hilti::expression

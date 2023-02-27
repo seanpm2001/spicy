@@ -2,129 +2,109 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
-#include <vector>
 
 #include <hilti/ast/type.h>
-#include <hilti/ast/types/unknown.h>
-#include <hilti/base/optional-ref.h>
+
+#include "ast/forward.h"
 
 namespace hilti::type {
 
-/*
- * AST node for a `strong_ref<T>` type.
- */
-class StrongReference : public TypeBase {
+/** AST node for a `strong_ref<T>` type. */
+class StrongReference : public UnqualifiedType {
 public:
-    StrongReference(Wildcard /*unused*/, Meta m = Meta()) : TypeBase({type::unknown}, std::move(m)), _wildcard(true) {}
-    StrongReference(Type ct, Meta m = Meta()) : TypeBase(nodes(std::move(ct)), std::move(m)) {}
-    StrongReference(NodeRef ct, Meta m = Meta()) : TypeBase(nodes(node::none), std::move(m)), _type(std::move(ct)) {}
+    QualifiedTypePtr dereferencedType() const final { return child(0)->as<QualifiedType>(); }
 
-    optional_ref<const Type> dereferencedType() const override {
-        if ( _type )
-            return _type->as<Type>();
-        else
-            return children()[0].as<Type>();
+    Nodes typeParameters() const final { return children(); }
+
+    static auto create(ASTContext* ctx, const QualifiedTypePtr& type, Meta meta = {}) {
+        return NodeDerivedPtr<StrongReference>(new StrongReference({type}, std::move(meta)));
     }
 
-    bool operator==(const StrongReference& other) const { return dereferencedType() == other.dereferencedType(); }
-
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-
-    bool _isResolved(ResolvedState* rstate) const override {
-        return type::detail::isResolved(dereferencedType(), rstate);
+    static auto create(ASTContext* ctx, Wildcard _, Meta m = Meta()) {
+        return NodeDerivedPtr<StrongReference>(new StrongReference(Wildcard(), std::move(m)));
     }
 
-    std::vector<Node> typeParameters() const override { return children(); }
-    bool isWildcard() const override { return _wildcard; }
+protected:
+    StrongReference(Nodes children, Meta meta) : UnqualifiedType(std::move(children), std::move(meta)) {}
+    StrongReference(Wildcard _, Meta meta) : UnqualifiedType(Wildcard(), std::move(meta)) {}
 
-    node::Properties properties() const override { return node::Properties{{"type", _type.renderedRid()}}; }
+    bool _isAllocable() const final { return true; }
+    bool _isParameterized() const final { return true; }
+    bool _isReferenceType() const final { return true; }
 
-    bool _isAllocable() const override { return true; }
-    bool _isParameterized() const override { return true; }
-    bool _isReferenceType() const override { return true; }
+    bool _isResolved(ResolvedState* rstate) const final { return type::detail::isResolved(dereferencedType(), rstate); }
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+    bool isEqual(const Node& other) const override {
+        return other.isA<StrongReference>() && UnqualifiedType::isEqual(other);
+    }
 
-    HILTI_TYPE_VISITOR_IMPLEMENT
-
-private:
-    bool _wildcard = false;
-    NodeRef _type;
+    HILTI_NODE(StrongReference)
 };
 
 /** AST node for a `weak_ref<T>` type. */
-class WeakReference : public TypeBase {
+class WeakReference : public UnqualifiedType {
 public:
-    WeakReference(Wildcard /*unused*/, Meta m = Meta()) : TypeBase({type::unknown}, std::move(m)), _wildcard(true) {}
-    WeakReference(Type ct, Meta m = Meta()) : TypeBase({std::move(ct)}, std::move(m)) {}
+    QualifiedTypePtr dereferencedType() const final { return child(0)->as<QualifiedType>(); }
 
-    optional_ref<const Type> dereferencedType() const override { return children()[0].as<Type>(); }
+    Nodes typeParameters() const final { return children(); }
 
-    bool operator==(const WeakReference& other) const { return dereferencedType() == other.dereferencedType(); }
-
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-
-    bool _isResolved(ResolvedState* rstate) const override {
-        return type::detail::isResolved(dereferencedType(), rstate);
+    static auto create(ASTContext* ctx, const QualifiedTypePtr& type, Meta meta = {}) {
+        return NodeDerivedPtr<WeakReference>(new WeakReference({type}, std::move(meta)));
     }
 
-    std::vector<Node> typeParameters() const override { return children(); }
-    bool isWildcard() const override { return _wildcard; }
+    static auto create(ASTContext* ctx, Wildcard _, Meta m = Meta()) {
+        return NodeDerivedPtr<WeakReference>(new WeakReference(Wildcard(), std::move(m)));
+    }
 
-    node::Properties properties() const override { return node::Properties{}; }
+protected:
+    WeakReference(Nodes children, Meta meta) : UnqualifiedType(std::move(children), std::move(meta)) {}
+    WeakReference(Wildcard _, Meta meta) : UnqualifiedType(Wildcard(), std::move(meta)) {}
 
-    bool _isAllocable() const override { return true; }
-    bool _isParameterized() const override { return true; }
-    bool _isReferenceType() const override { return true; }
+    bool _isAllocable() const final { return true; }
+    bool _isParameterized() const final { return true; }
+    bool _isReferenceType() const final { return true; }
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+    bool _isResolved(ResolvedState* rstate) const final { return type::detail::isResolved(dereferencedType(), rstate); }
 
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    bool isEqual(const Node& other) const override {
+        return other.isA<WeakReference>() && UnqualifiedType::isEqual(other);
+    }
 
-private:
-    bool _wildcard = false;
+    HILTI_NODE(WeakReference)
 };
 
-/** AST node for a `val_ref<T>` type. */
-class ValueReference : public TypeBase {
+/** AST node for a `value_ref<T>` type. */
+class ValueReference : public UnqualifiedType {
 public:
-    ValueReference(Wildcard /*unused*/, Meta m = Meta())
-        : TypeBase(nodes(type::unknown), std::move(m)), _wildcard(true) {}
-    ValueReference(Type ct, Meta m = Meta()) : TypeBase(nodes(std::move(ct)), std::move(m)) {}
-    ValueReference(NodeRef ct, Meta m = Meta()) : TypeBase(nodes(type::unknown), std::move(m)), _node(std::move(ct)) {}
+    QualifiedTypePtr dereferencedType() const final { return child(0)->as<QualifiedType>(); }
 
-    optional_ref<const Type> dereferencedType() const override {
-        if ( _node )
-            return _node->as<Type>();
-        else
-            return children()[0].as<Type>();
+    Nodes typeParameters() const final { return children(); }
+
+    static auto create(ASTContext* ctx, const QualifiedTypePtr& type, Meta meta = {}) {
+        return NodeDerivedPtr<ValueReference>(new ValueReference({type}, std::move(meta)));
     }
 
-    bool operator==(const ValueReference& other) const { return dereferencedType() == other.dereferencedType(); }
-
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-
-    bool _isResolved(ResolvedState* rstate) const override {
-        return type::detail::isResolved(dereferencedType(), rstate);
+    static auto create(ASTContext* ctx, Wildcard _, Meta m = Meta()) {
+        return NodeDerivedPtr<ValueReference>(new ValueReference(Wildcard(), std::move(m)));
     }
 
-    std::vector<Node> typeParameters() const override { return children(); }
-    bool isWildcard() const override { return _wildcard; }
+protected:
+    ValueReference(Nodes children, Meta meta) : UnqualifiedType(std::move(children), std::move(meta)) {}
+    ValueReference(Wildcard _, Meta meta) : UnqualifiedType(Wildcard(), std::move(meta)) {}
 
-    node::Properties properties() const override { return node::Properties{{"rid", (_node ? _node->rid() : 0U)}}; }
+    bool _isAllocable() const final { return true; }
+    bool _isParameterized() const final { return true; }
+    bool _isReferenceType() const final { return true; }
 
-    bool _isAllocable() const override { return true; }
-    bool _isParameterized() const override { return true; }
-    bool _isReferenceType() const override { return true; }
+    bool _isResolved(ResolvedState* rstate) const final { return type::detail::isResolved(dereferencedType(), rstate); }
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+    bool isEqual(const Node& other) const override {
+        return other.isA<ValueReference>() && UnqualifiedType::isEqual(other);
+    }
 
-    HILTI_TYPE_VISITOR_IMPLEMENT
-
-private:
-    bool _wildcard = false;
-    NodeRef _node;
+    HILTI_NODE(ValueReference)
 };
 
 } // namespace hilti::type

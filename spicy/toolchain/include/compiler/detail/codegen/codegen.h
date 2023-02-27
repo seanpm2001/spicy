@@ -37,8 +37,8 @@ public:
     auto context() const { return _context.lock(); }
     const auto& options() const { return context()->options(); }
 
-    hilti::Type compileUnit(const type::Unit& unit,
-                            bool declare_only = true); // Compiles a Unit type into its HILTI struct representation.
+    hilti::TypePtr compileUnit(const type::Unit& unit,
+                               bool declare_only = true); // Compiles a Unit type into its HILTI struct representation.
 
     std::optional<hilti::declaration::Function> compileHook(
         const type::Unit& unit, const ID& id,

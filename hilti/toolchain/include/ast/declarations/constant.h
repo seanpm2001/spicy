@@ -2,55 +2,51 @@
 
 #pragma once
 
+#include <sys/types.h>
+
+#include <memory>
 #include <string>
 #include <utility>
 
 #include <hilti/ast/declaration.h>
 #include <hilti/ast/expression.h>
-#include <hilti/ast/id.h>
-#include <hilti/ast/types/auto.h>
+#include <hilti/ast/type.h>
 
 namespace hilti::declaration {
 
-/** AST node for a declaration of a constant. */
-class Constant : public DeclarationBase {
+/** AST node for a constant declaration. */
+class Constant : public Declaration {
 public:
-    Constant(ID id, ::hilti::Type type, hilti::Expression value = {}, Linkage linkage = Linkage::Private,
-             Meta m = Meta())
-        : DeclarationBase(nodes(std::move(id), std::move(type), std::move(value)), std::move(m)), _linkage(linkage) {}
+    auto value() const { return child<hilti::Expression>(1); }
 
-    Constant(ID id, hilti::Expression value, Linkage linkage = Linkage::Private, Meta m = Meta())
-        : DeclarationBase(nodes(std::move(id), node::none, std::move(value)), std::move(m)), _linkage(linkage) {}
-
-    const auto& value() const { return child<hilti::Expression>(2); }
-
-    const auto& type() const {
-        if ( auto t = children()[1].tryAs<hilti::Type>() )
-            return *t;
+    QualifiedTypePtr type() const {
+        if ( auto t = child<QualifiedType>(0) )
+            return t;
         else
-            return value().type();
+            return value()->type();
     }
 
-    void setValue(const hilti::Expression& i) { children()[2] = i; }
+    std::string displayName() const final { return "constant"; }
 
-    bool operator==(const Constant& other) const { return id() == other.id() && value() == other.value(); }
+    static auto create(ASTContext* ctx, ID id, const QualifiedTypePtr& type, const ExpressionPtr& value,
+                       declaration::Linkage linkage = Linkage::Private, Meta meta = {}) {
+        return NodeDerivedPtr<Constant>(new Constant({type, value}, std::move(id), linkage, std::move(meta)));
+    }
 
-    /** Implements `Declaration` interface. */
-    bool isConstant() const { return true; }
-    /** Implements `Declaration` interface. */
-    const ID& id() const { return child<ID>(0); }
-    /** Implements `Declaration` interface. */
-    Linkage linkage() const { return _linkage; }
-    /** Implements `Declaration` interface. */
-    std::string displayName() const { return "constant"; };
-    /** Implements `Declaration` interface. */
-    auto isEqual(const Declaration& other) const { return node::isEqual(this, other); }
+    static auto create(ASTContext* ctx, ID id, const ExpressionPtr& value,
+                       declaration::Linkage linkage = Linkage::Private, Meta meta = {}) {
+        return create(ctx, std::move(id), {}, value, linkage, std::move(meta));
+    }
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{{"linkage", to_string(_linkage)}}; }
+protected:
+    Constant(Nodes children, ID id, declaration::Linkage linkage, Meta meta)
+        : Declaration(std::move(children), std::move(id), linkage, std::move(meta)) {
+        assert(children[0]->as<QualifiedType>()->isConstant());
+    }
 
-private:
-    Linkage _linkage;
+    bool isEqual(const Node& other) const override { return other.isA<Constant>() && Declaration::isEqual(other); }
+
+    HILTI_NODE(Constant)
 };
 
 } // namespace hilti::declaration

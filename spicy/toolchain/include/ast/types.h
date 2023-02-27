@@ -7,6 +7,6 @@
 namespace spicy::type {
 
 // Returns whether the passed type supports parsing literals.
-bool supportsLiterals(const hilti::Type& t);
+bool supportsLiterals(const hilti::TypePtrPtr& t);
 
 } // namespace spicy::type

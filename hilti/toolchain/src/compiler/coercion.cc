@@ -4,7 +4,6 @@
 #include <hilti/ast/ctors/coerced.h>
 #include <hilti/ast/ctors/null.h>
 #include <hilti/ast/ctors/tuple.h>
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/expressions/coerced.h>
 #include <hilti/ast/expressions/ctor.h>
 #include <hilti/ast/expressions/member.h>
@@ -32,9 +31,9 @@ inline const DebugStream Operator("operator");
 namespace {
 
 struct VisitorCtor : public visitor::PreOrder<std::optional<Ctor>, VisitorCtor> {
-    VisitorCtor(const Type& dst, bitmask<CoercionStyle> style) : dst(dst), style(style) {}
+    VisitorCtor(const TypePtr& dst, bitmask<CoercionStyle> style) : dst(dst), style(style) {}
 
-    const Type& dst;
+    const TypePtr& dst;
     bitmask<CoercionStyle> style;
 
     result_t operator()(const ctor::Enum& c) {
@@ -367,12 +366,12 @@ struct VisitorCtor : public visitor::PreOrder<std::optional<Ctor>, VisitorCtor> 
 };
 
 struct VisitorType : public visitor::PreOrder<void, VisitorType>, type::Visitor {
-    VisitorType(const Type& dst, bitmask<CoercionStyle> style) : dst(dst), style(style) {}
+    VisitorType(const TypePtr& dst, bitmask<CoercionStyle> style) : dst(dst), style(style) {}
 
-    const Type& dst;
+    const TypePtr& dst;
     bitmask<CoercionStyle> style;
 
-    std::optional<Type> _result;
+    TypePtr _result;
 
     result_t operator()(const type::Enum& c, type::Visitor::position_t&) override {
         if ( auto t = dst.tryAs<type::Bool>(); t && (style & CoercionStyle::ContextualConversion) )
@@ -577,7 +576,7 @@ struct VisitorType : public visitor::PreOrder<void, VisitorType>, type::Visitor 
 } // anonymous namespace
 
 // Public version going through all plugins.
-Result<Ctor> hilti::coerceCtor(Ctor c, const Type& dst, bitmask<CoercionStyle> style) {
+Result<Ctor> hilti::coerceCtor(Ctor c, const TypePtr& dst, bitmask<CoercionStyle> style) {
     if ( c.type() == dst )
         return std::move(c);
 
@@ -592,7 +591,7 @@ Result<Ctor> hilti::coerceCtor(Ctor c, const Type& dst, bitmask<CoercionStyle> s
     return result::Error("could not coeerce type for constructor");
 }
 
-static Result<Type> _coerceParameterizedType(const Type& src, const Type& dst, bitmask<CoercionStyle> style) {
+static Result<Type> _coerceParameterizedType(const TypePtr& src, const TypePtr& dst, bitmask<CoercionStyle> style) {
     if ( src == dst )
         return dst;
 
@@ -640,7 +639,7 @@ static Result<Type> _coerceParameterizedType(const Type& src, const Type& dst, b
     return have_wildcard ? src : dst;
 }
 
-static Result<Type> _coerceType(const Type& src, const Type& dst, bitmask<CoercionStyle> style) {
+static Result<Type> _coerceType(const TypePtr& src, const TypePtr& dst, bitmask<CoercionStyle> style) {
     // TODO(robin): Not sure if this should/must replicate all the type coercion
     // login in coerceExpression(). If so, we should factor that out.
     // Update: I believe the answer is yes ... Added a few more cases, but this will
@@ -699,7 +698,7 @@ static Result<Type> _coerceType(const Type& src, const Type& dst, bitmask<Coerci
 }
 
 // Public version going through all plugins.
-Result<Type> hilti::coerceType(const Type& src, const Type& dst, bitmask<CoercionStyle> style) {
+Result<Type> hilti::coerceType(const TypePtr& src, const TypePtr& dst, bitmask<CoercionStyle> style) {
     return _coerceType(src, dst, style);
 }
 
@@ -801,7 +800,7 @@ Result<std::pair<bool, std::vector<Expression>>> hilti::coerceOperands(const nod
     return std::make_pair(changed, std::move(x));
 }
 
-static CoercedExpression _coerceExpression(const Expression& e, const Type& src, const Type& dst,
+static CoercedExpression _coerceExpression(const Expression& e, const TypePtr& src, const TypePtr& dst,
                                            bitmask<CoercionStyle> style, bool lhs) {
     if ( ! (style & CoercionStyle::_Recursing) )
         style |= CoercionStyle::_Recursing;
@@ -1001,20 +1000,20 @@ exit:
 }
 
 // Public version going through all plugins.
-CoercedExpression hilti::coerceExpression(const Expression& e, const Type& src, const Type& dst,
+CoercedExpression hilti::coerceExpression(const Expression& e, const TypePtr& src, const TypePtr& dst,
                                           bitmask<CoercionStyle> style, bool lhs) {
     return _coerceExpression(e, src, dst, style, lhs);
 }
 
 // Public version going through all plugins.
-CoercedExpression hilti::coerceExpression(const Expression& e, const Type& dst, bitmask<CoercionStyle> style,
+CoercedExpression hilti::coerceExpression(const Expression& e, const TypePtr& dst, bitmask<CoercionStyle> style,
                                           bool lhs) {
     return coerceExpression(e, e.type(), dst, style, lhs);
 }
 
 
 // Plugin-specific version just kicking off the local visitor.
-std::optional<Ctor> hilti::detail::coerceCtor(Ctor c, const Type& dst, bitmask<CoercionStyle> style) {
+std::optional<Ctor> hilti::detail::coerceCtor(Ctor c, const TypePtr& dst, bitmask<CoercionStyle> style) {
     if ( ! (type::isResolved(c.type()) && type::isResolved(dst)) )
         return {};
 
@@ -1025,7 +1024,7 @@ std::optional<Ctor> hilti::detail::coerceCtor(Ctor c, const Type& dst, bitmask<C
 }
 
 // Plugin-specific version just kicking off the local visitor.
-std::optional<Type> hilti::detail::coerceType(Type t, const Type& dst, bitmask<CoercionStyle> style) {
+TypePtr hilti::detail::coerceType(Type t, const TypePtr& dst, bitmask<CoercionStyle> style) {
     if ( ! (type::isResolved(t) && type::isResolved(dst)) )
         return {};
 

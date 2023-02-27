@@ -41,7 +41,7 @@ static inline void checkName(const Expression& op0, const Expression& op1, Node&
 }
 
 // Returns the type of a struct field referenced by an operand.
-static inline Type itemType(const Expression& op0, const Expression& op1) {
+static inline TypePtr itemType(const Expression& op0, const Expression& op1) {
     if ( auto st = op0.type().tryAs<type::Struct>() ) {
         if ( auto f = st->field(memberExpression(op1).id().local()) )
             return f->type();
@@ -53,7 +53,7 @@ static inline Type itemType(const Expression& op0, const Expression& op1) {
 } // namespace struct_::detail
 
 BEGIN_OPERATOR_CUSTOM(struct_, Unset)
-    Type result(const hilti::node::Range<Expression>& ops) const { return type::void_; }
+    TypePtr result(const hilti::node::Range<Expression>& ops) const { return type::void_; }
 
     bool isLhs() const { return true; }
     auto priority() const { return hilti::operator_::Priority::Normal; }
@@ -76,7 +76,7 @@ Clears an optional field.
 END_OPERATOR_CUSTOM_x
 
 BEGIN_OPERATOR_CUSTOM_x(struct_, MemberNonConst, Member)
-    Type result(const hilti::node::Range<Expression>& ops) const {
+    TypePtr result(const hilti::node::Range<Expression>& ops) const {
         if ( ops.empty() )
             return type::DocOnly("<field type>");
 
@@ -106,7 +106,7 @@ triggers an exception.
 END_OPERATOR_CUSTOM_x
 
 BEGIN_OPERATOR_CUSTOM_x(struct_, MemberConst, Member)
-    Type result(const hilti::node::Range<Expression>& ops) const {
+    TypePtr result(const hilti::node::Range<Expression>& ops) const {
         if ( ops.empty() )
             return type::DocOnly("<field type>");
 
@@ -137,7 +137,7 @@ triggers an exception.
 END_OPERATOR_CUSTOM_x
 
 BEGIN_OPERATOR_CUSTOM(struct_, TryMember)
-    Type result(const hilti::node::Range<Expression>& ops) const {
+    TypePtr result(const hilti::node::Range<Expression>& ops) const {
         if ( ops.empty() )
             return type::DocOnly("<field type>");
 
@@ -170,7 +170,7 @@ exception differently).
 END_OPERATOR_CUSTOM
 
 BEGIN_OPERATOR_CUSTOM(struct_, HasMember)
-    Type result(const hilti::node::Range<Expression>& /* ops */) const { return type::Bool(); }
+    TypePtr result(const hilti::node::Range<Expression>& /* ops */) const { return type::Bool(); }
 
     bool isLhs() const { return false; }
     auto priority() const { return hilti::operator_::Priority::Normal; }
@@ -212,7 +212,7 @@ public:
 
         static operator_::Kind kind() { return operator_::Kind::MemberCall; }
         const std::vector<operator_::Operand>& operands() const { return _operands; }
-        Type result(const hilti::node::Range<Expression>& /* ops */) const { return _result; }
+        TypePtr result(const hilti::node::Range<Expression>& /* ops */) const { return _result; }
         bool isLhs() const { return false; }
         auto priority() const { return hilti::operator_::Priority::Normal; }
         void validate(const expression::ResolvedOperator& /* i */, operator_::position_t p) const {}
@@ -232,7 +232,7 @@ public:
     private:
         declaration::Field _field;
         std::vector<operator_::Operand> _operands;
-        Type _result;
+        TypePtr _result;
     };
 };
 

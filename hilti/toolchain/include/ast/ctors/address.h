@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/rt/types/address.h>
@@ -9,35 +10,42 @@
 #include <hilti/ast/ctor.h>
 #include <hilti/ast/types/address.h>
 
+#include "ast/type.h"
+
 namespace hilti::ctor {
 
-/** AST node for a Address constructor. */
-class Address : public NodeBase, public hilti::trait::isCtor {
+/** AST node for a `address` ctor. */
+class Address : public Ctor {
 public:
-    using Value = hilti::rt::Address;
+    const auto& value() const { return _value; }
 
-    Address(const Value& addr, const Meta& m = Meta()) : NodeBase(nodes(type::Address(m)), m), _address(addr) {}
+    QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
 
-    const auto& value() const { return _address; }
+    node::Properties properties() const final {
+        auto p = node::Properties{{"value", to_string(_value)}};
+        return Ctor::properties() + p;
+    }
 
-    bool operator==(const Address& other) const { return value() == other.value(); }
+    static auto create(ASTContext* ctx, hilti::rt::Address v, const Meta& meta = {}) {
+        return NodeDerivedPtr<Address>(
+            new Address({QualifiedType::create(ctx, type::Address::create(ctx, meta), true)}, v, meta));
+    }
 
-    /** Implements `Ctor` interface. */
-    const auto& type() const { return child<Type>(0); }
-    /** Implements `Ctor` interface. */
-    bool isConstant() const { return true; }
-    /** Implements `Ctor` interface. */
-    auto isLhs() const { return false; }
-    /** Implements `Ctor` interface. */
-    auto isTemporary() const { return true; }
-    /** Implements `Ctor` interface. */
-    auto isEqual(const Ctor& other) const { return node::isEqual(this, other); }
+protected:
+    Address(Nodes children, hilti::rt::Address v, Meta meta) : Ctor(std::move(children), std::move(meta)), _value(v) {}
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{{"address", to_string(_address)}}; }
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<Address>();
+        if ( ! n )
+            return false;
+
+        return Ctor::isEqual(other) && _value == n->_value;
+    }
+
+    HILTI_NODE(Address)
 
 private:
-    Value _address;
+    hilti::rt::Address _value;
 };
 
 } // namespace hilti::ctor

@@ -2,117 +2,99 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
-#include <vector>
 
 #include <hilti/ast/type.h>
 #include <hilti/ast/types/tuple.h>
-#include <hilti/ast/types/unknown.h>
-#include <hilti/base/optional-ref.h>
+
+#include "ast/forward.h"
+#include "ast/type.h"
 
 namespace hilti::type {
 
 namespace map {
 
 /** AST node for a map iterator type. */
-class Iterator : public TypeBase {
+class Iterator : public UnqualifiedType {
 public:
-    Iterator(Type ktype, Type vtype, bool const_, const Meta& m = Meta())
-        : TypeBase(nodes(type::Tuple({std::move(ktype), std::move(vtype)}, m)), m), _const(const_) {}
-    Iterator(Wildcard /*unused*/, bool const_ = true, Meta m = Meta())
-        : TypeBase(nodes(type::unknown, type::unknown), std::move(m)), _wildcard(true), _const(const_) {}
-
-    const Type& keyType() const {
-        if ( auto t = children()[0].tryAs<type::Tuple>() )
-            return t->elements()[0].type();
+    QualifiedTypePtr keyType() const {
+        if ( auto t = child<type::Tuple>(0) )
+            return t->elements()[0]->type();
         else
-            return child<Type>(0);
+            return child<QualifiedType>(0);
     }
 
-    const Type& valueType() const {
-        if ( auto t = children()[0].tryAs<type::Tuple>() )
-            return t->elements()[1].type();
+    QualifiedTypePtr valueType() const {
+        if ( auto t = child<type::Tuple>(0) )
+            return t->elements()[1]->type();
         else
-            return child<Type>(0);
+            return child<QualifiedType>(0);
     }
 
-    /** Returns true if the container elements aren't modifiable. */
-    bool isConstant() const { return _const; }
+    QualifiedTypePtr dereferencedType() const final { return valueType(); }
+    Nodes typeParameters() const final { return children(); }
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-
-    bool _isResolved(ResolvedState* rstate) const override {
-        return type::detail::isResolved(dereferencedType(), rstate);
+    static auto create(ASTContext* ctx, const QualifiedTypePtr& ktype, const QualifiedTypePtr& vtype, Meta meta = {}) {
+        return NodeDerivedPtr<Iterator>(new Iterator({ktype, vtype}, std::move(meta)));
     }
 
-    optional_ref<const Type> dereferencedType() const override { return child<Type>(0); }
-    bool isWildcard() const override { return _wildcard; }
-    std::vector<Node> typeParameters() const override { return children(); }
-    node::Properties properties() const override { return node::Properties{{"const", _const}}; }
-
-    bool _isAllocable() const override { return true; }
-    bool _isIterator() const override { return true; }
-    bool _isMutable() const override { return true; }
-    bool _isParameterized() const override { return true; }
-    bool _isRuntimeNonTrivial() const override { return true; }
-
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
-
-    bool operator==(const Iterator& other) const {
-        return keyType() == other.keyType() && valueType() == other.valueType();
+    static auto create(ASTContext* ctx, Wildcard _, Meta m = Meta()) {
+        return NodeDerivedPtr<Iterator>(new Iterator(Wildcard(), std::move(m)));
     }
 
-    HILTI_TYPE_VISITOR_IMPLEMENT
+protected:
+    Iterator(Nodes children, Meta meta) : UnqualifiedType(std::move(children), std::move(meta)) {}
+    Iterator(Wildcard _, Meta meta) : UnqualifiedType(Wildcard(), std::move(meta)) {}
 
-private:
-    bool _wildcard = false;
-    bool _const = false;
+    bool _isAllocable() const final { return true; }
+    bool _isIterator() const final { return true; }
+    bool _isMutable() const final { return true; }
+    bool _isParameterized() const final { return true; }
+    bool _isRuntimeNonTrivial() const final { return true; }
+    bool _isResolved(ResolvedState* rstate) const final {
+        return type::detail::isResolved(keyType(), rstate) && type::detail::isResolved(valueType(), rstate);
+    }
+
+    bool isEqual(const Node& other) const override { return other.isA<Iterator>() && UnqualifiedType::isEqual(other); }
+
+    HILTI_NODE(Iterator)
 };
 
 } // namespace map
 
-/** AST node for a map type. */
-class Map : public TypeBase {
+/** AST node for a `map` type. */
+class Map : public UnqualifiedType {
 public:
-    Map(const Type& k, const Type& v, const Meta& m = Meta())
-        : TypeBase(nodes(map::Iterator(k, v, true, m), map::Iterator(k, v, false, m)), m) {}
-    Map(Wildcard /*unused*/, const Meta& m = Meta())
-        : TypeBase(nodes(map::Iterator(Wildcard{}, true, m), map::Iterator(Wildcard{}, false, m)), m),
-          _wildcard(true) {}
+    QualifiedTypePtr keyType() const { return child<map::Iterator>(0)->keyType(); }
+    QualifiedTypePtr valueType() const { return child<map::Iterator>(0)->valueType(); }
 
-    const Type& keyType() const { return child<map::Iterator>(0).keyType(); }
-    const Type& valueType() const { return child<map::Iterator>(0).valueType(); }
+    QualifiedTypePtr elementType() const final { return iteratorType()->dereferencedType(); }
+    UnqualifiedTypePtr iteratorType() const final { return child<map::Iterator>(0); }
+    Nodes typeParameters() const final { return children(); }
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-
-    bool _isResolved(ResolvedState* rstate) const override {
-        return type::detail::isResolved(iteratorType(true), rstate) &&
-               type::detail::isResolved(iteratorType(false), rstate);
+    static auto create(ASTContext* ctx, const QualifiedTypePtr& ktype, const QualifiedTypePtr& vtype,
+                       const Meta& meta = {}) {
+        return NodeDerivedPtr<Map>(new Map({map::Iterator::create(ctx, ktype, vtype, meta)}, meta));
     }
 
-    optional_ref<const Type> elementType() const override { return valueType(); }
-
-    optional_ref<const Type> iteratorType(bool const_) const override {
-        return const_ ? child<Type>(0) : child<Type>(1);
+    static auto create(ASTContext* ctx, Wildcard _, Meta m = Meta()) {
+        return NodeDerivedPtr<Map>(new Map(Wildcard(), std::move(m)));
     }
 
-    bool isWildcard() const override { return _wildcard; }
-    std::vector<Node> typeParameters() const override { return children(); }
-    node::Properties properties() const override { return node::Properties{}; }
+protected:
+    Map(Nodes children, Meta meta) : UnqualifiedType(std::move(children), std::move(meta)) {}
+    Map(Wildcard _, Meta meta) : UnqualifiedType(Wildcard(), std::move(meta)) {}
 
-    bool _isAllocable() const override { return true; }
-    bool _isMutable() const override { return true; }
-    bool _isParameterized() const override { return true; }
-    bool _isRuntimeNonTrivial() const override { return true; }
+    bool _isAllocable() const final { return true; }
+    bool _isMutable() const final { return true; }
+    bool _isParameterized() const final { return true; }
+    bool _isRuntimeNonTrivial() const final { return true; }
+    bool _isResolved(ResolvedState* rstate) const final { return type::detail::isResolved(iteratorType(), rstate); }
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+    bool isEqual(const Node& other) const override { return other.isA<Map>() && UnqualifiedType::isEqual(other); }
 
-    bool operator==(const Map& other) const { return iteratorType(true) == other.iteratorType(true); }
-
-    HILTI_TYPE_VISITOR_IMPLEMENT
-
-private:
-    bool _wildcard = false;
+    HILTI_NODE(Map)
 };
 
 } // namespace hilti::type

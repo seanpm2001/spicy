@@ -4,7 +4,6 @@
 
 #include <hilti/ast/all.h>
 #include <hilti/ast/builder/expression.h>
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/operators/tuple.h>
 #include <hilti/base/logger.h>
 #include <hilti/base/util.h>
@@ -60,7 +59,7 @@ struct Visitor : public visitor::PreOrder<void, Visitor> {
      * is not possible. Will indicate no-change if expression or type hasn't
      * been resolved.
      **/
-    std::optional<Expression> coerceTo(Node* n, const Expression& e, const Type& t, bool contextual, bool assignment) {
+    std::optional<Expression> coerceTo(Node* n, const Expression& e, const TypePtr& t, bool contextual, bool assignment) {
         if ( ! (expression::isResolved(e) && type::isResolved(t)) )
             return {};
 
@@ -102,7 +101,7 @@ struct Visitor : public visitor::PreOrder<void, Visitor> {
 
     // Will do nothing if expressions or type aren't resolved.
     template<typename Container>
-    Result<std::optional<std::vector<Expression>>> coerceExpressions(const Container& exprs, const Type& dst) {
+    Result<std::optional<std::vector<Expression>>> coerceExpressions(const Container& exprs, const TypePtr& dst) {
         if ( ! type::isResolved(dst) )
             return {std::nullopt};
 
@@ -137,7 +136,7 @@ struct Visitor : public visitor::PreOrder<void, Visitor> {
      * expression (only) if its type has changed.
      */
     Result<std::optional<Expression>> coerceMethodArgument(const expression::ResolvedOperatorBase& o, size_t i,
-                                                           const Type& t) {
+                                                           const TypePtr& t) {
         auto ops = o.op2();
 
         // If the argument list was the result of a coercion unpack its result.

@@ -1,6 +1,5 @@
 // Copyright (c) 2020-2023 by the Zeek Project. See LICENSE for details.
 
-#include <spicy/ast/detail/visitor.h>
 #include <spicy/ast/types/unit.h>
 #include <spicy/compiler/detail/codegen/grammar.h>
 #include <spicy/compiler/detail/visitors.h>

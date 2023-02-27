@@ -2,10 +2,12 @@
 
 #pragma once
 
-#include <set>
+#include <memory>
+#include <string>
 #include <utility>
 
 #include <hilti/ast/attribute.h>
+#include <hilti/ast/forward.h>
 #include <hilti/ast/node.h>
 #include <hilti/ast/statement.h>
 #include <hilti/ast/type.h>
@@ -39,47 +41,54 @@ constexpr inline auto from_string(const std::string_view& s) {
 } // namespace calling_convention
 
 } // namespace function
-
-/** AST node representing a function. */
-class Function : public NodeBase {
+/** Base class for function nodes. */
+class Function : public Node {
 public:
-    Function(ID id, Type type, std::optional<Statement> body,
-             function::CallingConvention cc = function::CallingConvention::Standard,
-             std::optional<AttributeSet> attrs = {}, Meta m = Meta())
-        : NodeBase(nodes(std::move(id), std::move(type), std::move(body), std::move(attrs)), std::move(m)), _cc(cc) {}
+    ~Function() override;
 
-    Function() : NodeBase(nodes(node::none, node::none, node::none, node::none), Meta()) {}
-
-    const auto& id() const { return child<ID>(0); }
-    const auto& type() const { return child<Type>(1); }
-    NodeRef typeRef() { return NodeRef(children()[1]); }
-    const auto& ftype() const { return child<Type>(1).as<type::Function>(); }
-    auto body() const { return children()[2].tryAs<Statement>(); }
-    auto attributes() const { return children()[3].tryAs<AttributeSet>(); }
+    const auto& id() const { return _id; }
+    auto type() const { return child<QualifiedType>(0); }
+    auto ftype() const { return child<QualifiedType>(0)->type()->as<type::Function>(); }
+    auto body() const { return child<Statement>(1); }
+    auto attributes() const { return child<AttributeSet>(2); }
     auto callingConvention() const { return _cc; }
-    bool isStatic() const { return AttributeSet::find(attributes(), "&static").has_value(); }
+    bool isStatic() const { return attributes()->find("&static")->hasValue(); }
 
-    bool operator==(const Function& other) const {
-        return id() == other.id() && type() == other.type() && body() == other.body() &&
-               attributes() == other.attributes() && callingConvention() == other.callingConvention();
+    void setBody(const StatementPtr& b) { setChild(1, b); }
+    void setID(const ID& id) { _id = id; }
+    void setResultType(const QualifiedTypePtr& t) { ftype()->setResultType(t); }
+
+    node::Properties properties() const override {
+        auto p = node::Properties{{"cc", to_string(_cc)}};
+        return Node::properties() + p;
     }
 
-    void setBody(const Statement& b) { children()[2] = b; }
-    void setID(const ID& id) { children()[0] = id; }
-    void setFunctionType(const type::Function& ftype) { children()[1] = ftype; }
-    void setResultType(const Type& t) { children()[1].as<type::Function>().setResultType(t); }
+    static auto create(ASTContext* ctx, const ID& id, const type::FunctionPtr& ftype, const StatementPtr& body,
+                       function::CallingConvention cc = function::CallingConvention::Standard,
+                       const AttributeSetPtr& attrs = nullptr, const Meta& meta = {}) {
+        return NodeDerivedPtr<Function>(
+            new Function({QualifiedType::create(ctx, ftype, true, meta), body, attrs}, id, cc, meta));
+    }
 
-    /** Internal method for use by builder API only. */
-    Node& _typeNode() { return children()[1]; }
+protected:
+    Function(Nodes children, ID id, function::CallingConvention cc, Meta meta = {})
+        : Node(std::move(children), std::move(meta)), _id(std::move(id)), _cc(cc) {}
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{{"cc", to_string(_cc)}}; }
+    std::string _render() const override;
+
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<Function>();
+        if ( ! n )
+            return false;
+
+        return Node::isEqual(other) && _id == n->_id && _cc == n->_cc;
+    }
+
+    HILTI_NODE(Function);
 
 private:
-    function::CallingConvention _cc = function::CallingConvention::Standard;
+    ID _id;
+    function::CallingConvention _cc;
 };
-
-/** Creates an AST node representing a `Function`. */
-inline Node to_node(Function f) { return Node(std::move(f)); }
 
 } // namespace hilti

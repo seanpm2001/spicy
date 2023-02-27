@@ -2,42 +2,30 @@
 
 #pragma once
 
-#include <set>
+#include <memory>
+#include <string>
 #include <utility>
-#include <vector>
 
 #include <hilti/ast/declaration.h>
 #include <hilti/ast/declarations/property.h>
-#include <hilti/ast/id.h>
+#include <hilti/ast/forward.h>
 #include <hilti/ast/node.h>
-#include <hilti/ast/statement.h>
 #include <hilti/ast/statements/block.h>
-#include <hilti/ast/statements/expression.h>
-#include <hilti/base/util.h>
 
 namespace hilti {
 
-/** AST node representing a HILTI module. */
-class Module : public NodeBase, public node::WithDocString {
+/** Base class for Module nodes. */
+class Module : public Node, public node::WithDocString {
 public:
-    Module(ID id, Meta m = Meta()) : NodeBase({std::move(id), statement::Block({}, m)}, std::move(m)) {}
+    ~Module() override;
 
-    Module(ID id, std::vector<Declaration> decls, Meta m = Meta())
-        : NodeBase(nodes(std::move(id), statement::Block({}, m), std::move(decls)), std::move(m)) {}
-
-    Module(ID id, std::vector<Declaration> decls, std::vector<Statement> stmts, const Meta& m = Meta())
-        : NodeBase(nodes(std::move(id), statement::Block(std::move(stmts), m), std::move(decls)), m) {}
-
-    Module() : NodeBase(nodes(ID(), statement::Block({}, Meta())), Meta()) {}
-
-    const auto& id() const { return child<ID>(0); }
-    const auto& statements() const { return child<statement::Block>(1); }
+    const auto& id() const { return _id; }
+    auto statements() const { return child<statement::Block>(0); }
     auto declarations() const { return childrenOfType<Declaration>(); }
-    auto declarationRefs() const { return childRefsOfType<Declaration>(); }
 
     bool isEmpty() const {
-        // We always have an ID and a block as children.
-        return children().size() <= 2 && statements().statements().empty();
+        // We always have a block as children.
+        return children().size() <= 1 && statements()->statements().empty();
     }
 
     /**
@@ -53,7 +41,7 @@ public:
      *
      * @param id name of the property to return
      */
-    hilti::optional_ref<const declaration::Property> moduleProperty(const ID& id) const;
+    declaration::PropertyPtr moduleProperty(const ID& id) const;
 
     /**
      * Returns all of module's property declarations of a given name. If
@@ -71,7 +59,7 @@ public:
      * classes in that we allow to modify existing instances. Changes will be
      * reflected in all copies of this instance.
      */
-    void add(Declaration n) { addChild(std::move(n)); }
+    void add(DeclarationPtr d) { addChild(std::move(d)); }
 
     /**
      * Adds a top-level statement to the module. It will be appended to the
@@ -83,46 +71,46 @@ public:
      * reflected in all copies of this instance.
      *
      */
-    void add(Statement s) { children()[1].as<statement::Block>()._add(std::move(s)); }
+    void add(StatementPtr s) { child<statement::Block>(0)->add(std::move(s)); }
 
-    /**
-     * Adds a top-level expression to the module. It will be appended to the
-     * end of the current list of statements and be evaluated at module
-     * initialize time.
-     *
-     * Note this is a mutating function. `Module` is an exception among AST
-     * classes in that we allow to modify existing instances. Changes will be
-     * reflected in all copies of this instance.
-     *
-     */
-    void add(Expression e) { add(statement::Expression(std::move(e))); }
-
-    /**
-     * Saves a node along with the module, but outside of the actual AST. This
-     * allows keeping references to the node's sub-AST valid while not making
-     * the node itself part of the AST. That's especially useful when
-     * transforming nodes from one representation to another while other parts
-     * of the AST are still referring to the original once.
-     *
-     * @param n node to retain with all of its children
-     * @returns a reference to the internally stored node
-     */
-    NodeRef preserve(const Node& n) {
-        _preserved.push_back(n);
-        return NodeRef(_preserved.back());
+    node::Properties properties() const override {
+        auto p = node::Properties{{"id", _id}};
+        return Node::properties() + p;
     }
 
-    /** Destroys any nodes retained previously through `preserve()`. */
-    void destroyPreservedNodes();
+    static auto create(ASTContext* ctx, ID id, const Declarations& decls, Statements stmts, const Meta& meta = {}) {
+        Nodes nodes = {statement::Block::create(ctx, std::move(stmts), meta)};
+        for ( auto d : decls )
+            nodes.push_back(std::move(d));
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+        return NodeDerivedPtr<Module>(new Module(std::move(nodes), std::move(id), meta));
+    }
+
+    static auto create(ASTContext* ctx, ID id = {}, const Meta& meta = {}) {
+        return create(ctx, std::move(id), {}, {}, meta);
+    }
+
+    static auto create(ASTContext* ctx, ID id, const Declarations& decls, const Meta& meta = {}) {
+        return create(ctx, std::move(id), decls, {}, meta);
+    }
+
+protected:
+    Module(Nodes children, ID id, Meta meta = {}) : Node(std::move(children), std::move(meta)), _id(std::move(id)) {}
+
+    std::string _render() const override;
+
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<Module>();
+        if ( ! n )
+            return false;
+
+        return Node::isEqual(other) && _id == n->_id;
+    }
+
+    HILTI_NODE(Module);
 
 private:
-    std::vector<Node> _preserved;
+    ID _id;
 };
-
-/** Creates an AST node representing a `Module`. */
-inline Node to_node(Module i) { return Node(std::move(i)); }
 
 } // namespace hilti

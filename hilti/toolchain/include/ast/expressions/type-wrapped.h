@@ -2,37 +2,34 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/expression.h>
+#include <hilti/ast/type.h>
 
 namespace hilti::expression {
 
 /** AST node for an expression wrapped to have a specific type. */
-class TypeWrapped : public NodeBase, public trait::isExpression {
+class TypeWrapped : public Expression {
 public:
-    TypeWrapped(Expression e, Type t, Meta m = Meta()) : NodeBase(nodes(std::move(e), std::move(t)), std::move(m)) {}
+    auto expression() const { return child<Expression>(0); }
 
-    const auto& expression() const { return child<Expression>(0); }
+    QualifiedTypePtr type() const final { return child<QualifiedType>(1); }
+    bool isLhs() const final { return expression()->isLhs(); }
+    bool isTemporary() const final { return expression()->isTemporary(); }
 
-    bool operator==(const TypeWrapped& other) const {
-        return expression() == other.expression() && type() == other.type();
+    static auto create(ASTContext* ctx, const ExpressionPtr& expr, const QualifiedTypePtr& type,
+                       const Meta& meta = {}) {
+        return NodeDerivedPtr<TypeWrapped>(new TypeWrapped({expr, type}, meta));
     }
 
-    /** Implements `Expression` interface. */
-    bool isLhs() const { return expression().isLhs(); }
-    /** Implements `Expression` interface. */
-    bool isTemporary() const { return expression().isTemporary(); }
-    /** Implements `Expression` interface. */
-    const Type& type() const { return children()[1].as<Type>(); }
+protected:
+    TypeWrapped(Nodes children, Meta meta) : Expression(std::move(children), std::move(meta)) {}
 
-    /** Implements `Expression` interface. */
-    auto isConstant() const { return expression().isConstant(); }
-    /** Implements `Expression` interface. */
-    auto isEqual(const Expression& other) const { return node::isEqual(this, other); }
+    bool isEqual(const Node& other) const override { return other.isA<TypeWrapped>() && Expression::isEqual(other); }
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    HILTI_NODE(TypeWrapped)
 };
 
 } // namespace hilti::expression

@@ -99,7 +99,7 @@ public:
     }
 
     // Unit item interface
-    const Type& itemType() const { return type::void_; }
+    const TypePtr& itemType() const { return type::void_; }
 
     bool isResolved() const {
         for ( const auto& c : cases() ) {

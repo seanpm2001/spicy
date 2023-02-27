@@ -11,35 +11,25 @@
 
 namespace hilti::statement {
 
-/** AST node for a "while" statement. */
-class For : public NodeBase, public hilti::trait::isStatement {
+/** AST node for a `for` statement. */
+class For : public Statement {
 public:
-    For(hilti::ID id, hilti::Expression seq, Statement body, Meta m = Meta())
-        : NodeBase(nodes(declaration::LocalVariable(std::move(id), true, id.meta()), std::move(seq), std::move(body)),
-                   std::move(m)) {}
+    auto local() const { return child<hilti::declaration::LocalVariable>(0); }
+    auto sequence() const { return child<::hilti::Expression>(1); }
+    auto body() const { return child<hilti::Statement>(2); }
 
-    const auto& local() const { return child<hilti::declaration::LocalVariable>(0); }
-    auto localRef() const { return NodeRef(children()[0]); }
-    const auto& sequence() const { return child<hilti::Expression>(1); }
-    const auto& body() const { return child<hilti::Statement>(2); }
-
-    void setLocalType(const Type& t) { children()[0].as<declaration::LocalVariable>().setType(t); }
-
-    bool operator==(const For& other) const {
-        return local() == other.local() && sequence() == other.sequence() && body() == other.body();
+    static auto create(ASTContext* ctx, const hilti::ID& id, const ExpressionPtr& seq, const StatementPtr& body,
+                       Meta meta = {}) {
+        auto local = declaration::LocalVariable::create(ctx, id, meta);
+        return NodeDerivedPtr<For>(new For({local, seq, body}, std::move(meta)));
     }
 
-    /** Internal method for use by builder API only. */
-    auto& _sequenceNode() { return children()[1]; }
+protected:
+    For(Nodes children, Meta meta) : Statement(std::move(children), std::move(meta)) {}
 
-    /** Internal method for use by builder API only. */
-    auto& _bodyNode() { return children()[2]; }
+    bool isEqual(const Node& other) const final { return other.isA<For>() && Statement::isEqual(other); }
 
-    /** Implements the `Statement` interface. */
-    auto isEqual(const Statement& other) const { return node::isEqual(this, other); }
-
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    HILTI_NODE(For)
 };
 
 } // namespace hilti::statement

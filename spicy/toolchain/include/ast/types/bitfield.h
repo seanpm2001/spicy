@@ -41,9 +41,9 @@ public:
     auto upper() const { return _upper; }
     auto fieldWidth() const { return _field_width; }
     auto attributes() const { return children()[3].tryAs<AttributeSet>(); }
-    const Type& ddType() const { return children()[1].as<hilti::declaration::Expression>().expression().type(); }
+    const TypePtr& ddType() const { return children()[1].as<hilti::declaration::Expression>().expression().type(); }
     NodeRef ddRef() const { return NodeRef(children()[1]); }
-    const auto& itemType() const { return child<Type>(2); }
+    const auto& itemType() const { return child<TypePtr>(2); }
 
     /** Implements the `Node` interface. */
     auto properties() const {
@@ -55,7 +55,7 @@ public:
     }
 
     void setAttributes(const AttributeSet& attrs) { children()[3] = attrs; }
-    void setItemType(const Type& t) { children()[2] = t; }
+    void setItemType(const TypePtr& t) { children()[2] = t; }
 
     bool operator==(const Bits& other) const {
         return id() == other.id() && _lower == other._lower && _upper == other._upper &&
@@ -74,26 +74,26 @@ inline hilti::Node to_node(Bits f) { return hilti::Node(std::move(f)); }
 } // namespace bitfield
 
 /** AST node for a struct type. */
-class Bitfield : public hilti::TypeBase {
+class Bitfield : public hilti::TypePtr {
 public:
     Bitfield(int width, std::vector<bitfield::Bits> bits, const Meta& m = Meta())
-        : TypeBase(nodes(type::UnsignedInteger(width, m), hilti::type::auto_, std::move(bits)), m), _width(width) {}
+        : TypePtr(nodes(type::UnsignedInteger(width, m), hilti::type::auto_, std::move(bits)), m), _width(width) {}
     Bitfield(Wildcard /*unused*/, Meta m = Meta())
-        : TypeBase({hilti::type::unknown, hilti::type::unknown}, std::move(m)), _wildcard(true) {}
+        : TypePtr({hilti::type::unknown, hilti::type::unknown}, std::move(m)), _wildcard(true) {}
 
     int width() const { return _width; }
     auto bits() const { return children<bitfield::Bits>(2, -1); }
     hilti::optional_ref<const bitfield::Bits> bits(const ID& id) const;
     std::optional<int> bitsIndex(const ID& id) const;
-    const Type& parseType() const { return child<Type>(0); }
-    const Type& type() const { return child<Type>(1); }
+    const TypePtr& parseType() const { return child<TypePtr>(0); }
+    const TypePtr& type() const { return child<TypePtr>(1); }
 
     void addField(bitfield::Bits f) { addChild(std::move(f)); }
-    void setType(const Type& t) { children()[1] = t; }
+    void setType(const TypePtr& t) { children()[1] = t; }
 
     bool operator==(const Bitfield& other) const { return width() == other.width() && bits() == other.bits(); }
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
+    bool isEqual(const TypePtr& other) const override { return node::isEqual(this, other); }
     bool _isResolved(ResolvedState* rstate) const override { return true; }
     std::vector<hilti::Node> typeParameters() const override { return hilti::util::slice(children(), 1); }
     bool isWildcard() const override { return _wildcard; }

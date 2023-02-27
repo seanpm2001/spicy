@@ -7,7 +7,6 @@
 #include <hilti/base/logger.h>
 
 #include <spicy/ast/aliases.h>
-#include <spicy/ast/detail/visitor.h>
 #include <spicy/ast/types/unit-items/field.h>
 #include <spicy/compiler/detail/codegen/codegen.h>
 #include <spicy/compiler/detail/codegen/parser-builder.h>
@@ -34,7 +33,7 @@ struct Visitor : public hilti::visitor::PreOrder<std::optional<Expression>, Visi
     auto pushBuilder() { return pb->pushBuilder(); }
     auto popBuilder() { return pb->popBuilder(); }
 
-    Expression destination(const Type& t) {
+    Expression destination(const TypePtr& t) {
         if ( dst )
             return *dst;
 
@@ -198,7 +197,7 @@ struct Visitor : public hilti::visitor::PreOrder<std::optional<Expression>, Visi
 
     result_t operator()(const hilti::expression::Ctor& c) { return *dispatch(c.ctor()); }
 
-    result_t parseInteger(const Type& type, const Expression& expected, const Meta& meta) {
+    result_t parseInteger(const TypePtr& type, const Expression& expected, const Meta& meta) {
         auto offset = [](Expression view) { return builder::memberCall(std::move(view), "offset", {}); };
 
         switch ( state().literal_mode ) {

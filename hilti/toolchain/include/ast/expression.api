@@ -2,26 +2,6 @@
 
 /** Interface for HILTI expressions. */
 class Expression(hilti::trait::isExpression) : hilti::trait::isNode {
-    /** Returns the expressions's HILTI type when evaluated. */
-    const hilti::Type& type() const;
-
-    /**
-     * Returns true if the constructor's value is a value that will never
-     * change.
-     */
-    bool isConstant() const;
-
-    /** Returns true if the expression is equivalent to another one in HILTI semantics. */
-    bool isEqual(const Expression& other) const;
-
-    /** Returns true if the expression can be the target of an assignment. */
-    bool isLhs() const;
-
-    /**
-     * Returns true if, when evaluated as RHS, the expression will yield a
-     * temporary value.
-     */
-    bool isTemporary() const;
 
     /** Implements the `Node` interface. */
     hilti::node::Properties properties() const;

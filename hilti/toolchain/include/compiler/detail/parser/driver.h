@@ -16,6 +16,7 @@
 #include <string>
 
 #include <hilti/ast/all.h>
+#include <hilti/ast/builder/builder.h>
 #include <hilti/base/result.h>
 
 #undef YY_DECL
@@ -46,10 +47,11 @@ class Scanner;
 /** Driver for flex/bison. */
 class Driver {
 public:
-    Result<hilti::Node> parse(std::istream& in, const std::string& filename);
+    Result<NodePtr> parse(Builder* builder, std::istream& in, const std::string& filename);
 
     Scanner* scanner() const { return _scanner; }
     Parser* parser() const { return _parser; }
+    Builder* builder() const { return _builder; }
 
     // Methods for the parser.
 
@@ -61,13 +63,16 @@ public:
     void disableExpressionMode();
     void enableDottedIDMode();
     void disableDottedIDMode();
-    void setDestinationModule(Module&& m) { _module = std::move(m); }
+
+    void setDestinationModule(NodePtr m) { _module = std::move(m); }
 
 private:
-    Module _module;
+    Builder* _builder = nullptr;
     std::string _filename;
     Parser* _parser = nullptr;
     Scanner* _scanner = nullptr;
+
+    NodePtr _module;
     int _expression_mode = 0;
 };
 

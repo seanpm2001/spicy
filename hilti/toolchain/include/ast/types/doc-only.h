@@ -4,6 +4,7 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <hilti/ast/type.h>
 
@@ -11,25 +12,31 @@ namespace hilti::type {
 
 /**
  * AST node for a type that's only used for documentation purposes. This type
- * allows to carry a textual description of the a type over into
- * auto-generated documentation. If it's used anywhere else, it'll cause
- * trouble.
+ * allows to carry a textual description of a type over into auto-generated
+ * documentation. If it's used anywhere else, it'll cause trouble.
  */
-class DocOnly : public TypeBase {
+class DocOnly : public UnqualifiedType {
 public:
-    DocOnly(std::string desc, Meta m = Meta()) : TypeBase(std::move(m)), _description(std::move(desc)) {}
-
     auto description() const { return _description; }
 
-    bool operator==(const DocOnly& /* other */) const { return false; }
+    static auto create(ASTContext* ctx, std::string description, Meta meta = {}) {
+        // Note: We allow (i.e., must support) `ctx` being null.
+        return NodeDerivedPtr<DocOnly>(new DocOnly(std::move(description), std::move(meta)));
+    }
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return true; }
-    node::Properties properties() const override { return node::Properties{}; }
+protected:
+    DocOnly(std::string description, Meta meta)
+        : UnqualifiedType(std::move(meta)), _description(std::move(description)) {}
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<DocOnly>();
+        if ( ! n )
+            return false;
 
-    HILTI_TYPE_VISITOR_IMPLEMENT
+        return UnqualifiedType::isEqual(other) && _description == n->_description;
+    }
+
+    HILTI_NODE(DocOnly)
 
 private:
     std::string _description;

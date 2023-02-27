@@ -148,6 +148,9 @@ public:
     /** Returns the context's compiler options. */
     const Options& options() const { return _options; }
 
+    /** Returns the global AST context. */
+    std::shared_ptr<ASTContext> astContext() const { return _ast_context; }
+
     /**
      * Caches a code unit inside the context. The cache uses a unit's `(ID,
      * path)` tuple as the index. Any previously cached unit with the same
@@ -211,6 +214,7 @@ public:
 
 private:
     Options _options;
+    std::shared_ptr<ASTContext> _ast_context;
 
     std::unordered_map<ID, std::shared_ptr<context::CacheEntry>> _unit_cache_by_id;
     std::unordered_map<std::string, std::shared_ptr<context::CacheEntry>> _unit_cache_by_path;

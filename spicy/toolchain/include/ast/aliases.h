@@ -34,7 +34,7 @@ using Node = hilti::Node;
 using NodeRef = hilti::NodeRef;
 using Operator = hilti::Operator;
 using Statement = hilti::Statement;
-using Type = hilti::Type;
+using TypePtr = hilti::TypePtr;
 
 namespace declaration {
 using Linkage = hilti::declaration::Linkage;

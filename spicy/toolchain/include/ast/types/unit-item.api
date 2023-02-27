@@ -2,7 +2,7 @@
 
 class Item(trait::isUnitItem) : hilti::trait::isNode {
     /** Returns the type of the parsed unit item. */
-    const Type& itemType() const;
+    const TypePtr& itemType() const;
 
     /** Returns true if the item's type has been resolved. */
     bool isResolved() const;

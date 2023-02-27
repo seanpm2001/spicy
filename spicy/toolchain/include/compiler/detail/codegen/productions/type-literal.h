@@ -18,11 +18,11 @@ namespace spicy::detail::codegen::production {
  */
 class TypeLiteral : public ProductionBase, public spicy::trait::isLiteral {
 public:
-    TypeLiteral(const std::string& symbol, spicy::Type type, const Location& l = location::None)
+    TypeLiteral(const std::string& symbol, spicy::TypePtr type, const Location& l = location::None)
         : ProductionBase(symbol, l), _type(std::move(type)) {}
 
     Expression expression() const { return hilti::expression::Type_(_type); }
-    std::optional<spicy::Type> type() const { return _type; }
+    std::optional<spicy::TypePtr> type() const { return _type; }
     bool nullable() const { return false; }
     bool eodOk() const { return nullable(); }
     bool atomic() const { return true; }
@@ -30,7 +30,7 @@ public:
     std::string render() const { return hilti::util::fmt("%s", _type); }
 
 private:
-    spicy::Type _type;
+    spicy::TypePtr _type;
 };
 
 } // namespace spicy::detail::codegen::production

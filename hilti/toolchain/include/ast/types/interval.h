@@ -8,23 +8,22 @@
 
 namespace hilti::type {
 
-/** AST node for an interval type. */
-class Interval : public TypeBase {
+/** AST node for a `interval` type. */
+class Interval : public UnqualifiedType {
 public:
-    Interval(Meta m = Meta()) : TypeBase(std::move(m)) {}
+    static auto create(ASTContext* ctx, Meta meta = {}) {
+        return NodeDerivedPtr<Interval>(new Interval(std::move(meta)));
+    }
 
-    bool operator==(const Interval& /* other */) const { return true; }
+protected:
+    Interval(Meta meta) : UnqualifiedType(std::move(meta)) {}
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return true; }
-    node::Properties properties() const override { return node::Properties{}; }
+    bool _isAllocable() const final { return true; }
+    bool _isSortable() const final { return true; }
 
-    bool _isAllocable() const override { return true; }
-    bool _isSortable() const override { return true; }
+    bool isEqual(const Node& other) const override { return other.isA<Interval>() && UnqualifiedType::isEqual(other); }
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
-
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    HILTI_NODE(Interval)
 };
 
 } // namespace hilti::type

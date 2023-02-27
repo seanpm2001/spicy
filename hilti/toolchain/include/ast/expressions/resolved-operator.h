@@ -2,87 +2,72 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
-#include <vector>
 
 #include <hilti/ast/expression.h>
-#include <hilti/ast/expressions/unresolved-operator.h>
-#include <hilti/ast/node.h>
 #include <hilti/ast/operator.h>
-#include <hilti/ast/types/unresolved-id.h>
+#include <hilti/ast/type.h>
 
-namespace hilti {
-
-namespace trait {
-class isResolvedOperator {};
-} // namespace trait
-
-namespace expression {
-namespace resolved_operator::detail {
-#include <hilti/autogen/__resolved-operator.h>
-
-inline Node to_node(ResolvedOperator t) { return Node(std::move(t)); }
-
-inline std::ostream& operator<<(std::ostream& out, ResolvedOperator i) { return out << to_node(std::move(i)); }
-
-} // namespace resolved_operator::detail
-
-using ResolvedOperator = resolved_operator::detail::ResolvedOperator;
+namespace hilti::expression {
 
 /**
  * Base class for an AST node for an expression representing a resolved operator usage.
  *
  * @note Typically, one derives from this only by using the `__BEGIN_OPERATOR` macro.
  */
-class ResolvedOperatorBase : public NodeBase, public trait::isExpression, public trait::isResolvedOperator {
+class ResolvedOperatorBase : public Expression {
 public:
-    ResolvedOperatorBase(const Operator& op, const std::vector<Expression>& operands, Meta meta = Meta())
-        : NodeBase(nodes(node::none, operands), std::move(meta)), _operator(op) {
-        // Must not have instantiated this before we know the result type.
-        children()[0] = type::pruneWalk(op.result(children<Expression>(1, -1)));
-    }
-
-    const auto& operator_() const { return _operator; }
-    auto kind() const { return _operator.kind(); }
+    const auto& operator_() const { return *_operator; }
+    auto kind() const { return _operator->kind(); }
 
     // ResolvedOperator interface with common implementation.
     auto operands() const { return children<Expression>(1, -1); }
-    const auto& result() const { return child<Type>(0); }
-    const auto& op0() const { return child<Expression>(1); }
-    const auto& op1() const { return child<Expression>(2); }
-    const auto& op2() const { return child<Expression>(3); }
+    auto result() const { return child<QualifiedType>(0); }
+    auto op0() const { return child<Expression>(1); }
+    auto op1() const { return child<Expression>(2); }
+    auto op2() const { return child<Expression>(3); }
     auto hasOp0() const { return ! children().empty(); }
     auto hasOp1() const { return children().size() >= 3; }
     auto hasOp2() const { return children().size() >= 4; }
-    void setOp0(const Expression& e) { children()[1] = e; }
-    void setOp1(const Expression& e) { children()[2] = e; }
-    void setOp2(const Expression& e) { children()[3] = e; }
 
-    bool operator==(const ResolvedOperator& other) const {
-        return operator_() == other.operator_() && operands() == other.operands();
+#if 0
+    void setOp0(const ExpressionPtr& e) { setChild(1, e); }
+    void setOp1(const ExpressionPtr& e) { setChild(2, e); }
+    void setOp2(const ExpressionPtr& e) { setChild(3, e); }
+#endif
+
+    QualifiedTypePtr type() const final { return result(); }
+    bool isLhs() const final { return operator_().isLhs(); }
+    bool isTemporary() const final { return isLhs(); }
+
+    node::Properties properties() const final {
+        auto p = node::Properties{{"kind", to_string(_operator->kind())}};
+        return Expression::properties() + p;
     }
 
-    /** Implements `Expression` interface. */
-    bool isLhs() const { return operator_().isLhs(); }
-    /** Implements `Expression` interface. */
-    bool isTemporary() const { return isLhs(); }
-    /** Implements `Expression` interface. */
-    const Type& type() const { return result(); }
-    /** Implements `Expression` interface. */
-    auto isEqual(const Expression& other) const { return node::isEqual(this, other); }
+protected:
+    ResolvedOperatorBase(Nodes children, OperatorPtr op, Meta meta)
+        : Expression(std::move(children), std::move(meta)), _operator(std::move(op)) {
+        setChild(0, _operator->result(Node::children<Expression>(1, -1))); // TODO: Right?
+        type::pruneWalk(child(0)->as<QualifiedType>());
+    }
 
-    /** Implements `Expression` interface. */
-    bool isConstant() const { return type::isConstant(type()); }
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<ResolvedOperatorBase>();
+        if ( ! n )
+            return false;
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{{"kind", to_string(_operator.kind())}}; }
+        return Expression::isEqual(other) && _operator == n->_operator;
+    }
 
 private:
-    ::hilti::operator_::detail::Operator _operator;
+    OperatorPtr _operator = nullptr;
 };
 
 namespace resolved_operator {
 
+#if 0
 /**
  * Copies an existing resolved operator, replacing its 1st operand with a different expression.
  *
@@ -90,7 +75,7 @@ namespace resolved_operator {
  * @param e new operand
  * @return new resolved operator with the 1st operand replaced
  */
-inline hilti::Expression setOp0(const expression::ResolvedOperator& r, Expression e) {
+inline ExpressionPtr setOp0(const expression::ResolvedOperator& r, ExpressionPtr e) {
     auto x = r._clone().as<expression::ResolvedOperator>();
     x.setOp0(std::move(e));
     return x;
@@ -103,7 +88,7 @@ inline hilti::Expression setOp0(const expression::ResolvedOperator& r, Expressio
  * @param e new operand
  * @return new resolved operator with the 2nd operand replaced
  */
-inline hilti::Expression setOp1(const expression::ResolvedOperator& r, Expression e) {
+inline ExpressionPtr setOp1(const expression::ResolvedOperator& r, ExpressionPtr e) {
     auto x = r._clone().as<expression::ResolvedOperator>();
     x.setOp1(std::move(e));
     return x;
@@ -116,12 +101,12 @@ inline hilti::Expression setOp1(const expression::ResolvedOperator& r, Expressio
  * @param e new operand
  * @return new resolved operator with the 3rd operand replaced
  */
-inline hilti::Expression setOp2(const expression::ResolvedOperator& r, Expression e) {
+inline ExpressionPtr setOp2(const expression::ResolvedOperator& r, ExpressionPtr e) {
     auto x = r._clone().as<expression::ResolvedOperator>();
     x.setOp2(std::move(e));
     return x;
 }
+#endif
 
 } // namespace resolved_operator
-} // namespace expression
-} // namespace hilti
+} // namespace hilti::expression

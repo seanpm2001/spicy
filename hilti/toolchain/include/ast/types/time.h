@@ -8,23 +8,20 @@
 
 namespace hilti::type {
 
-/** AST node for a time type. */
-class Time : public TypeBase {
+/** AST node for a `time` type. */
+class Time : public UnqualifiedType {
 public:
-    Time(Meta m = Meta()) : TypeBase(std::move(m)) {}
+    static auto create(ASTContext* ctx, Meta meta = {}) { return NodeDerivedPtr<Time>(new Time(std::move(meta))); }
 
-    bool operator==(const Time& /* other */) const { return true; }
+protected:
+    Time(Meta meta) : UnqualifiedType(std::move(meta)) {}
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return true; }
-    node::Properties properties() const override { return node::Properties{}; }
+    bool _isAllocable() const final { return true; }
+    bool _isSortable() const final { return true; }
 
-    bool _isAllocable() const override { return true; }
-    bool _isSortable() const override { return true; }
+    bool isEqual(const Node& other) const override { return other.isA<Time>() && UnqualifiedType::isEqual(other); }
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
-
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    HILTI_NODE(Time)
 };
 
 } // namespace hilti::type

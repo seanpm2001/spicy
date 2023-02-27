@@ -1,6 +1,6 @@
 trait hilti::Declaration isDeclaration
 trait hilti::Node        isNode
-trait hilti::Type        isType
+trait hilti::TypePtr        isType
 trait hilti::Statement   isStatement
 trait hilti::Expression  isExpression
 trait hilti::Ctor        isCtor
@@ -15,7 +15,7 @@ hilti::Function : isNode
 hilti::ID : isNode
 hilti::Module : isNode
 hilti::Statement : isNode
-hilti::Type : isNode
+hilti::TypePtr : isNode
 hilti::type::function::Result : isNode
 hilti::type::function::Parameter : isNode
 hilti::statement::switch_::Case : isNode

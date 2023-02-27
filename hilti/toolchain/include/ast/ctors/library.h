@@ -2,9 +2,11 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/ctor.h>
+#include <hilti/ast/expression.h>
 #include <hilti/ast/type.h>
 #include <hilti/ast/types/library.h>
 
@@ -17,28 +19,26 @@ namespace hilti::ctor {
  * generator must ensure that coercion operates correctly for the final C++
  * code.
  **/
-class Library : public NodeBase, public hilti::trait::isCtor {
+class Library : public Ctor {
 public:
-    Library(Ctor ctor, Type lib_type, Meta m = Meta())
-        : NodeBase({std::move(ctor), std::move(lib_type)}, std::move(m)) {}
+    ExpressionPtr value() const { return child<Expression>(0); }
+    QualifiedTypePtr type() const final { return child<QualifiedType>(1); }
 
-    const auto& value() const { return child<Ctor>(0); }
+    static auto create(ASTContext* ctx, const CtorPtr& ctor, const QualifiedTypePtr& type, const Meta& meta = {}) {
+        return NodeDerivedPtr<Library>(new Library(
+            {
+                ctor,
+                type,
+            },
+            meta));
+    }
 
-    bool operator==(const Library& other) const { return value() == other.value() && type() == other.type(); }
+protected:
+    Library(Nodes children, Meta meta) : Ctor(std::move(children), std::move(meta)) {}
 
-    /** Implements `Ctor` interface. */
-    const Type& type() const { return child<Type>(1); }
-    /** Implements `Ctor` interface. */
-    bool isConstant() const { return value().isConstant(); }
-    /** Implements `Ctor` interface. */
-    auto isLhs() const { return false; }
-    /** Implements `Ctor` interface. */
-    auto isTemporary() const { return true; }
-    /** Implements `Ctor` interface. */
-    auto isEqual(const Ctor& other) const { return node::isEqual(this, other); }
+    bool isEqual(const Node& other) const override { return other.isA<Library>() && Ctor::isEqual(other); }
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    HILTI_NODE(Library)
 };
 
 } // namespace hilti::ctor

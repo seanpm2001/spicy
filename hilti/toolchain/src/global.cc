@@ -14,11 +14,11 @@
 
 using namespace hilti;
 
-void hilti::render(std::ostream& out, const Node& node, bool include_scopes) {
+void hilti::render(std::ostream& out, const NodePtr& node, bool include_scopes) {
     detail::renderNode(node, out, include_scopes);
 }
 
-void hilti::render(logging::DebugStream stream, const Node& node, bool include_scopes) {
+void hilti::render(logging::DebugStream stream, const NodePtr& node, bool include_scopes) {
     detail::renderNode(node, std::move(stream), include_scopes);
 }
 

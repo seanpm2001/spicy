@@ -2,38 +2,29 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/type.h>
 
 namespace hilti::type {
 
-/** AST node for an "auto" type. */
-class Auto : public TypeBase {
+/** AST node for an `auto` type. */
+class Auto : public UnqualifiedType {
 public:
-    bool operator==(const Auto& /* other */) const { return true; }
+protected:
+    Auto(const Meta& meta) : UnqualifiedType(meta) {}
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return false; }
-    node::Properties properties() const override { return node::Properties{}; }
+    bool _isResolved(ResolvedState* rstate) const final { return false; }
 
-    /**
-     * Wrapper around constructor so that we can make it private. Don't use
-     * this, use the singleton `type::auto_` instead.
-     */
-    static Auto create(Meta m = Meta()) { return Auto(std::move(m)); }
+    bool isEqual(const Node& other) const override { return other.isA<Auto>() && UnqualifiedType::isEqual(other); }
 
-    bool _isAllocable() const override { return true; }
+    HILTI_NODE(Auto);
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
-
-    HILTI_TYPE_VISITOR_IMPLEMENT
-
-private:
-    Auto(Meta m = Meta()) : TypeBase(std::move(m)) {}
+    // TODO: We limit instantiation to the corresponding QT's create() method
+    // for now. Let's see if we need it somewhere else.
+    friend class hilti::QualifiedType;
+    static auto create(ASTContext* ctx, const Meta& m = Meta()) { return NodeDerivedPtr<Auto>(new Auto(m)); }
 };
-
-/** Singleton. */
-static const Type auto_ = Auto::create(Location("<singleton>"));
 
 } // namespace hilti::type

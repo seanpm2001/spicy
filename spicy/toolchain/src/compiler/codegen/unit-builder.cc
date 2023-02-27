@@ -13,7 +13,6 @@
 #include <hilti/ast/types/void.h>
 #include <hilti/base/logger.h>
 
-#include <spicy/ast/detail/visitor.h>
 #include <spicy/ast/types/sink.h>
 #include <spicy/compiler/detail/codegen/codegen.h>
 

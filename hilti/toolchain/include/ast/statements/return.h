@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/expression.h>
@@ -9,23 +10,23 @@
 
 namespace hilti::statement {
 
-/** AST node for a "return" statement. */
-class Return : public NodeBase, public hilti::trait::isStatement {
+/** AST node for a `return` statement. */
+class Return : public Statement {
 public:
-    Return(Meta m = Meta()) : NodeBase({node::none}, std::move(m)) {}
-    Return(hilti::Expression e, Meta m = Meta()) : NodeBase({std::move(e)}, std::move(m)) {}
+    auto expression() const { return child<::hilti::Expression>(0); }
 
-    auto expression() const { return children()[0].tryAs<hilti::Expression>(); }
+    static auto create(ASTContext* ctx, ExpressionPtr expr, Meta meta = {}) {
+        return NodeDerivedPtr<Return>(new Return({expr}, std::move(meta)));
+    }
 
-    void setExpression(const hilti::Expression& c) { children()[0] = c; }
+    static auto create(ASTContext* ctx, Meta meta = {}) { return create(ctx, nullptr, std::move(meta)); }
 
-    bool operator==(const Return& other) const { return expression() == other.expression(); }
+protected:
+    Return(Nodes children, Meta meta) : Statement(std::move(children), std::move(meta)) {}
 
-    /** Implements the `Statement` interface. */
-    auto isEqual(const Statement& other) const { return node::isEqual(this, other); }
+    bool isEqual(const Node& other) const final { return other.isA<Return>() && Statement::isEqual(other); }
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    HILTI_NODE(Return)
 };
 
 } // namespace hilti::statement

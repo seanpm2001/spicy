@@ -1,0 +1,55 @@
+
+Main changes:
+
+    - Switched to traditional class hierarchy for AST nodes, with
+      `Node` at the top.
+
+    - Modeling type constness with a new node `QualifiedType`, instead
+      of coding it into all `Type` instances. `Type` has been renamed
+      into `UnqualifiedType` for easier distinguishing and so that the
+      compiler will catch existing usage of the old `Type` that hasn't
+      been updated.
+
+    - IDs are no longer nodes themselves, just node attributes like
+      other atomic values.
+
+    - We now instantiate all nodes through static factory methods
+      called `create()` that take an additional global `ASTContext`
+      instance. While that context is currently empty, we will in the
+      future use it to maintain AST-wide state, such as symbol tables
+      and memory mgmt information. To facilitate this approach, all
+      node constructors are private now; the caller must go through the
+      `create()` methods.
+
+    - To make usage of the `create()` methods easier, there's a new
+      `NodeFactory` class that provides forwarding methods. The
+      factory stores the relevant `ASTContext` internally and
+      automatically adds it during forwarding. This factory also
+      replaces the old `builder::*` functions for creating AST nodes.
+      Over time, we can port more of the more complex `builder::*`
+      functions over into the factory as well, as needed.
+
+    - Nodes now keep pointers to their parents. That replaces the
+      old `position_t` stuff.
+
+    - No singleton nodes anymore, they don't play well with that
+      parent pointering.
+
+    - No `node::None` anymore, using `nullptr` instead. Likewise, no
+      `optional<SomeNode>` anymore, using `nullptr` as well.
+
+    - For visitors, we're using traditional double-dispatch with
+      virtual methods. No more complex template magic, and no more
+      result values from visitors either. There are just two visitor
+      variants now for pre-order and post-order walking (and those two
+      are still implemented through a joined template).
+
+Node/AST semantics:
+
+    - `Node::clone()` -> shallow copy
+    - `Node::deepClone()` -> deep copy (TODO: Add cycle detector)
+
+    - Non-abstract classes derived from Node
+        - Public `create()` factory
+        - Protected constructors, called from `create()`
+        - Protected copy/move constructors/assignment that perform shallow copies.

@@ -17,7 +17,7 @@ namespace detail {
 
 static inline auto constantKeyType(unsigned int op, const char* doc = "<type of key>") {
     return [=](const hilti::node::Range<Expression>& /* orig_ops */,
-               const hilti::node::Range<Expression>& resolved_ops) -> std::optional<Type> {
+               const hilti::node::Range<Expression>& resolved_ops) -> TypePtr {
         if ( resolved_ops.empty() )
             return type::DocOnly(doc);
 

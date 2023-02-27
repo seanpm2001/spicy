@@ -20,12 +20,12 @@ repos:
     types: [text]
     exclude: '^tests|NOTES|README|^(CHANGES|VERSION|scripts/ninja-build-stats|\.gitmodules|\.paths|.*\.(decl|json|rst|t2d))$'
 
-  - id: autogen-docs
-    name: Check that generated documentation is up-to-date
-    entry: ./doc/scripts/autogen-docs
-    language: script
-    pass_filenames: false
-    stages: ["commit"]
+  # - id: autogen-docs
+  #   name: Check that generated documentation is up-to-date
+  #   entry: ./doc/scripts/autogen-docs
+  #   language: script
+  #   pass_filenames: false
+  #   stages: ["commit"]
 
   - id: stray_baselines
     name: Check for stray BTest baselines
@@ -56,7 +56,7 @@ repos:
   rev: 0.8.0
   hooks:
   - id: cpplint
-    exclude: '3rdparty/'
+    exclude: '3rdparty/|node-factory.autogen.h'
     args: ["--quiet"]
     stages: ["commit"]
 

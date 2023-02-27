@@ -27,10 +27,10 @@ hilti::Plugin spicy::detail::create_spicy_plugin() {
 
         .parse = [](std::istream& in, const hilti::rt::filesystem::path& path) { return parseSource(in, path); },
 
-        .coerce_ctor = [](Ctor c, const Type& dst,
+        .coerce_ctor = [](Ctor c, const TypePtr& dst,
                           bitmask<hilti::CoercionStyle> style) { return detail::coerceCtor(std::move(c), dst, style); },
 
-        .coerce_type = [](Type t, const Type& dst,
+        .coerce_type = [](Type t, const TypePtr& dst,
                           bitmask<hilti::CoercionStyle> style) { return detail::coerceType(std::move(t), dst, style); },
 
         .ast_build_scopes =

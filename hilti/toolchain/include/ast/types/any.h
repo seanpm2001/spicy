@@ -2,27 +2,27 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/type.h>
 
 namespace hilti::type {
 
-/** AST node for an "any" type. */
-class Any : public TypeBase {
+/** AST node for an `any` type. */
+class Any : public UnqualifiedType {
 public:
-    Any(Meta m = Meta()) : TypeBase(std::move(m)) {}
+    static auto create(ASTContext* ctx, Meta m = Meta()) { return NodeDerivedPtr<Any>(new Any(std::move(m))); }
 
-    bool operator==(const Any& /* other */) const { return true; }
+protected:
+    Any(Meta meta) : UnqualifiedType(std::move(meta)) {}
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return true; }
+    bool _isAllocable() const override { return true; }
+    bool _isSortable() const override { return true; }
 
-    node::Properties properties() const override { return node::Properties{}; }
+    bool isEqual(const Node& other) const override { return other.isA<Any>() && UnqualifiedType::isEqual(other); }
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
-
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    HILTI_NODE(Any);
 };
 
 } // namespace hilti::type

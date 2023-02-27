@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/declaration.h>
@@ -9,21 +10,21 @@
 
 namespace hilti::statement {
 
-/** AST node for a statement representing a declaration.. */
-class Declaration : public NodeBase, public hilti::trait::isStatement {
+/** AST node for a statement representing a declaration. */
+class Declaration : public Statement {
 public:
-    Declaration(hilti::Declaration d, Meta m = Meta()) : NodeBase({std::move(d)}, std::move(m)) {}
+    auto declaration() const { return child<::hilti::Declaration>(0); }
 
-    const auto& declaration() const { return child<::hilti::Declaration>(0); }
-    auto declarationRef() const { return NodeRef(children()[0]); }
+    static auto create(ASTContext* ctx, const hilti::DeclarationPtr& d, Meta meta = {}) {
+        return NodeDerivedPtr<Declaration>(new Declaration({d}, std::move(meta)));
+    }
 
-    bool operator==(const Declaration& other) const { return declaration() == other.declaration(); }
+protected:
+    Declaration(Nodes children, Meta meta) : Statement(std::move(children), std::move(meta)) {}
 
-    /** Implements the `Statement` interface. */
-    auto isEqual(const Statement& other) const { return node::isEqual(this, other); }
+    bool isEqual(const Node& other) const final { return other.isA<Declaration>() && Statement::isEqual(other); }
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    HILTI_NODE(Declaration)
 };
 
 } // namespace hilti::statement

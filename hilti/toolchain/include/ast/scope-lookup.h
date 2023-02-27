@@ -69,7 +69,7 @@ Result<std::pair<NodeRef, ID>> lookupID(const ID& id, const visitor::Position<No
         // round.
         bool skip_to_module = false;
 
-        if ( auto t = (*i)->tryAs<Type>(); t && t->hasFlag(type::Flag::NoInheritScope) ) {
+        if ( auto t = (*i)->tryAs<TypePtr>(); t && t->hasFlag(type::Flag::NoInheritScope) ) {
             if ( auto x = i; ++x != p.path.rend() && (*x)->tryAs<declaration::Type>() )
                 // Ignore, we'll cover this in next round in the case below.
                 continue;

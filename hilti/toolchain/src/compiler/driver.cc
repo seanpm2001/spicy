@@ -12,11 +12,11 @@
 #include <hilti/rt/libhilti.h>
 
 #include <hilti/ast/declaration.h>
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/compiler/detail/visitors.h>
 #include <hilti/compiler/driver.h>
 #include <hilti/compiler/optimizer.h>
 #include <hilti/compiler/plugin.h>
+#include <hilti/global.h>
 
 using namespace hilti;
 using util::fmt;
@@ -82,10 +82,8 @@ Driver::Driver(std::string name, const hilti::rt::filesystem::path& argv0) : _na
 }
 
 Driver::~Driver() {
-    if ( _driver_options.report_times ) {
+    if ( _driver_options.report_times )
         util::timing::summary(std::cerr);
-        util::type_erasure::summary(std::cerr);
-    }
 
     if ( ! _driver_options.keep_tmps ) {
         for ( const auto& t : _tmp_files )
@@ -232,11 +230,11 @@ Result<hilti::rt::filesystem::path> Driver::writeToTemp(std::ifstream& in, const
 }
 
 void Driver::dumpUnit(const Unit& unit) {
-    if ( auto module = unit.moduleRef() ) {
+    if ( auto module = unit.module() ) {
         auto output_path = util::fmt("dbg.%s%s.ast", unit.uniqueID(), unit.extension().native());
         if ( auto out = openOutput(output_path) ) {
             HILTI_DEBUG(logging::debug::Driver, fmt("saving AST for module %s to %s", unit.id(), output_path));
-            render(*out, *module, true);
+            render(*out, module, true);
         }
     }
 
@@ -767,7 +765,7 @@ Result<Nothing> Driver::_transformUnitsWithPlugin(const Plugin& plugin,
         _saveIterationAST(unit, plugin, "Transformed AST", 0);
 
         if ( logger().isEnabled(logging::debug::AstPrintTransformed) )
-            hilti::print(std::cout, *unit->moduleRef());
+            hilti::print(std::cout, unit->module());
 
         if ( logger().errors() )
             return result::Error("aborting after errors");
@@ -886,6 +884,8 @@ Result<Nothing> Driver::_codegenUnits() {
 }
 
 Result<Nothing> Driver::_optimizeUnits() {
+    return Nothing();
+#if 0 // TODO
     if ( ! _driver_options.global_optimizations )
         return Nothing();
 
@@ -895,6 +895,7 @@ Result<Nothing> Driver::_optimizeUnits() {
     opt.run();
 
     return Nothing();
+#endif
 }
 
 Result<Nothing> Driver::compileUnits() {
@@ -1266,7 +1267,7 @@ void Driver::_dumpAST(const std::shared_ptr<Unit>& unit, const logging::DebugStr
         r = fmt(" (round %d)", round);
 
     HILTI_DEBUG(stream, fmt("# [%s] %s: %s%s", pluginForUnit(unit).get().component, unit->uniqueID(), prefix, r));
-    detail::renderNode(*unit->moduleRef(), stream, true);
+    detail::renderNode(unit->module(), stream, true);
 }
 
 void Driver::_dumpAST(const std::shared_ptr<Unit>& unit, std::ostream& stream, const Plugin& plugin,
@@ -1297,15 +1298,15 @@ void Driver::_dumpDeclarations(const std::shared_ptr<Unit>& unit, const Plugin& 
     HILTI_DEBUG(logging::debug::AstDeclarations,
                 fmt("# [%s] %s", pluginForUnit(unit).get().component, unit->uniqueID()));
 
-    auto v = visitor::PreOrder<>();
-    for ( const auto i : v.walk(unit->module()) ) {
-        auto decl = i.node.tryAs<Declaration>();
+    auto nodes = visitor::RangePreOrder(unit->module());
+    for ( auto i = nodes.begin(); i != nodes.end(); ++i ) {
+        auto decl = (*i)->tryAs<Declaration>();
         if ( ! decl )
             continue;
 
-        logger().debugSetIndent(logging::debug::AstDeclarations, i.path.size() - 1);
+        logger().debugSetIndent(logging::debug::AstDeclarations, i.depth() - 1);
         HILTI_DEBUG(logging::debug::AstDeclarations,
-                    fmt("- %s \"%s\" (%s)", ID(i.node.typename_()).local(), decl->id(), decl->canonicalID()));
+                    fmt("- %s \"%s\" (%s)", ID((*i)->typename_()).local(), decl->id(), decl->canonicalID()));
     }
 }
 

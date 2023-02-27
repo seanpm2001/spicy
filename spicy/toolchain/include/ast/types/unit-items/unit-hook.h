@@ -24,7 +24,7 @@ public:
     bool operator==(const UnitHook& other) const { return id() == other.id() && hook() == other.hook(); }
 
     // Unit field interface
-    const Type& itemType() const { return hook().function().type(); }
+    const TypePtr& itemType() const { return hook().function().type(); }
     bool isResolved() const { return type::isResolved(itemType()); }
     auto isEqual(const Item& other) const { return node::isEqual(this, other); }
 

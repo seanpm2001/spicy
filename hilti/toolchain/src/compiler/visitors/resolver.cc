@@ -10,7 +10,6 @@
 #include <hilti/ast/declarations/local-variable.h>
 #include <hilti/ast/declarations/parameter.h>
 #include <hilti/ast/detail/operator-registry.h>
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/expressions/deferred.h>
 #include <hilti/ast/expressions/id.h>
 #include <hilti/ast/expressions/keyword.h>
@@ -85,7 +84,7 @@ struct Visitor : visitor::PostOrder<void, Visitor>, type::Visitor {
     }
 
     // Log debug message recording resolving a type.
-    void logChange(const Node& old, const Type& ntype) {
+    void logChange(const Node& old, const TypePtr& ntype) {
         HILTI_DEBUG(logging::debug::Resolver,
                     util::fmt("[%s] %s -> type %s (%s)", old.typename_(), old, ntype, old.location()));
     }
@@ -96,8 +95,8 @@ struct Visitor : visitor::PostOrder<void, Visitor>, type::Visitor {
     }
 
     // Attempt to infer a common type from a list of expression.
-    hilti::optional_ref<const Type> typeForExpressions(position_t* p, node::Range<Expression> exprs) {
-        hilti::optional_ref<const Type> t;
+    hilti::TypePtrPtr typeForExpressions(position_t* p, node::Range<Expression> exprs) {
+        hilti::TypePtrPtr t;
 
         for ( const auto& e : exprs ) {
             if ( ! type::isResolved(e.type()) )
@@ -162,8 +161,8 @@ struct Visitor : visitor::PostOrder<void, Visitor>, type::Visitor {
         if ( type::isResolved(u.keyType()) && type::isResolved(u.valueType()) )
             return;
 
-        hilti::optional_ref<const Type> key;
-        hilti::optional_ref<const Type> value;
+        hilti::TypePtrPtr key;
+        hilti::TypePtrPtr value;
 
         for ( const auto& e : u.value() ) {
             if ( ! (type::isResolved(e.key().type()) && type::isResolved(e.value().type())) )
@@ -422,7 +421,7 @@ struct Visitor : visitor::PostOrder<void, Visitor>, type::Visitor {
     bool resolveFunctionCall(const expression::UnresolvedOperator& u, position_t p);
     bool resolveMethodCall(const expression::UnresolvedOperator& u, position_t p);
     bool resolveCast(const expression::UnresolvedOperator& u, position_t p);
-    void recordAutoParameters(const Type& type, const Expression& args);
+    void recordAutoParameters(const TypePtr& type, const Expression& args);
     std::vector<Node> matchOverloads(const std::vector<Operator>& candidates, const node::Range<Expression>& operands,
                                      const Meta& meta, bool disallow_type_changes = false);
 
@@ -874,7 +873,7 @@ bool Visitor::resolveCast(const expression::UnresolvedOperator& u, position_t p)
     return false;
 }
 
-void Visitor::recordAutoParameters(const Type& type, const Expression& args) {
+void Visitor::recordAutoParameters(const TypePtr& type, const Expression& args) {
     const auto& ftype = type.as<type::Function>();
 
     auto arg = args.as<expression::Ctor>().ctor().as<ctor::Tuple>().value().begin();

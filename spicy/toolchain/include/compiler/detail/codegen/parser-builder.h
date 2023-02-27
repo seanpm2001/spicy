@@ -65,8 +65,8 @@ constexpr auto to_string(LiteralMode cc) { return hilti::util::enum_::to_string(
 
 namespace look_ahead {
 
-/** Type for storing a look-ahead ID. */
-extern const hilti::Type Type;
+/** TypePtr for storing a look-ahead ID. */
+extern const hilti::TypePtr TypePtr;
 
 /**
  * Expression representing "no look-ahead" symbol through a zero, a value
@@ -111,7 +111,7 @@ struct ParserState {
     /** Unit type that's currently being compiled. */
     std::reference_wrapper<const type::Unit> unit;
 
-    /** Type name of unit type that is currently being compiled. */
+    /** TypePtr name of unit type that is currently being compiled. */
     ID unit_id;
 
     /** True if the current grammar needs look-ahead tracking. */
@@ -137,7 +137,7 @@ struct ParserState {
 
     /**
      * Expression with the current look-ahead symbol, or `look_ahead::None`
-     * if none. Look ahead-symbols are of type `look_ahead::Type`.
+     * if none. Look ahead-symbols are of type `look_ahead::TypePtr`.
      */
     Expression lahead = look_ahead::None;
 
@@ -265,10 +265,10 @@ public:
     }
 
     /** Generates code that parses an instance of a specific type. */
-    Expression parseType(const Type& t, const production::Meta& meta, const std::optional<Expression>& dst);
+    Expression parseType(const TypePtr& t, const production::Meta& meta, const std::optional<Expression>& dst);
 
     /** Generates code that parses an instance of a specific type into an expression yielding a `Result` of `t`. */
-    Expression parseTypeTry(const Type& t, const production::Meta& meta, const std::optional<Expression>& dst);
+    Expression parseTypeTry(const TypePtr& t, const production::Meta& meta, const std::optional<Expression>& dst);
 
     /** Returns the type for a `parse_stageX` unit method. */
     hilti::type::Function parseMethodFunctionType(std::optional<type::function::Parameter> addl_param = {},
@@ -509,7 +509,7 @@ private:
     friend struct spicy::detail::codegen::ProductionVisitor;
     CodeGen* _cg;
 
-    Expression _parseType(const Type& t, const production::Meta& meta, const std::optional<Expression>& dst,
+    Expression _parseType(const TypePtr& t, const production::Meta& meta, const std::optional<Expression>& dst,
                           bool is_try);
 
     std::vector<ParserState> _states;

@@ -2,40 +2,35 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/expression.h>
+#include <hilti/ast/type.h>
 #include <hilti/ast/types/bool.h>
 
 namespace hilti::expression {
 
 /** AST node for a logical "and" expression. */
-class LogicalAnd : public NodeBase, public trait::isExpression {
+class LogicalAnd : public Expression {
 public:
-    LogicalAnd(Expression op0, Expression op1, const Meta& m = Meta())
-        : NodeBase(nodes(std::move(op0), std::move(op1), type::Bool(m)), m) {}
+    auto op0() const { return child<Expression>(0); }
+    auto op1() const { return child<Expression>(1); }
 
-    const auto& op0() const { return child<Expression>(0); }
-    const auto& op1() const { return child<Expression>(1); }
+    QualifiedTypePtr type() const final { return child<QualifiedType>(2); }
+    bool isLhs() const final { return false; }
+    bool isTemporary() const final { return true; }
 
-    void setOp0(const Expression& op) { children()[0] = op; }
-    void setOp1(const Expression& op) { children()[1] = op; }
+    static auto create(ASTContext* ctx, const ExpressionPtr& op0, const ExpressionPtr& op1, const Meta& meta = {}) {
+        return NodeDerivedPtr<LogicalAnd>(new LogicalAnd({op0, op1, type::Bool::create(ctx, meta)}, meta));
+    }
 
-    bool operator==(const LogicalAnd& other) const { return op0() == other.op0() && op1() == other.op1(); }
+protected:
+    LogicalAnd(Nodes children, Meta meta) : Expression(std::move(children), std::move(meta)) {}
 
-    /** Implements `Expression` interface. */
-    bool isLhs() const { return false; }
-    /** Implements `Expression` interface. */
-    bool isTemporary() const { return true; }
-    /** Implements `Expression` interface. */
-    const auto& type() const { return child<Type>(2); }
-    /** Implements `Expression` interface. */
-    auto isConstant() const { return op0().isConstant() && op1().isConstant(); }
-    /** Implements `Expression` interface. */
-    auto isEqual(const Expression& other) const { return node::isEqual(this, other); }
+    bool isEqual(const Node& other) const override { return other.isA<LogicalAnd>() && Expression::isEqual(other); }
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    HILTI_NODE(LogicalAnd)
 };
 
 } // namespace hilti::expression

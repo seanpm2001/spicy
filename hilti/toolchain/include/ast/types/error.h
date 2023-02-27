@@ -2,29 +2,26 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/type.h>
 
 namespace hilti::type {
 
-/** AST node for an error type. */
-class Error : public TypeBase {
+/** AST node for a error type. */
+class Error : public UnqualifiedType {
 public:
-    Error(Meta m = Meta()) : TypeBase(std::move(m)) {}
+    static auto create(ASTContext* ctx, Meta meta = {}) { return NodeDerivedPtr<Error>(new Error(std::move(meta))); }
 
-    bool operator==(const Error& /* other */) const { return true; }
+protected:
+    Error(Meta meta) : UnqualifiedType(std::move(meta)) {}
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return true; }
+    bool _isAllocable() const final { return true; }
 
-    node::Properties properties() const override { return node::Properties{}; }
+    bool isEqual(const Node& other) const override { return other.isA<Error>() && UnqualifiedType::isEqual(other); }
 
-    bool _isAllocable() const override { return true; }
-
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
-
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    HILTI_NODE(Error)
 };
 
 } // namespace hilti::type

@@ -2,77 +2,70 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include <hilti/ast/declaration.h>
+#include <hilti/ast/declarations/expression.h>
 #include <hilti/ast/expression.h>
-#include <hilti/ast/id.h>
 #include <hilti/ast/type.h>
-#include <hilti/ast/types/auto.h>
 
 namespace hilti::declaration {
 
-/** AST node for a declaration of global variable. */
-class GlobalVariable : public DeclarationBase {
+/** AST node for a global variable declaration. */
+class GlobalVariable : public Declaration {
 public:
-    GlobalVariable(ID id, ::hilti::Type type, std::optional<hilti::Expression> init = {},
-                   Linkage linkage = Linkage::Private, Meta m = Meta())
-        : DeclarationBase(nodes(std::move(id), std::move(type), std::move(init)), std::move(m)), _linkage(linkage) {}
+    auto init() const { return child<hilti::Expression>(1); }
 
-    GlobalVariable(ID id, ::hilti::Type type, Linkage linkage = Linkage::Private, Meta m = Meta())
-        : DeclarationBase(nodes(std::move(id), std::move(type), node::none), std::move(m)), _linkage(linkage) {}
-
-    GlobalVariable(ID id, hilti::Expression init, Linkage linkage = Linkage::Private, Meta m = Meta())
-        : DeclarationBase(nodes(std::move(id), node::none, std::move(init)), std::move(m)), _linkage(linkage) {}
-
-    GlobalVariable(ID id, ::hilti::Type type, std::vector<hilti::Expression> args,
-                   std::optional<hilti::Expression> init = {}, Linkage linkage = Linkage::Private, Meta m = Meta())
-        : DeclarationBase(nodes(std::move(id), std::move(type), std::move(init), std::move(args)), std::move(m)),
-          _linkage(linkage) {}
-
-    auto init() const { return children()[2].tryAs<hilti::Expression>(); }
-
-    const auto& type() const {
-        if ( auto t = children()[1].tryAs<hilti::Type>() )
-            return *t;
+    auto type() const {
+        if ( auto t = child<QualifiedType>(0) )
+            return t;
         else {
             assert(init());
             return init()->type();
         }
     }
 
-    auto typeArguments() const { return children<hilti::Expression>(3, -1); }
+    auto typeArguments() const { return children<hilti::Expression>(2, -1); }
 
-    void setInit(const hilti::Expression& i) { children()[2] = i; }
-    void setTypeArguments(std::vector<hilti::Expression> args) {
-        auto& c = children();
-        c.erase(c.begin() + 3, c.end());
-        for ( auto&& a : args )
-            c.emplace_back(std::move(a));
+    std::string displayName() const final { return "global variable"; }
+
+    static auto create(ASTContext* ctx, ID id, QualifiedTypePtr type, Expressions args, ExpressionPtr init = nullptr,
+                       declaration::Linkage linkage = Linkage::Private, Meta meta = {}) {
+        return NodeDerivedPtr<GlobalVariable>(
+            new GlobalVariable(node::flatten(std::move(type), std::move(init), std::move(args)), std::move(id), linkage,
+                               std::move(meta)));
     }
 
-    bool operator==(const GlobalVariable& other) const {
-        return id() == other.id() && type() == other.type() && init() == other.init();
+    static auto create(ASTContext* ctx, ID id, QualifiedTypePtr type, ExpressionPtr init = nullptr,
+                       declaration::Linkage linkage = Linkage::Private, Meta meta = {}) {
+        return create(ctx, std::move(id), std::move(type), {}, std::move(init), linkage, std::move(meta));
     }
 
-    /** Implements `Declaration` interface. */
-    bool isConstant() const { return false; }
-    /** Implements `Declaration` interface. */
-    const ID& id() const { return child<ID>(0); }
-    /** Implements `Declaration` interface. */
-    Linkage linkage() const { return _linkage; }
-    /** Implements `Declaration` interface. */
-    std::string displayName() const { return "global variable"; };
-    /** Implements `Declaration` interface. */
-    auto isEqual(const Declaration& other) const { return node::isEqual(this, other); }
+    static auto create(ASTContext* ctx, ID id, QualifiedTypePtr type, declaration::Linkage linkage = Linkage::Private,
+                       Meta meta = {}) {
+        return create(ctx, std::move(id), std::move(type), {}, nullptr, linkage, std::move(meta));
+    }
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{{"linkage", to_string(_linkage)}}; }
+    static auto create(ASTContext* ctx, ID id, ExpressionPtr init, declaration::Linkage linkage = Linkage::Private,
+                       Meta meta = {}) {
+        return create(ctx, std::move(id), nullptr, {}, std::move(init), linkage, std::move(meta));
+    }
 
-private:
-    Linkage _linkage;
+    static auto create(ASTContext* ctx, ID id, declaration::Linkage linkage = Linkage::Private, Meta meta = {}) {
+        return create(ctx, std::move(id), QualifiedType::createAuto(ctx, meta), linkage, std::move(meta));
+    }
+
+protected:
+    GlobalVariable(Nodes children, ID id, declaration::Linkage linkage, Meta meta)
+        : Declaration(std::move(children), std::move(id), linkage, std::move(meta)) {}
+
+    bool isEqual(const Node& other) const override {
+        return other.isA<GlobalVariable>() && Declaration::isEqual(other);
+    }
+
+    HILTI_NODE(GlobalVariable)
 };
 
 } // namespace hilti::declaration

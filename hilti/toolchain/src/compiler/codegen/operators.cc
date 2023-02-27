@@ -1,6 +1,5 @@
 // Copyright (c) 2020-2023 by the Zeek Project. See LICENSE for details.
 
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/expression.h>
 #include <hilti/ast/operators/all.h>
 #include <hilti/base/logger.h>

@@ -2,10 +2,9 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
-#include <vector>
 
-#include <hilti/ast/declarations/parameter.h>
 #include <hilti/ast/operator.h>
 #include <hilti/ast/type.h>
 
@@ -17,23 +16,15 @@ namespace hilti::type {
  * instantiated by a HILTI program. That's also why we don't use any child
  * nodes, but store the operands directly.
  */
-class OperandList : public TypeBase {
+class OperandList : public UnqualifiedType {
 public:
-    OperandList(std::vector<operator_::Operand> operands) : _operands(std::move(operands)) {}
-
     const auto& operands() const { return _operands; }
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return true; }
-    node::Properties properties() const override { return node::Properties{}; }
-
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
-
-    bool operator==(const OperandList& other) const { return operands() == other.operands(); }
-
+    // TODO
+#if 0
     template<typename Container>
-    static OperandList fromParameters(const Container& params) {
-        std::vector<operator_::Operand> ops;
+    static OperandList fromParameters(ASTContext* ctx, const Container& params) {
+        operator_::Operands ops;
 
         for ( const auto& p : params ) {
             operator_::Operand op = {p.id(), (p.isConstant() ? type::constant(p.type()) : p.type()),
@@ -42,13 +33,35 @@ public:
             ops.push_back(std::move(op));
         }
 
-        return type::OperandList(std::move(ops));
+        return type::OperandList::create(ctx, std::move(ops));
+    }
+#endif
+
+    static auto create(ASTContext* ctx, operator_::Operands operands, Meta meta = {}) {
+        return NodeDerivedPtr<OperandList>(new OperandList(std::move(operands), std::move(meta)));
     }
 
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    static auto create(ASTContext* ctx, Wildcard _, Meta m = Meta()) {
+        return NodeDerivedPtr<OperandList>(new OperandList(Wildcard(), std::move(m)));
+    }
+
+protected:
+    OperandList(operator_::Operands operands, Meta meta)
+        : UnqualifiedType(std::move(meta)), _operands(std::move(operands)) {}
+    OperandList(Wildcard _, Meta meta) : UnqualifiedType(Wildcard(), std::move(meta)) {}
+
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<OperandList>();
+        if ( ! n )
+            return false;
+
+        return UnqualifiedType::isEqual(other) && _operands == n->_operands;
+    }
+
+    HILTI_NODE(OperandList)
 
 private:
-    std::vector<operator_::Operand> _operands;
+    operator_::Operands _operands;
 };
 
 } // namespace hilti::type

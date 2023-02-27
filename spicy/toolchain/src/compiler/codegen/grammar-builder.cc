@@ -4,7 +4,6 @@
 #include <hilti/ast/declarations/type.h>
 #include <hilti/base/cache.h>
 
-#include <spicy/ast/detail/visitor.h>
 #include <spicy/compiler/detail/codegen/codegen.h>
 #include <spicy/compiler/detail/codegen/grammar-builder.h>
 #include <spicy/compiler/detail/codegen/grammar.h>
@@ -55,7 +54,7 @@ struct Visitor : hilti::visitor::PreOrder<void, Visitor>, type::Visitor {
         return production::Ctor(cg->uniquer()->get(id), c, c.meta().location());
     }
 
-    Production productionForType(const Type& t, const ID& id) {
+    Production productionForType(const TypePtr& t, const ID& id) {
         _result.reset();
         if ( dispatch(t); _result )
             return std::move(*_result);

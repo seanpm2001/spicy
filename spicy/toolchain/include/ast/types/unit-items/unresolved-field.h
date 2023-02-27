@@ -20,7 +20,7 @@ namespace spicy::type::unit::item {
  */
 class UnresolvedField : public hilti::NodeBase, public spicy::trait::isUnitItem {
 public:
-    UnresolvedField(const std::optional<ID>& id, Type type, Engine e, bool skip, const std::vector<Expression>& args,
+    UnresolvedField(const std::optional<ID>& id, TypePtr type, Engine e, const std::vector<Expression>& args,
                     std::optional<Expression> repeat, const std::vector<Expression>& sinks,
                     std::optional<AttributeSet> attrs = {}, std::optional<Expression> cond = {},
                     std::vector<Hook> hooks = {}, Meta m = Meta())
@@ -84,7 +84,7 @@ public:
     // Only one of these will have return value.
     auto ctor() const { return children()[1].tryAs<Ctor>(); }
     auto item() const { return children()[1].tryAs<Item>(); }
-    auto type() const { return children()[1].tryAs<Type>(); }
+    auto type() const { return children()[1].tryAs<TypePtr>(); }
 
     auto repeatCount() const { return children()[3].tryAs<Expression>(); }
     auto attributes() const { return children()[4].tryAs<AttributeSet>(); }
@@ -106,7 +106,7 @@ public:
     }
 
     // Unit item interface
-    const Type& itemType() const { return hilti::type::auto_; }
+    const TypePtr& itemType() const { return hilti::type::auto_; }
     bool isResolved() const { return false; }
     auto isEqual(const Item& other) const { return node::isEqual(this, other); }
 

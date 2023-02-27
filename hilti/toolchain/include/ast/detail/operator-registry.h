@@ -17,7 +17,7 @@ namespace hilti::operator_ {
 /** Singleton registering available operators. */
 class Registry {
 public:
-    using OperatorMap = std::map<Kind, std::vector<Operator>>;
+    using OperatorMap = std::map<Kind, std::vector<OperatorPtr>>;
 
     /** Returns a map of all available operators. */
     const auto& all() const { return _operators; }
@@ -26,7 +26,7 @@ public:
     const auto& allOfKind(Kind kind) const { return _operators.at(kind); }
 
     /** Registers an Operator as available. */
-    void register_(Kind kind, Operator info) { _operators[kind].push_back(std::move(info)); }
+    void register_(Kind kind, OperatorPtr info) { _operators[kind].push_back(std::move(info)); }
 
     void printDebug() {
 #if 0
@@ -55,7 +55,7 @@ private:
 /** Helper class to register an operator on instantiation. */
 class Register {
 public:
-    Register(Kind k, Operator c) { Registry::singleton().register_(k, std::move(c)); }
+    Register(Kind k, const OperatorPtr& c) { Registry::singleton().register_(k, c); }
 };
 
 inline const auto& registry() { return Registry::singleton(); }

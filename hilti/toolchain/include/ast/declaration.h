@@ -2,24 +2,20 @@
 
 #pragma once
 
-#include <optional>
 #include <string>
 #include <utility>
 
+#include <hilti/ast/forward.h>
 #include <hilti/ast/id.h>
 #include <hilti/ast/node.h>
-#include <hilti/base/type_erase.h>
+
+#include "ast/node.h"
 
 namespace hilti {
 
-namespace trait {
-/** Trait for classes implementing the `Declaration` interface. */
-class isDeclaration : public isNode {};
-} // namespace trait
-
 namespace declaration {
 
-/** Linkage defining visibility/accessability of a declaration. */
+/** Linkage defining visibility/accessibility of a declaration. */
 enum class Linkage {
     Init,    /// executes automatically at startup, not otherwise accessible
     PreInit, /// executes automatically at load time, even before the runtime library is fully set up
@@ -46,57 +42,67 @@ namespace linkage {
  */
 constexpr auto from_string(const std::string_view& s) { return util::enum_::from_string<Linkage>(s, detail::linkages); }
 } // namespace linkage
-
-namespace detail {
-#include <hilti/autogen/__declaration.h>
-}
 } // namespace declaration
 
-class Declaration : public declaration::detail::Declaration {
+/** Base class for implementing declaration nodes. */
+class Declaration : public Node, public node::WithDocString {
 public:
-    using declaration::detail::Declaration::Declaration;
-};
+    ~Declaration() override;
 
-/** Creates an AST node representing a `Declaration`. */
-inline Node to_node(Declaration t) { return Node(std::move(t)); }
+    /** Returns the declaration's ID. */
+    const auto& id() const { return _id; }
 
-/** Renders a declaration as HILTI source code. */
-inline std::ostream& operator<<(std::ostream& out, Declaration d) { return out << to_node(std::move(d)); }
+    /** Returns the declaration's linkage. */
+    auto linkage() const { return _linkage; }
 
-inline bool operator==(const Declaration& x, const Declaration& y) {
-    if ( &x == &y )
-        return true;
-
-    assert(x.isEqual(y) == y.isEqual(x)); // Expected to be symmetric.
-    return x.isEqual(y);
-}
-
-inline bool operator!=(const Declaration& d1, const Declaration& d2) { return ! (d1 == d2); }
-
-namespace declaration {
-/** Constructs an AST node from any class implementing the `Declaration` interface. */
-template<typename T, typename std::enable_if_t<std::is_base_of<trait::isDeclaration, T>::value>* = nullptr>
-inline Node to_node(T t) {
-    return Node(Declaration(std::move(t)));
-}
-} // namespace declaration
-
-/**
- * Base class for classes implementing the `Declaration` interface. This class
- * provides implementations for some interface methods shared that are shared
- * by all declarations.
- */
-class DeclarationBase : public NodeBase, public node::WithDocString, public hilti::trait::isDeclaration {
-public:
-    using NodeBase::NodeBase;
+    /**
+     * Returns the canonical ID associated with the declaration. Canonical IDs
+     * are automatically computed during AST processing and guaranteed to be
+     * globally unique and stable across runs.
+     */
+    const auto& canonicalID() const { return _canonical_id; }
 
     /** Implements the `Declaration` interface. */
-    const ID& canonicalID() const { return _id; }
-    /** Implements the `Declaration` interface. */
-    void setCanonicalID(ID id) { _id = std::move(id); }
+    /**
+     * Associates a canonical ID with the declaration. To be called from AST
+     * processing.
+     */
+    void setCanonicalID(ID id) { _canonical_id = std::move(id); }
+
+    /**
+     * Returns a user-friendly descriptive name for the type of object the declaration
+     * refers to (e.g., "local variable"). This is used in error messages.
+     */
+    virtual std::string displayName() const = 0;
+
+    node::Properties properties() const override {
+        auto p = node::Properties{{"id", _id},
+                                  {"linkage", declaration::to_string(_linkage)},
+                                  {"canonical-id", _canonical_id}};
+
+        return Node::properties() + p;
+    }
+
+protected:
+    Declaration(Nodes children, ID id, declaration::Linkage linkage, Meta meta = {})
+        : Node(std::move(children), std::move(meta)), _id(std::move(id)), _linkage(linkage) {}
+
+    std::string _render() const override;
+
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<Declaration>();
+        if ( ! n )
+            return false;
+
+        return Node::isEqual(other) && _id == n->_id && _linkage == n->linkage() && _canonical_id == n->_canonical_id;
+    }
+
+    HILTI_NODE_BASE(Declaration);
 
 private:
     ID _id;
+    declaration::Linkage _linkage;
+    ID _canonical_id;
 };
 
 } // namespace hilti

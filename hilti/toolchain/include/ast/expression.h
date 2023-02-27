@@ -2,43 +2,50 @@
 
 #pragma once
 
-#include <algorithm>
-#include <list>
+#include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include <hilti/ast/forward.h>
 #include <hilti/ast/node.h>
 #include <hilti/ast/type.h>
-#include <hilti/base/type_erase.h>
 
 namespace hilti {
 
-namespace trait {
-/** Trait for classes implementing the `Expression` interface. */
-class isExpression : public isNode {};
-} // namespace trait
-
-namespace expression {
-namespace detail {
-#include <hilti/autogen/__expression.h>
-
-/** Creates an AST node representing a `Expression`. */
-inline Node to_node(Expression t) { return Node(std::move(t)); }
-
-/** Renders an expression as HILTI source code. */
-inline std::ostream& operator<<(std::ostream& out, Expression e) { return out << to_node(std::move(e)); }
-
-inline bool operator==(const Expression& x, const Expression& y) {
-    if ( &x == &y )
-        return true;
-
-    assert(x.isEqual(y) == y.isEqual(x)); // Expected to be symmetric.
-    return x.isEqual(y);
+namespace type {
+using ResolvedState = std::unordered_set<uintptr_t>;
 }
 
-inline bool operator!=(const Expression& e1, const Expression& e2) { return ! (e1 == e2); }
+/** Base class for expression nodes. */
+class Expression : public Node {
+public:
+    ~Expression() override;
 
-} // namespace detail
+    auto isConstant() const { return type()->isConstant(); }
+
+    /** Returns the expression's HILTI type when evaluated. */
+    virtual QualifiedTypePtr type() const = 0;
+
+    /** Returns true if the expression can be the target of an assignment. */
+    virtual bool isLhs() const = 0;
+
+    /**
+     * Returns true if, when evaluated as RHS, the expression will yield a
+     * temporary value.
+     */
+    virtual bool isTemporary() const = 0;
+
+protected:
+    Expression(Nodes children, Meta meta) : Node::Node(std::move(children), std::move(meta)) {}
+
+    std::string _render() const override;
+    bool isEqual(const Node& other) const override { return other.isA<Expression>() && Node::isEqual(other); }
+
+    HILTI_NODE_BASE(Type);
+};
+
+namespace expression {
 
 /**
  * Returns true if the type of an expression has been resolved.
@@ -46,7 +53,15 @@ inline bool operator!=(const Expression& e1, const Expression& e2) { return ! (e
  * @param e expression to check
  * @param rstate internal parameter, leave unset
  */
-bool isResolved(const detail::Expression& e, type::ResolvedState* rstate = nullptr);
+bool isResolved(const Expression& e, type::ResolvedState* rstate = nullptr);
+
+/**
+ * Returns true if the type of an expression has been resolved.
+ *
+ * @param e expression to check
+ * @param rstate internal parameter, leave unset
+ */
+inline bool isResolved(const ExpressionPtr& e, type::ResolvedState* rstate = nullptr) { return isResolved(*e, rstate); }
 
 /**
  * Returns true if the types of all expressions in a vector have been resolved.
@@ -54,7 +69,7 @@ bool isResolved(const detail::Expression& e, type::ResolvedState* rstate = nullp
  * @param exprs expressions expressions to check
  * @param rstate internal parameter, leave unset
  */
-inline bool isResolved(const std::vector<detail::Expression>& exprs, type::ResolvedState* rstate = nullptr) {
+inline bool isResolved(const Expressions& exprs, type::ResolvedState* rstate = nullptr) {
     return std::all_of(exprs.begin(), exprs.end(), [&](const auto& e) { return isResolved(e, rstate); });
 }
 
@@ -64,7 +79,7 @@ inline bool isResolved(const std::vector<detail::Expression>& exprs, type::Resol
  * @param exprs expressions expressions to check
  * @param rstate internal parameter, leave unset
  */
-inline bool isResolved(const hilti::node::Range<detail::Expression>& exprs, type::ResolvedState* rstate = nullptr) {
+inline bool isResolved(const hilti::node::Range<Expression>& exprs, type::ResolvedState* rstate = nullptr) {
     return std::all_of(exprs.begin(), exprs.end(), [&](const auto& e) { return isResolved(e, rstate); });
 }
 
@@ -74,20 +89,9 @@ inline bool isResolved(const hilti::node::Range<detail::Expression>& exprs, type
  * @param exprs expressions expressions to check
  * @param rstate internal parameter, leave unset
  */
-inline bool isResolved(const hilti::node::Set<detail::Expression>& exprs, type::ResolvedState* rstate = nullptr) {
-    return std::all_of(exprs.begin(), exprs.end(),
-                       [&](const auto& e) { return type::detail::isResolved(e.type(), rstate); });
+inline bool isResolved(const hilti::node::Set<Expression>& exprs, type::ResolvedState* rstate = nullptr) {
+    return std::all_of(exprs.begin(), exprs.end(), [&](const auto& e) { return isResolved(e, rstate); });
 }
 
 } // namespace expression
-
-using Expression = expression::detail::Expression;
-using expression::detail::to_node; // NOLINT(misc-unused-using-decls)
-
-/** Constructs an AST node from any class implementing the `Expression` interface. */
-template<typename T, typename std::enable_if_t<std::is_base_of<trait::isExpression, T>::value>* = nullptr>
-inline Node to_node(T t) {
-    return Node(Expression(std::move(t)));
-}
-
 } // namespace hilti

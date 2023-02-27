@@ -2,112 +2,137 @@
 
 #pragma once
 
-#include <algorithm>
-#include <set>
+#include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include <hilti/ast/declaration.h>
 #include <hilti/ast/declarations/constant.h>
 #include <hilti/ast/id.h>
+#include <hilti/ast/node.h>
 #include <hilti/ast/type.h>
-#include <hilti/ast/types/auto.h>
-#include <hilti/ast/types/bool.h>
-#include <hilti/ast/types/unknown.h>
 
 namespace hilti::type {
 
+class Enum;
+
 namespace enum_ {
+
 /** AST node for an enum label. */
-class Label : public NodeBase, public util::type_erasure::trait::Singleton {
+class Label final : public Node {
 public:
-    Label() : NodeBase({ID("<no id>")}, Meta()) {}
-    Label(ID id, Meta m = Meta()) : NodeBase(nodes(std::move(id)), std::move(m)) {}
-    Label(ID id, int v, Meta m = Meta()) : NodeBase(nodes(std::move(id)), std::move(m)), _value(v) {}
+    ~Label() final;
 
-    // Recreate from an existing label, but setting type.
-    Label(const Label& other, NodeRef enum_type)
-        : NodeBase(nodes(other.id()), other.meta()), _etype(std::move(enum_type)), _value(other._value) {}
-
-    const ID& id() const { return child<ID>(0); }
-    const auto& enumType() const { return _etype ? _etype->as<Type>() : type::auto_; }
+    const ID& id() const { return _id; }
     auto value() const { return _value; }
+    auto enumType() const { return _enum_type; }
 
-    bool operator==(const Label& other) const { return id() == other.id() && value() == other.value(); }
+    node::Properties properties() const final {
+        auto p = node::Properties{{"id", _id}, {"value", _value}};
+        return Node::properties() + p;
+    }
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{{"value", _value}, {"etype", _etype.rid()}}; }
+    static auto create(ASTContext* ctx, const ID& id, int value, const Meta& meta = {}) {
+        return NodeDerivedPtr<Label>(new Label(id, value, {}, meta));
+    }
+
+    static auto create(ASTContext* ctx, const ID& id, const Meta& meta = {}) {
+        return NodeDerivedPtr<Label>(new Label(id, -1, {}, meta));
+    }
+
+protected:
+    friend class type::Enum;
+
+    Label(ID id, int value, std::weak_ptr<UnqualifiedType> enum_type, Meta meta = {})
+        : Node(std::move(meta)), _id(std::move(id)), _value(value), _enum_type(std::move(enum_type)) {}
+
+    std::string _render() const final;
+
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<Label>();
+        if ( ! n )
+            return false;
+
+        return Node::isEqual(other) && _id == n->_id && _value == n->_value;
+    }
+
+    HILTI_NODE(Label)
+
+    static auto create(ASTContext* ctx, const ID& id, int value, const std::weak_ptr<UnqualifiedType>& enum_type,
+                       const Meta& meta = {}) {
+        return NodeDerivedPtr<Label>(new Label(id, value, enum_type, meta));
+    }
 
 private:
-    NodeRef _etype;
+    ID _id;
     int _value = -1;
+
+    std::weak_ptr<UnqualifiedType> _enum_type;
 };
 
-inline Node to_node(Label l) { return Node(std::move(l)); }
+using LabelPtr = std::shared_ptr<Label>;
+using Labels = std::vector<LabelPtr>;
 
 } // namespace enum_
 
-/** AST node for an enum type. */
-class Enum : public TypeBase {
+/** AST node for a `enum` type. */
+class Enum : public UnqualifiedType {
 public:
-    Enum(std::vector<enum_::Label> l, Meta m = Meta())
-        : TypeBase(nodes(_normalizeLabels(std::move(l))), std::move(m)) {}
-    Enum(Wildcard /*unused*/, Meta m = Meta()) : TypeBase(std::move(m)), _wildcard(true) {}
-
-    std::vector<std::reference_wrapper<const enum_::Label>> labels() const;
+    enum_::Labels labels() const;
+    auto labelDeclarations() { return children<Declaration>(0, -1); }
 
     /**
-     * Filters a set of labels so that it includes each enumator value at most
-     * once.
+     * Filters a set of labels so that it includes each enumerator value at
+     * most once.
      */
-    std::vector<std::reference_wrapper<const enum_::Label>> uniqueLabels() const;
+    enum_::Labels uniqueLabels() const;
 
-    hilti::optional_ref<const enum_::Label> label(const ID& id) const {
+    enum_::LabelPtr label(const ID& id) const {
         for ( const auto& l : labels() ) {
-            if ( l.get().id() == id )
-                return l.get();
+            if ( l->id() == id )
+                return l;
         }
 
         return {};
     }
 
-    auto labelDeclarationRefs() { return childRefs(0, -1); }
-
-    bool operator==(const Enum& other) const {
-        return children<Declaration>(0, -1) == other.children<Declaration>(0, -1);
-    }
-
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return _initialized; }
-
-    std::vector<Node> typeParameters() const override {
-        std::vector<Node> params;
+    Nodes typeParameters() const final {
+        Nodes params;
         for ( auto&& c : uniqueLabels() )
             params.emplace_back(c.get());
 
         return params;
     }
 
-    bool isWildcard() const override { return _wildcard; }
+    static auto create(ASTContext* ctx, enum_::Labels labels, Meta meta = {}) {
+        return NodeDerivedPtr<Enum>(new Enum(_normalizeLabels(ctx, std::move(labels)), std::move(meta)));
+    }
 
-    node::Properties properties() const override { return node::Properties{}; }
+    static auto create(ASTContext* ctx, Wildcard _, Meta m = Meta()) {
+        return NodeDerivedPtr<Enum>(new Enum(Wildcard(), std::move(m)));
+    }
 
     /** Helper method for the resolver to link labels to their type. */
-    static void initLabelTypes(Node* n);
+    static void initLabelTypes(ASTContext* ctx, const NodePtr& n);
 
-    bool _isAllocable() const override { return true; }
-    bool _isParameterized() const override { return true; }
-    bool _isSortable() const override { return true; }
+protected:
+    Enum(Nodes children, Meta meta) : UnqualifiedType(std::move(children), std::move(meta)) {}
+    Enum(Wildcard _, Meta meta) : UnqualifiedType(Wildcard(), std::move(meta)) {}
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+    bool _isAllocable() const final { return true; }
+    bool _isParameterized() const final { return true; }
+    bool _isSortable() const final { return true; }
+    bool _isResolved(ResolvedState* rstate) const final { return _initialized; }
 
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    bool isEqual(const Node& other) const override { return other.isA<Enum>() && UnqualifiedType::isEqual(other); }
+
+    HILTI_NODE(Enum)
 
 private:
-    static std::vector<Declaration> _normalizeLabels(std::vector<enum_::Label> labels);
-
-    bool _wildcard = false;
     bool _initialized = false;
+
+    static Declarations _normalizeLabels(ASTContext* ctx, enum_::Labels labels);
 };
 
 } // namespace hilti::type

@@ -37,7 +37,7 @@ public:
     bool nullable() const { return false; }
     bool eodOk() const { return false; }
     bool atomic() const { return true; }
-    std::optional<spicy::Type> type() const { return {}; }
+    std::optional<spicy::TypePtr> type() const { return {}; }
 
 
     std::shared_ptr<std::string> _symbol;

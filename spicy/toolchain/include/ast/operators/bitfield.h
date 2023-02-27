@@ -34,7 +34,7 @@ static inline void checkName(const Expression& op0, const Expression& op1, Node&
         n.addError(hilti::util::fmt("bitfield type does not have attribute '%s'", id));
 }
 
-static inline Type itemType(const Expression& op0, const Expression& op1) {
+static inline TypePtr itemType(const Expression& op0, const Expression& op1) {
     if ( auto st = op0.type().tryAs<type::Bitfield>() ) {
         if ( const auto& f = st->bits(memberExpression(op1).id().local()) )
             return f->itemType();
@@ -46,7 +46,7 @@ static inline Type itemType(const Expression& op0, const Expression& op1) {
 } // namespace bitfield::detail
 
 BEGIN_OPERATOR_CUSTOM(bitfield, Member)
-    Type result(const hilti::node::Range<Expression>& ops) const {
+    TypePtr result(const hilti::node::Range<Expression>& ops) const {
         if ( ops.empty() )
             return type::DocOnly("<field type>");
 

@@ -3,16 +3,17 @@
 #include <fstream>
 #include <utility>
 
+#include <hilti/ast/builder/builder.h>
 #include <hilti/ast/declarations/function.h>
 #include <hilti/ast/declarations/global-variable.h>
 #include <hilti/ast/declarations/imported-module.h>
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/node.h>
-#include <hilti/base/visitor.h>
 #include <hilti/compiler/detail/codegen/codegen.h>
 #include <hilti/compiler/detail/visitors.h>
 #include <hilti/compiler/plugin.h>
 #include <hilti/compiler/unit.h>
+
+#include "base/timing.h"
 
 using namespace hilti;
 using namespace hilti::context;
@@ -26,8 +27,8 @@ inline const DebugStream Compiler("compiler");
 std::unordered_map<ID, unsigned int> Unit::_uid_cache;
 
 template<typename PluginMember, typename... Args>
-bool runHook(bool* modified, const Plugin& plugin, const Node* module, const std::string& extension, PluginMember hook,
-             const std::string& debug_msg, const Args&... args) {
+bool runHook(bool* modified, const Plugin& plugin, const ModulePtr& module, const std::string& extension,
+             PluginMember hook, const std::string& debug_msg, const Args&... args) {
     if ( ! (plugin.*hook) )
         return true;
 
@@ -81,18 +82,18 @@ Result<std::shared_ptr<Unit>> Unit::fromSource(const std::shared_ptr<Context>& c
     if ( ! process_extension )
         process_extension = path.extension();
 
-    auto id = module->id();
-    auto unit = std::shared_ptr<Unit>(new Unit(context, id, scope, path, *process_extension,
-                                               std::move(*module))); // no make_shared, ctor is private
+    auto id = (*module)->as<Module>()->id();
+    auto unit = std::shared_ptr<Unit>(
+        new Unit(context, id, scope, path, *process_extension, *module)); // no make_shared, ctor is private
+
     context->cacheUnit(unit);
 
     return unit;
 }
 
-std::shared_ptr<Unit> Unit::fromModule(const std::shared_ptr<Context>& context, const hilti::Module& module,
+std::shared_ptr<Unit> Unit::fromModule(const std::shared_ptr<Context>& context, const ModulePtr& module,
                                        hilti::rt::filesystem::path extension) {
-    auto unit = std::shared_ptr<Unit>(new Unit(context, module.id(), {}, {}, std::move(extension),
-                                               module)); // no make_shared, ctor is private
+    auto unit = std::shared_ptr<Unit>(new Unit(context, module->id(), {}, {}, std::move(extension), module));
     context->cacheUnit(unit);
     return unit;
 }
@@ -148,7 +149,7 @@ Result<std::shared_ptr<Unit>> Unit::fromCXX(const std::shared_ptr<Context>& cont
         new Unit(context, ID(fmt("<CXX/%s>", path.native())), {}, ".cxx", path, std::move(cxx)));
 }
 
-Result<hilti::Module> Unit::_parse(const std::shared_ptr<Context>& context, const hilti::rt::filesystem::path& path) {
+Result<NodePtr> Unit::_parse(const std::shared_ptr<Context>& context, const hilti::rt::filesystem::path& path) {
     util::timing::Collector _("hilti/compiler/parser");
 
     std::ifstream in;
@@ -169,12 +170,10 @@ Result<hilti::Module> Unit::_parse(const std::shared_ptr<Context>& context, cons
 
     HILTI_DEBUG(logging::debug::Compiler, dbg_message);
 
-    auto node = (*plugin->get().parse)(in, path);
-    if ( ! node )
-        return node.error();
+    auto builder = std::make_unique<hilti::Builder>(context->astContext());
+    auto module = (*plugin->get().parse)(builder.get(), in, path);
 
-    const auto& module = node->as<hilti::Module>();
-    if ( ! module.id() )
+    if ( module && ! (*module)->as<Module>()->id() )
         return result::Error(fmt("module in %s does not have an ID", path.native()));
 
     return module;
@@ -186,8 +185,8 @@ Result<Nothing> Unit::buildASTScopes(const Plugin& plugin) {
 
     bool modified = false; // not used
 
-    if ( ! runHook(&modified, plugin, &*_module, _extension, &Plugin::ast_build_scopes,
-                   fmt("building scopes for module %s", uniqueID()), context(), &*_module, this) )
+    if ( ! runHook(&modified, plugin, _module->as<Module>(), _extension, &Plugin::ast_build_scopes,
+                   fmt("building scopes for module %s", uniqueID()), context(), _module, this) )
         return result::Error("errors encountered during scope building");
 
     return Nothing();
@@ -196,16 +195,16 @@ Result<Nothing> Unit::buildASTScopes(const Plugin& plugin) {
 Result<Unit::ASTState> Unit::resolveAST(const Plugin& plugin) {
     bool modified = false;
 
-    if ( ! runHook(&modified, plugin, &*_module, _extension, &Plugin::ast_normalize,
-                   fmt("normalizing nodes in module %s", uniqueID()), context(), &*_module, this) )
+    if ( ! runHook(&modified, plugin, _module->as<Module>(), _extension, &Plugin::ast_normalize,
+                   fmt("normalizing nodes in module %s", uniqueID()), context(), _module, this) )
         return result::Error("errors encountered during normalizing");
 
-    if ( ! runHook(&modified, plugin, &*_module, _extension, &Plugin::ast_coerce,
-                   fmt("coercing nodes in module %s", uniqueID()), context(), &*_module, this) )
+    if ( ! runHook(&modified, plugin, _module->as<Module>(), _extension, &Plugin::ast_coerce,
+                   fmt("coercing nodes in module %s", uniqueID()), context(), _module, this) )
         return result::Error("errors encountered during coercing");
 
-    if ( ! runHook(&modified, plugin, &*_module, _extension, &Plugin::ast_resolve,
-                   fmt("resolving nodes in module %s", uniqueID()), context(), &*_module, this) )
+    if ( ! runHook(&modified, plugin, _module->as<Module>(), _extension, &Plugin::ast_resolve,
+                   fmt("resolving nodes in module %s", uniqueID()), context(), _module, this) )
         return result::Error("errors encountered during resolving");
 
     return modified ? Modified : NotModified;
@@ -216,8 +215,8 @@ bool Unit::validateASTPre(const Plugin& plugin) {
         return true;
 
     bool modified = false; // not used
-    runHook(&modified, plugin, &*_module, _extension, &Plugin::ast_validate_pre,
-            fmt("validating module %s (pre)", uniqueID()), context(), &*_module, this);
+    runHook(&modified, plugin, _module->as<Module>(), _extension, &Plugin::ast_validate_pre,
+            fmt("validating module %s (pre)", uniqueID()), context(), _module, this);
 
     return _collectErrors();
 }
@@ -227,8 +226,8 @@ bool Unit::validateASTPost(const Plugin& plugin) {
         return true;
 
     bool modified = false; // not used
-    runHook(&modified, plugin, &*_module, _extension, &Plugin::ast_validate_post,
-            fmt("validating module %s (post)", uniqueID()), context(), &*_module, this);
+    runHook(&modified, plugin, _module->as<Module>(), _extension, &Plugin::ast_validate_post,
+            fmt("validating module %s (post)", uniqueID()), context(), _module, this);
 
     return _collectErrors();
 }
@@ -238,13 +237,15 @@ Result<Nothing> Unit::transformAST(const Plugin& plugin) {
         return Nothing();
 
     bool modified = false;
-    runHook(&modified, plugin, &*_module, _extension, &Plugin::ast_transform, fmt("transforming module %s", uniqueID()),
-            context(), &*_module, this);
+    runHook(&modified, plugin, _module->as<Module>(), _extension, &Plugin::ast_transform,
+            fmt("transforming module %s", uniqueID()), context(), _module, this);
 
     return Nothing();
 }
 
 Result<Nothing> Unit::codegen() {
+    assert(false && "TODO");
+#if 0
     if ( ! _module )
         return Nothing();
 
@@ -252,7 +253,7 @@ Result<Nothing> Unit::codegen() {
     logging::DebugPushIndent _(logging::debug::Compiler);
 
     // Compile to C++.
-    auto c = detail::CodeGen(context()).compileModule(*_module, this, true);
+    auto c = detail::CodeGen(context()).compileModule(_module, this, true);
 
     if ( logger().errors() )
         return result::Error("errors encountered during code generation");
@@ -268,7 +269,7 @@ Result<Nothing> Unit::codegen() {
     // only generated declarations.
     for ( const auto& unit : dependencies(true) ) {
         HILTI_DEBUG(logging::debug::Compiler, fmt("importing declarations from module %s", unit.lock()->uniqueID()));
-        auto other = detail::CodeGen(context()).compileModule(unit.lock()->module(), unit.lock().get(), false);
+        auto other = detail::CodeGen(context()).compileModule(module(), unit.lock().get(), false);
         c->importDeclarations(*other);
     }
 
@@ -278,11 +279,12 @@ Result<Nothing> Unit::codegen() {
 
     _cxx_unit = *c;
     return Nothing();
+#endif
 }
 
 Result<Nothing> Unit::print(std::ostream& out) const {
     if ( _module )
-        detail::printAST(*_module, out);
+        detail::printAST(_module, out);
 
     return Nothing();
 }
@@ -349,38 +351,35 @@ bool Unit::requiresCompilation() {
 
     // Visitor that goes over an AST and flags whether any node provides
     // code that needs compilation.
-    struct Visitor : hilti::visitor::PreOrder<bool, Visitor> {
-        explicit Visitor() = default;
-        result_t operator()(const declaration::GlobalVariable& n, const_position_t p) { return true; }
+    struct Visitor : hilti::visitor::PreOrder {
+        bool result = false;
 
-        result_t operator()(const declaration::Function& n, const_position_t p) {
-            return n.function().body() != std::nullopt;
+        void operator()(const declaration::GlobalVariable& n) final { result = true; }
+        void operator()(const declaration::Function& n) final {
+            if ( n.function()->body() )
+                result = true;
         }
     };
 
     auto v = Visitor();
-    for ( auto i : v.walk(*_module) ) {
-        if ( auto rc = v.dispatch(i) ) {
-            if ( rc && *rc )
-                return true;
-        }
+    v.visitAll(_module);
+    return v.result;
     }
 
-    return false;
-}
-
-static node::ErrorPriority _recursiveValidateAST(const Node& n, Location closest_location, node::ErrorPriority prio,
+static node::ErrorPriority _recursiveValidateAST(const NodePtr& n, Location closest_location, node::ErrorPriority prio,
                                                  int level, std::vector<node::Error>* errors) {
-    if ( n.location() )
-        closest_location = n.location();
+    if ( n->location() )
+        closest_location = n->location();
 
-    if ( ! n.pruneWalk() ) {
+    if ( ! n->pruneWalk() ) {
         auto oprio = prio;
-        for ( const auto& c : n.children() )
+        for ( const auto& c : n->children() ) {
+            if ( c )
             prio = std::max(prio, _recursiveValidateAST(c, closest_location, oprio, level + 1, errors));
     }
+    }
 
-    auto errs = n.errors();
+    auto errs = n->errors();
     auto nprio = prio;
     for ( auto& err : errs ) {
         if ( ! err.location && closest_location )
@@ -419,7 +418,7 @@ static void _reportErrors(const std::vector<node::Error>& errors) {
 
 bool Unit::_collectErrors() {
     std::vector<node::Error> errors;
-    _recursiveValidateAST(*_module, Location(), node::ErrorPriority::NoError, 0, &errors);
+    _recursiveValidateAST(_module, Location(), node::ErrorPriority::NoError, 0, &errors);
 
     if ( errors.size() ) {
         _reportErrors(errors);
@@ -433,13 +432,14 @@ void Unit::_destroyModule() {
     if ( ! _module )
         return;
 
-    _module->as<Module>().destroyPreservedNodes();
     _module->destroyChildren();
     _module = {};
 }
 
 Result<std::shared_ptr<Unit>> Unit::link(const std::shared_ptr<Context>& context,
                                          const std::vector<linker::MetaData>& mds) {
+    assert(false && "TODO");
+#if 0
     HILTI_DEBUG(logging::debug::Compiler, fmt("linking %u modules", mds.size()));
     auto cxx_unit = detail::CodeGen(context).linkUnits(mds);
 
@@ -447,6 +447,7 @@ Result<std::shared_ptr<Unit>> Unit::link(const std::shared_ptr<Context>& context
         return result::Error("no C++ code available for unit");
 
     return fromCXX(context, *cxx_unit, "<linker>");
+#endif
 }
 
 std::pair<bool, std::optional<linker::MetaData>> Unit::readLinkerMetaData(std::istream& input,
@@ -461,9 +462,9 @@ void Unit::resetAST() {
 
     HILTI_DEBUG(logging::debug::Compiler, fmt("resetting nodes for module %s", uniqueID()));
 
-    auto v = hilti::visitor::PreOrder<>();
-    for ( auto&& i : v.walk(&*_module) ) {
-        i.node.clearScope();
-        i.node.clearErrors();
+    for ( auto&& i : hilti::visitor::PreOrder().walk(_module) ) {
+        assert(i); // walk() should not give us null pointer children.
+        i->clearScope();
+        i->clearErrors();
     }
 }

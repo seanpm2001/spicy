@@ -25,7 +25,7 @@ class Production_(trait::isProduction) {
     bool atomic() const;
 
     /** Returns any type associated with this production. */
-    std::optional<Type> type() const;
+    TypePtr type() const;
 
     /**
      * Returns a readable representation of the production, suitable to

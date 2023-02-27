@@ -3,98 +3,83 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include <hilti/ast/expression.h>
-#include <hilti/ast/operator.h>
+#include <hilti/ast/node.h>
 #include <hilti/ast/types/doc-only.h>
 #include <hilti/ast/types/type.h>
 #include <hilti/base/logger.h>
-#include <hilti/base/type_erase.h>
 #include <hilti/base/util.h>
-#include <hilti/base/visitor-types.h>
 
 namespace hilti {
 
-namespace visitor {}
-
-namespace expression {
-namespace resolved_operator::detail {
-class ResolvedOperator;
-} // namespace resolved_operator::detail
-
-using ResolvedOperator = resolved_operator::detail::ResolvedOperator;
-
-} // namespace expression
-
-namespace trait {
-/** Trait for classes implementing the `Operator` interface. */
-class isOperator : public isNode {};
-} // namespace trait
-
-namespace expression {
-class UnresolvedOperator;
-} // namespace expression
-
 namespace operator_ {
 
-using position_t = visitor::Position<Node&>;
-using const_position_t = visitor::Position<const Node&>;
-
-using OperandType = std::variant<Type, std::function<std::optional<Type>(const hilti::node::Range<Expression>&,
-                                                                         const hilti::node::Range<Expression>&)>>;
-
-inline std::optional<Type> type(const OperandType& t, const hilti::node::Range<Expression>& orig_ops,
-                                const hilti::node::Range<Expression>& resolved_ops) {
-    if ( const auto& f = std::get_if<std::function<std::optional<Type>(const hilti::node::Range<Expression>&,
-                                                                       const hilti::node::Range<Expression>&)>>(&t) )
-        return (*f)(orig_ops, resolved_ops);
-
-    return std::get<Type>(t);
+namespace detail {
+inline auto docType(std::string description) {
+    return QualifiedType::create(nullptr, type::DocOnly::create(nullptr, std::move(description)), true);
 }
 
-inline std::optional<Type> type(const OperandType& t, const hilti::node::Range<Expression>& orig_ops,
-                                const std::vector<Expression>& resolved_ops) {
-    auto resolved_ops_as_nodes = hilti::nodes(resolved_ops);
+inline auto docTypeUnqualified(std::string description) {
+    return type::DocOnly::create(nullptr, std::move(description));
+}
+} // namespace detail
+
+using OperandType =
+    std::variant<QualifiedTypePtr, std::function<QualifiedTypePtr(const hilti::node::Range<Expression>&,
+                                                                  const hilti::node::Range<Expression>&)>>;
+inline QualifiedTypePtr type(const OperandType& t, const hilti::node::Range<Expression>& orig_ops,
+                             const hilti::node::Range<Expression>& resolved_ops) {
+    if ( const auto& f = std::get_if<std::function<QualifiedTypePtr(const hilti::node::Range<Expression>&,
+                                                                    const hilti::node::Range<Expression>&)>>(&t) )
+        return (*f)(orig_ops, resolved_ops);
+
+    return std::get<QualifiedTypePtr>(t);
+}
+
+inline QualifiedTypePtr type(const OperandType& t, const hilti::node::Range<Expression>& orig_ops,
+                             const Expressions& resolved_ops) {
+    auto resolved_ops_as_nodes = node::flatten(resolved_ops);
     return type(t, orig_ops, hilti::node::Range<Expression>(resolved_ops_as_nodes));
 }
 
-inline std::optional<Type> type(const OperandType& t, const std::vector<Expression>& orig_ops,
-                                const std::vector<Expression>& resolved_ops) {
-    auto orig_ops_as_nodes = hilti::nodes(orig_ops);
+inline QualifiedTypePtr type(const OperandType& t, const Expressions& orig_ops, const Expressions& resolved_ops) {
+    auto orig_ops_as_nodes = node::flatten(orig_ops);
     return type(t, hilti::node::Range<Expression>(orig_ops_as_nodes), resolved_ops);
 }
 
 inline auto operandType(unsigned int op, const char* doc = "<no-doc>") {
     return [=](const hilti::node::Range<Expression>& /* orig_ops */,
-               const hilti::node::Range<Expression>& resolved_ops) -> std::optional<Type> {
+               const hilti::node::Range<Expression>& resolved_ops) -> QualifiedTypePtr {
         if ( resolved_ops.empty() )
-            return type::DocOnly(doc);
+            return detail::docType(doc);
 
         if ( op >= resolved_ops.size() )
             logger().internalError(util::fmt("operandType(): index %d out of range, only %" PRIu64 " ops available", op,
                                              resolved_ops.size()));
 
-        return resolved_ops[op].type();
+        return resolved_ops[op]->type();
     };
 }
 
-inline auto elementType(unsigned int op, const char* doc = "<type of element>", bool infer_const = true) {
+inline auto elementType(unsigned int op, const char* doc = "<type of element>") {
     return [=](const hilti::node::Range<Expression>& /* orig_ops */,
-               const hilti::node::Range<Expression>& resolved_ops) -> std::optional<Type> {
+               const hilti::node::Range<Expression>& resolved_ops) -> QualifiedTypePtr {
         if ( resolved_ops.empty() )
-            return type::DocOnly(doc);
+            return detail::docType(doc);
 
         if ( op >= resolved_ops.size() )
             logger().internalError(util::fmt("elementType(): index %d out of range, only %" PRIu64 " ops available", op,
                                              resolved_ops.size()));
 
-        if ( type::isIterable(resolved_ops[op].type()) ) {
-            auto t = *resolved_ops[op].type().elementType();
-            return (infer_const && resolved_ops[op].isConstant()) ? type::constant(t) : std::move(t);
+        if ( type::isIterable(resolved_ops[op]->type()) ) {
+            auto t = *resolved_ops[op]->type()->type()->elementType();
+            return resolved_ops[op]->type();
         }
 
         return {};
@@ -103,16 +88,16 @@ inline auto elementType(unsigned int op, const char* doc = "<type of element>", 
 
 inline auto constantElementType(unsigned int op, const char* doc = "<type of element>") {
     return [=](const hilti::node::Range<Expression>& /* orig_ops */,
-               const hilti::node::Range<Expression>& resolved_ops) -> std::optional<Type> {
+               const hilti::node::Range<Expression>& resolved_ops) -> QualifiedTypePtr {
         if ( resolved_ops.empty() )
-            return type::DocOnly(doc);
+            return detail::docType(doc);
 
         if ( op >= resolved_ops.size() )
             logger().internalError(util::fmt("elementType(): index %d out of range, only %" PRIu64 " ops available", op,
                                              resolved_ops.size()));
 
-        if ( type::isIterable(resolved_ops[op].type()) )
-            return type::constant(*resolved_ops[op].type().elementType());
+        if ( type::isIterable(resolved_ops[op]->type()) )
+            return resolved_ops[op]->type()->type()->elementType();
 
         return {};
     };
@@ -120,70 +105,61 @@ inline auto constantElementType(unsigned int op, const char* doc = "<type of ele
 
 inline auto iteratorType(unsigned int op, bool const_, const char* doc = "<iterator>") {
     return [=](const hilti::node::Range<Expression>& /* orig_ops */,
-               const hilti::node::Range<Expression>& resolved_ops) -> std::optional<Type> {
+               const hilti::node::Range<Expression>& resolved_ops) -> UnqualifiedTypePtr {
         if ( resolved_ops.empty() )
-            return type::DocOnly(doc);
+            return detail::docTypeUnqualified(doc);
 
         if ( op >= resolved_ops.size() )
             logger().internalError(util::fmt("iteratorType(): index %d out of range, only %" PRIu64 " ops available",
                                              op, resolved_ops.size()));
 
-        if ( type::isIterable(resolved_ops[op].type()) )
-            return resolved_ops[op].type().iteratorType(const_);
+        if ( type::isIterable(resolved_ops[op]->type()) )
+            return resolved_ops[op]->type()->type()->iteratorType();
 
         return {};
     };
 }
 
-inline auto dereferencedType(unsigned int op, const char* doc = "<dereferenced type>", bool infer_const = true) {
+inline auto dereferencedType(unsigned int op, const char* doc = "<dereferenced type>") {
     return [=](const hilti::node::Range<Expression>& /* orig_ops */,
-               const hilti::node::Range<Expression>& resolved_ops) -> std::optional<Type> {
+               const hilti::node::Range<Expression>& resolved_ops) -> QualifiedTypePtr {
         if ( resolved_ops.empty() )
-            return type::DocOnly(doc);
+            return detail::docType(doc);
 
         if ( op >= resolved_ops.size() )
             logger().internalError(util::fmt("dereferencedType(): index %d out of range, only %" PRIu64
                                              " ops available",
                                              op, resolved_ops.size()));
 
-        if ( auto d = resolved_ops[op].type().dereferencedType() ) {
-            auto t = *d;
-
-            if ( ! infer_const )
-                return std::move(t);
-
-            return resolved_ops[op].isConstant() ? type::constant(t) : type::nonConstant(t);
-        }
-
-        return {};
+        return resolved_ops[op]->type()->type()->dereferencedType();
     };
 }
 
 inline auto sameTypeAs(unsigned int op, const char* doc = "<no-doc>") {
     return [=](const hilti::node::Range<Expression>& /* orig_ops */,
-               const hilti::node::Range<Expression>& resolved_ops) -> std::optional<Type> {
+               const hilti::node::Range<Expression>& resolved_ops) -> QualifiedTypePtr {
         if ( resolved_ops.empty() )
-            return type::DocOnly(doc);
+            return detail::docType(doc);
 
         if ( op >= resolved_ops.size() )
             logger().internalError(util::fmt("sameTypeAs(): index %d out of range, only %" PRIu64 " ops available", op,
                                              resolved_ops.size()));
 
-        return resolved_ops[op].type();
+        return resolved_ops[op]->type();
     };
 }
 
 inline auto typedType(unsigned int op, const char* doc = "<type>") {
     return [=](const hilti::node::Range<Expression>& /* orig_ops */,
-               const hilti::node::Range<Expression>& resolved_ops) -> std::optional<Type> {
+               const hilti::node::Range<Expression>& resolved_ops) -> QualifiedTypePtr {
         if ( resolved_ops.empty() )
-            return type::DocOnly(doc);
+            return detail::docType(doc);
 
         if ( op >= resolved_ops.size() )
             logger().internalError(util::fmt("typedType(): index %d out of range, only %" PRIu64 " ops available", op,
                                              resolved_ops.size()));
 
-        return resolved_ops[op].type().as<type::Type_>().typeValue();
+        return resolved_ops[op]->type()->as<type::Type_>()->typeValue();
     };
 }
 
@@ -195,34 +171,35 @@ struct Operand {
     Operand& operator=(Operand&&) = default;
     Operand& operator=(const Operand&) = default;
 
-    Operand(std::optional<ID> _id = {}, OperandType _type = {}, bool _optional = false,
-            std::optional<Expression> _default = {}, std::optional<std::string> _doc = {})
+    Operand(std::optional<ID> _id = {}, OperandType _type = {}, bool _optional = false, ExpressionPtr _default = {},
+            std::optional<std::string> _doc = {})
         : id(std::move(_id)),
           type(std::move(_type)),
           optional(_optional),
           default_(std::move(_default)),
           doc(std::move(_doc)) {}
 
-    std::optional<ID> id;                    /**< ID for the operand; used only for documentation purposes. */
-    OperandType type;                        /**< operand's type */
-    bool optional = false;                   /**< true if operand can be skipped; `default_` will be used instead */
-    std::optional<Expression> default_ = {}; /**< default valuer if operator is skipped */
-    std::optional<std::string> doc;          /**< alternative rendering for the auto-generated documentation */
+    std::optional<ID> id;             /**< ID for the operand; used only for documentation purposes. */
+    OperandType type;                 /**< operand's type */
+    bool optional = false;            /**< true if operand can be skipped; `default_` will be used instead */
+    ExpressionPtr default_ = nullptr; /**< default valuer if operator is skipped */
+    std::optional<std::string> doc;   /**< alternative rendering for the auto-generated documentation */
 
     bool operator==(const Operand& other) const {
         if ( this == &other )
             return true;
 
-        if ( ! (std::holds_alternative<Type>(type) && std::holds_alternative<Type>(other.type)) )
+        if ( ! (std::holds_alternative<QualifiedTypePtr>(type) &&
+                std::holds_alternative<QualifiedTypePtr>(other.type)) )
             return false;
 
-        return std::get<Type>(type) == std::get<Type>(other.type) && id == other.id && optional == other.optional &&
-               default_ == other.default_;
+        return std::get<QualifiedTypePtr>(type) == std::get<QualifiedTypePtr>(other.type) && id == other.id &&
+               optional == other.optional && default_ == other.default_;
     }
 };
 
 inline std::ostream& operator<<(std::ostream& out, const Operand& op) {
-    if ( auto t = std::get_if<Type>(&op.type) )
+    if ( auto t = std::get_if<QualifiedTypePtr>(&op.type) )
         out << *t;
     else
         out << "<inferred type>";
@@ -231,7 +208,7 @@ inline std::ostream& operator<<(std::ostream& out, const Operand& op) {
         out << ' ' << *op.id;
 
     if ( op.default_ )
-        out << " = " << *op.default_;
+        out << " = " << op.default_->print();
     else if ( op.optional )
         out << " (optional)";
 
@@ -252,14 +229,14 @@ enum Priority { Low, Normal };
  * of `Operand` instances.
  */
 struct Signature {
-    Type self; /**< type the method operates on */
+    QualifiedTypePtr self; /**< type the method operates on */
     bool const_ = true;
     bool lhs = false;                  /**< true if operator's result can be assigned to */
     Priority priority = Priority::Low; /**< operator priority */
-    ResultType result;         /**< result of the method; skipped if using `{BEGIN/END}_METHOD_CUSTOM_RESULT}` */
-    ID id;                     /**< name of the method */
-    std::vector<Operand> args; /**< operands the method receives */
-    std::string doc;           /**< documentation string for the autogenerated reference manual */
+    ResultType result;                 /**< result of the method; skipped if using `{BEGIN/END}_METHOD_CUSTOM_RESULT` */
+    ID id;                             /**< name of the method */
+    std::vector<Operand> args;         /**< operands the method receives */
+    std::string doc;                   /**< documentation string for the autogenerated reference manual */
 };
 
 /** Enumeration of all types of operators that HILTI supports. */
@@ -399,7 +376,10 @@ constexpr util::enum_::Value<Kind> kinds[] = {{Kind::Add, "add"},           {Kin
                                               {Kind::Size, "size"},         {Kind::TryMember, ".?"},
                                               {Kind::Unequal, "!="},        {Kind::Unknown, "<unknown>"},
                                               {Kind::Unpack, "unpack"},     {Kind::Unset, "unset"}};
+
 } // namespace detail
+
+using Operands = std::vector<Operand>;
 
 /**
  * Returns a descriptive string representation of an operator kind. This is
@@ -408,21 +388,88 @@ constexpr util::enum_::Value<Kind> kinds[] = {{Kind::Add, "add"},           {Kin
  */
 constexpr auto to_string(Kind m) { return util::enum_::to_string(m, detail::kinds); }
 
-namespace detail {
-class Operator;
-
-#include <hilti/autogen/__operator.h>
-
-} // namespace detail
 } // namespace operator_
 
-using Operator = operator_::detail::Operator;
+/**
+ * Base class for HILTI operators.
+ *
+ * Operators aren't AST nodes themselves. Instead, they generally *define* an
+ * operator that's available in HILTI. An operator can then instantiated with
+ * concrete operands to create a corresponding AST expression node.
+ */
+class Operator {
+public:
+    /** Returns the operator's kind. */
+    virtual hilti::operator_::Kind kind() const = 0;
 
-inline bool operator==(const Operator& x, const Operator& y) {
-    if ( &x == &y )
-        return true;
+    /**
+     * Returns a documentation string associated with the operator. This
+     * goes into automatically generated HILTI reference documentation.
+     */
+    virtual std::string doc() const = 0;
 
-    return x.typename_() == y.typename_();
-}
+    /**
+     * Returns the internal namespace this operator is defined in. This is
+     * used for grouping operators in the auto-generated documentation.
+     */
+    virtual std::string docNamespace() const = 0;
+
+#if 0
+    /**
+     * Validates correctness of an instantiated version of this operator.
+     * This will be called as part of HILTI's AST validation process and
+     * should ensure that the operator's operands are valid.
+     *
+     * @param o instantiated operator expression
+     * @param p position of `o` in the AST being validated; can be used to derive further context about the usage
+     * @return false if the instantiation doesn't reflect a correct usage of the operator
+     */
+    virtual void validate(const expression::ResolvedOperator& o) const = 0;
+#endif
+
+    /**
+     * Returns the HILTI type that the operator yields when evaluated with a
+     * given set of operands.
+     *
+     * @param ops operands to use for deriving the result type; note that
+     * when auto-generating documentation, this vector will always be empty.
+     * Operators that require expressions to calculate their return type
+     * dynamically must catch getting an empty vector and return a
+     * type::DocOnly() instance in that case that provides a textual
+     * description for documentation.
+     *
+     * @return type when evaluated
+     *
+     */
+    virtual QualifiedTypePtr result(const hilti::node::Range<Expression>& ops) const = 0;
+
+    /** True if operator's result can be assigned to. */
+    virtual bool isLhs() const = 0;
+
+    /** Returns the operators resolver priority relative to others of the same kind. */
+    virtual hilti::operator_::Priority priority() const = 0;
+
+    /**
+     * Describes the operands that the operator accepts, such as their types
+     * and default values.
+     *
+     * @return
+     */
+    virtual const std::vector<hilti::operator_::Operand>& operands() const = 0;
+
+    /**
+     * Creates an expression representing this operator instantied with a
+     * given set of operands. The returned expression will typically be a
+     * `expression::ResolvedOperator`.
+     *
+     * @param ops operands to instantiate the operator with
+     * @param m meta information to associated with the instantiated expression
+     * @return new expression to integrate into AST
+     */
+    virtual ExpressionPtr instantiate(const Expressions& operands, const Meta& m) const = 0;
+};
+
+using OperatorPtr = std::shared_ptr<Operator>;
+using Operators = std::vector<OperatorPtr>;
 
 } // namespace hilti

@@ -29,7 +29,7 @@
 using namespace hilti;
 using namespace hilti::util;
 
-void detail::__internal_error(const std::string& s) { logger().internalError(s); }
+void util::detail::__internal_error(const std::string& s) { logger().internalError(s); }
 
 void util::cannot_be_reached() { hilti::logger().internalError("code is executing that should not be reachable"); }
 

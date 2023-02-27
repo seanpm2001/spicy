@@ -11,7 +11,6 @@
 #include <optional>
 #include <sstream>
 
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/hilti.h>
 
 static auto ast() {
@@ -35,7 +34,7 @@ TEST_CASE("Single-shot, result, constant node") {
 
         void operator()(const hilti::Module& m) { result = "(mo)"; }
         void operator()(const hilti::ID& id) { result = "(id)"; }
-        void operator()(const hilti::Type& t, const_position_t i) { result = "(t)"; }
+        void operator()(const hilti::TypePtrPtr& t, const_position_t i) { result = "(t)"; }
         void operator()(const hilti::type::String& s, hilti::type::Visitor::position_t&) override { result = "(ts)"; }
         void operator()(const hilti::type::SignedInteger& i, hilti::type::Visitor::position_t&) override {
             result = "(ti)";
@@ -70,7 +69,7 @@ TEST_CASE("Visitor, pre-order, no result, constant nodes") {
 
         result_t operator()(const hilti::Module& m) { x += "(mo)"; }
         result_t operator()(const hilti::ID& id) { x += "(id)"; }
-        result_t operator()(const hilti::Type& t, const_position_t i) { x += "(t)"; }
+        result_t operator()(const hilti::TypePtrPtr& t, const_position_t i) { x += "(t)"; }
         result_t operator()(const hilti::type::String& s, hilti::type::Visitor::position_t&) override { x += "(ts)"; }
         result_t operator()(const hilti::type::SignedInteger& i, hilti::type::Visitor::position_t&) override {
             x += "(ti)";
@@ -134,7 +133,7 @@ TEST_CASE("Visitor, pre-order, constant nodes") {
 
         void operator()(const hilti::Module& m) { x += "(mo)"; }
         void operator()(const hilti::ID& id) { x += "(id)"; }
-        void operator()(const hilti::Type& t, const_position_t i) { x += "(t)"; }
+        void operator()(const hilti::TypePtrPtr& t, const_position_t i) { x += "(t)"; }
         void operator()(const hilti::type::String& s, hilti::type::Visitor::position_t&) override { x += "(ts)"; }
         void operator()(const hilti::type::SignedInteger& i, hilti::type::Visitor::position_t&) override {
             x += "(ti)";
@@ -168,7 +167,7 @@ TEST_CASE("Visitor, post-order") {
 
         result_t operator()(const hilti::Module& m) { x += "(mo)"; }
         result_t operator()(const hilti::ID& id) { x += "(id)"; }
-        result_t operator()(const hilti::Type& t) { x += "(t)"; }
+        result_t operator()(const hilti::TypePtrPtr& t) { x += "(t)"; }
         result_t operator()(const hilti::type::String& s, hilti::type::Visitor::position_t&) override { x += "(ts)"; }
         result_t operator()(const hilti::type::SignedInteger& i, hilti::type::Visitor::position_t&) override {
             x += "(ti)";
@@ -234,9 +233,9 @@ TEST_CASE("Find specific parent") {
 }
 
 TEST_CASE("Copy node by value") {
-    hilti::Type t = hilti::type::Vector(hilti::type::String());
+    hilti::TypePtr t = hilti::type::Vector(hilti::type::String());
     CHECK(! hilti::type::isConstant(t));
-    auto t2 = hilti::type::constant(t._clone().as<hilti::Type>());
+    auto t2 = hilti::type::constant(t._clone().as<hilti::TypePtr>());
     auto t3 = hilti::type::constant(t);
     auto t4(hilti::type::constant(t));
     CHECK(hilti::type::isConstant(t2));

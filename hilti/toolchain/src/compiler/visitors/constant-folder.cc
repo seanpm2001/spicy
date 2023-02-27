@@ -7,7 +7,6 @@
 #include <hilti/ast/builder/expression.h>
 #include <hilti/ast/ctors/bool.h>
 #include <hilti/ast/ctors/integer.h>
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/expression.h>
 #include <hilti/ast/expressions/grouping.h>
 #include <hilti/ast/operators/real.h>

@@ -25,7 +25,7 @@ public:
 
     // Production API
     std::vector<std::vector<Production>> rhss() const { return {{_child}}; };
-    std::optional<spicy::Type> type() const { return _child.type(); }
+    std::optional<spicy::TypePtr> type() const { return _child.type(); }
     bool nullable() const { return production::nullable(rhss()); }
     bool eodOk() const { return nullable(); }
     bool atomic() const { return false; }

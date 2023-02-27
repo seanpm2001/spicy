@@ -27,7 +27,7 @@ class Unit : public hilti::NodeBase, public hilti::trait::isCtor {
 public:
     Unit(std::vector<unit::Field> f, Meta m = Meta())
         : hilti::NodeBase(nodes(type::auto_, std::move(f)), std::move(m)) {}
-    Unit(std::vector<unit::Field> f, Type t, Meta m = Meta())
+    Unit(std::vector<unit::Field> f, TypePtr t, Meta m = Meta())
         : NodeBase(nodes(std::move(t), std::move(f)), std::move(m)) {}
 
     /** Returns all fields that the constructor initializes. */
@@ -46,12 +46,12 @@ public:
         return {};
     }
 
-    void setType(const Type& x) { children()[0] = x; }
+    void setType(const TypePtr& x) { children()[0] = x; }
 
     bool operator==(const Unit& other) const { return fields() == other.fields(); }
 
     /** Implements `Ctor` interface. */
-    const auto& type() const { return child<Type>(0); }
+    const auto& type() const { return child<TypePtr>(0); }
 
     /** Implements `Ctor` interface. */
     bool isConstant() const { return true; }

@@ -5,7 +5,6 @@
 #include <utility>
 
 #include <hilti/ast/declarations/expression.h>
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/module.h>
 #include <hilti/ast/node.h>
 #include <hilti/ast/type.h>
@@ -81,7 +80,7 @@ struct VisitorPost : public hilti::visitor::PreOrder<void, VisitorPost>, public 
     };
 
     // Returns an error if the given type cannot be ordered at runtime.
-    Result<Nothing> isSortable(const Type& t) {
+    Result<Nothing> isSortable(const TypePtr& t) {
         if ( ! type::isSortable(t) )
             return result::Error(fmt("type '%s' is not sortable", t));
 

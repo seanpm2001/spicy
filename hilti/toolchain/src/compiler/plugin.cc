@@ -5,6 +5,7 @@
 #include <hilti/autogen/config.h>
 #include <hilti/compiler/context.h>
 #include <hilti/compiler/detail/visitors.h>
+#include <hilti/global.h>
 
 using namespace hilti;
 using namespace hilti::detail;
@@ -54,12 +55,13 @@ Plugin hilti::detail::create_hilti_plugin() {
         .library_paths =
             [](const std::shared_ptr<hilti::Context>& ctx) { return hilti::configuration().hilti_library_paths; },
 
-        .parse = [](std::istream& in, const hilti::rt::filesystem::path& path) { return parseSource(in, path); },
+        .parse = [](Builder* builder, std::istream& in, const hilti::rt::filesystem::path& path) { return parseSource(builder, in, path); },
 
-        .coerce_ctor = [](Ctor c, const Type& dst,
+#if 0
+        .coerce_ctor = [](Ctor c, const TypePtr& dst,
                           bitmask<CoercionStyle> style) { return detail::coerceCtor(std::move(c), dst, style); },
 
-        .coerce_type = [](Type t, const Type& dst,
+        .coerce_type = [](Type t, const TypePtr& dst,
                           bitmask<CoercionStyle> style) { return detail::coerceType(std::move(t), dst, style); },
 
         .ast_build_scopes =
@@ -89,5 +91,6 @@ Plugin hilti::detail::create_hilti_plugin() {
             },
 
         .ast_transform = {},
+#endif
     };
 }

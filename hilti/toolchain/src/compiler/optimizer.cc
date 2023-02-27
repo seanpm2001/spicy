@@ -14,7 +14,6 @@
 #include <hilti/ast/ctors/default.h>
 #include <hilti/ast/declarations/function.h>
 #include <hilti/ast/declarations/imported-module.h>
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/expressions/ctor.h>
 #include <hilti/ast/expressions/logical-and.h>
 #include <hilti/ast/expressions/logical-not.h>
@@ -589,7 +588,7 @@ struct TypeVisitor : OptimizerVisitor, visitor::PreOrder<bool, TypeVisitor> {
         return false;
     }
 
-    result_t operator()(const Type& type, position_t p) {
+    result_t operator()(const TypePtr& type, position_t p) {
         if ( p.parent().isA<declaration::Type>() )
             return false;
 

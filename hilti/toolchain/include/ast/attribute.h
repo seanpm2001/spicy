@@ -2,63 +2,32 @@
 
 #pragma once
 
-#include <functional>
-#include <iostream>
-#include <optional>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include <hilti/ast/ctors/integer.h>
-#include <hilti/ast/ctors/string.h>
-#include <hilti/ast/expression.h>
-#include <hilti/ast/expressions/ctor.h>
+#include <hilti/ast/forward.h>
 #include <hilti/ast/node.h>
-#include <hilti/base/logger.h>
-#include <hilti/base/result.h>
-#include <hilti/base/util.h>
-#include <hilti/compiler/coercion.h>
-#include <hilti/global.h>
 
 namespace hilti {
 
-/** AST node captures an `&<tag>` attribute along with an optional argument. */
-class Attribute : public NodeBase {
+/** AST node for attributes. */
+class Attribute : public Node {
 public:
-    Attribute() = default;
-
-    /**
-     * Constructor for an attribute with no argument.
-     *
-     * @param tag name of the attribute, including the leading `&`
-     * @param m meta data to associate with the node
-     */
-    Attribute(std::string tag, Meta m = Meta()) : NodeBase({node::none}, std::move(m)), _tag(std::move(tag)) {}
-
-    /**
-     * Constructor for an attribute coming with an argument. The argument
-     * must be either an AST node representing an expression.
-     *
-     * @param tag name of the attribute, including the leading `&`
-     * @param v node representing the argument to associate with the attribute; must be an expression
-     * @param m meta data to associate with the node
-     */
-    Attribute(std::string tag, Node v, Meta m = Meta())
-        : NodeBase({std::move(v)}, std::move(m)), _tag(std::move(tag)) {}
+    ~Attribute() override;
 
     /** Returns the name of the attribute, including the leading `&`. */
     const auto& tag() const { return _tag; }
 
     /** Returns true if an argument is associated with the attribute. */
-    bool hasValue() const { return ! children()[0].isA<node::None>(); }
+    bool hasValue() const { return child(0) != nullptr; }
 
     /**
      * Returns the attribute associated with the node.
      *
      * @exception `std::out_of_range` if the attribute does not have an argument
      */
-    const Node& value() const { return children()[0]; }
+    NodePtr value() const { return child(0); }
 
     /**
      * Returns the attributes argument as type `T`. `T` must be either an
@@ -71,122 +40,74 @@ public:
      * @return the argument, or an error if the argument could not be interpreted as type `T`
      * @exception `std::out_of_range` if the attribute does not have an argument
      */
-    Result<std::reference_wrapper<const Expression>> valueAsExpression() const {
-        if ( ! hasValue() )
-            return result::Error(hilti::util::fmt("attribute '%s' requires an expression", _tag));
+    Result<ExpressionPtr> valueAsExpression() const;
 
-        if ( ! value().isA<Expression>() )
-            return result::Error(hilti::util::fmt("value for attribute '%s' must be an expression", _tag));
+    Result<std::string> valueAsString() const;
 
-        return {value().as<Expression>()};
-    }
-
-    Result<std::string> valueAsString() const {
-        if ( ! hasValue() )
-            return result::Error(hilti::util::fmt("attribute '%s' requires a string", _tag));
-
-        if ( auto e = value().tryAs<expression::Ctor>() )
-            if ( auto s = e->ctor().tryAs<ctor::String>() )
-                return s->value();
-
-        return result::Error(hilti::util::fmt("value for attribute '%s' must be a string", _tag));
-    }
-
-    Result<int64_t> valueAsInteger() const {
-        if ( ! hasValue() )
-            return result::Error(hilti::util::fmt("attribute '%s' requires an integer", _tag));
-
-        if ( auto e = value().tryAs<expression::Ctor>() ) {
-            if ( auto s = e->ctor().tryAs<ctor::SignedInteger>() )
-                return s->value();
-
-            if ( auto s = e->ctor().tryAs<ctor::UnsignedInteger>() )
-                return static_cast<int64_t>(s->value());
-        }
-
-        return result::Error(hilti::util::fmt("value for attribute '%s' must be an integer", _tag));
-    }
+    Result<int64_t> valueAsInteger() const;
 
     /**
-     * Coerce the attribute's expression value to a specified type.
+     * Coerce the attribute's expression value to a specified type, modifying
+     * the node in place.
      *
      * @return A successful return value if either the coercion succeeded
      * (then the result's value is true), or nothing was to be done (then the
      * result's value is false); a failure if a coercion would have been
      * necessary, but failed, or the attribute does not have a expression value.
      */
-    Result<bool> coerceValueTo(const Type& dst) {
-        auto x = valueAsExpression();
-        if ( ! x )
-            return x.error();
+    Result<bool> coerceValueTo(const UnqualifiedTypePtr& dst);
 
-        if ( ! type::isResolved(dst) )
-            return false;
-
-        auto ne = coerceExpression(*x, dst);
-        if ( ! ne.coerced )
-            return result::Error(util::fmt("cannot coerce attribute's expression from type '%s' to '%s' (%s)",
-                                           x->get().type(), dst, tag()));
-
-        if ( ne.nexpr ) {
-            children()[0] = *ne.nexpr;
-            return true;
-        }
-
-        return false;
+    node::Properties properties() const override {
+        auto p = node::Properties{{"tag", _tag}};
+        return Node::properties() + p;
     }
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{{"tag", _tag}}; }
+    /**
+     * Factory for an attribute coming with an argument. The argument
+     * must be either an AST node representing an expression.
+     *
+     * @param tag name of the attribute, including the leading `&`
+     * @param v node representing the argument to associate with the attribute; must be an expression
+     * @param m meta data to associate with the node
+     */
+    static auto create(ASTContext* ctx, std::string tag, const NodePtr& v, Meta m = Meta()) {
+        return NodeDerivedPtr<Attribute>(new Attribute(Nodes{v}, std::move(tag), std::move(m)));
+    }
 
-    bool operator==(const Attribute& other) const {
-        if ( _tag != other._tag )
+    /**
+     * Factory for an attribute with no argument.
+     *
+     * @param tag name of the attribute, including the leading `&`
+     * @param m meta data to associate with the node
+     */
+    static auto create(ASTContext* ctx, std::string tag, Meta m = Meta()) {
+        return create(ctx, std::move(tag), nullptr, std::move(m));
+    }
+
+protected:
+    Attribute(Nodes children, std::string tag, Meta m = Meta())
+        : Node(std::move(children), std::move(m)), _tag(std::move(tag)) {}
+
+    std::string _render() const override;
+
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<Attribute>();
+        if ( ! n )
             return false;
 
-        if ( auto x = valueAsExpression() ) {
-            auto y = other.valueAsExpression();
-            return y && *x == *y;
-        }
-
-        else if ( auto x = valueAsString() ) {
-            auto y = other.valueAsString();
-            return y && *x == *y;
-        }
-
-        else if ( auto x = valueAsInteger() ) {
-            auto y = other.valueAsInteger();
-            return y && *x == *y;
-        }
-
-        return false;
+        return Node::isEqual(other) && _tag == n->_tag;
     }
+
+    HILTI_NODE(Attribute);
 
 private:
     std::string _tag;
 };
 
-/**
- * Constructs an AST node from an attribute.
- */
-inline Node to_node(Attribute i) { return Node(std::move(i)); }
-
 /** AST node holding a set of `Attribute` nodes. */
-class AttributeSet : public NodeBase {
+class AttributeSet : public Node {
 public:
-    /**
-     * Constructs a set from from a vector of attributes.
-     *
-     * @param a vector to initialize attribute set from
-     * @param m meta data to associate with the node
-     */
-    explicit AttributeSet(std::vector<Attribute> a, Meta m = Meta()) : NodeBase(nodes(std::move(a)), std::move(m)) {}
-
-    /**
-     * Constructs an empty set.
-     *
-     * @param m meta data to associate with the node
-     */
-    AttributeSet(Meta m = Meta()) : NodeBase({}, std::move(m)) {}
+    ~AttributeSet() override;
 
     /** Returns the set's attributes. */
     auto attributes() const { return children<Attribute>(0, -1); }
@@ -197,28 +118,14 @@ public:
      *
      * @return attribute if found
      */
-    hilti::optional_ref<const Attribute> find(std::string_view tag) const {
-        for ( const auto& a : attributes() )
-            if ( a.tag() == tag )
-                return a;
-
-        return {};
-    }
+    AttributePtr find(std::string_view tag) const;
 
     /**
      * Retrieves all attributes with a given name from the set.
      *
      * @return all attributes with matching name
      */
-    auto findAll(std::string_view tag) const {
-        hilti::node::Set<Attribute> result;
-
-        for ( const auto& a : attributes() )
-            if ( a.tag() == tag )
-                result.insert(a);
-
-        return result;
-    }
+    hilti::node::Set<Attribute> findAll(std::string_view tag) const;
 
     /**
      * If an attribute of a given name exists and has an expression value,
@@ -229,47 +136,28 @@ public:
      * result's value is false); a failures if a coercion would have been
      * necessary, but failed.
      */
-    Result<bool> coerceValueTo(const std::string& tag, const Type& dst) {
-        if ( ! type::isResolved(dst) )
-            return false;
-
-        for ( auto& n : children() ) {
-            auto a = n.as<Attribute>();
-            if ( a.tag() != tag )
-                continue;
-
-            if ( auto e = a.valueAsExpression() ) {
-                auto ne = coerceExpression(*e, dst);
-                if ( ! ne.coerced )
-                    return result::Error("cannot coerce attribute value");
-
-                if ( ne.nexpr ) {
-                    n = Attribute(tag, std::move(*ne.nexpr));
-                    return true;
-                }
-
-                return false;
-            }
-        }
-
-        return false;
-    }
+    Result<bool> coerceValueTo(const std::string& tag, const UnqualifiedTypePtr& dst);
 
     /**
      * Returns true if there's an attribute with a given name in the set.
      *
      * @param true if found
      */
-    bool has(std::string_view tag) const { return find(tag).has_value(); }
+    bool has(std::string_view tag) const { return find(tag) != nullptr; }
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
-
-    bool operator==(const AttributeSet& other) const { return attributes() == other.attributes(); };
+    /** Adds an attribute to the set. */
+    void add(const AttributePtr& a) { addChild(a); }
 
     /** Returns true if the set has at least one element. */
     operator bool() const { return ! children().empty(); }
 
+    static auto create(ASTContext* ctx, Attributes attrs, Meta m = Meta()) {
+        return NodeDerivedPtr<AttributeSet>(new AttributeSet(Nodes{std::move(attrs)}, std::move(m)));
+    }
+
+#if 0
+        // TODO: Do we want/need these static methods?
+        //
     /**
      * Returns a new attribute set that adds one element.
      *
@@ -355,12 +243,28 @@ public:
         else
             return false;
     }
-};
+#endif
 
-/**
- * Constructs an AST node from an attribute set.
- */
-inline Node to_node(AttributeSet i) { return Node(std::move(i)); }
-inline Node to_node(std::optional<AttributeSet>&& i) { return i ? to_node(*i) : node::none; }
+protected:
+    /**
+     * Constructs a set from from a vector of attributes.
+     *
+     * @param a vector to initialize attribute set from
+     * @param m meta data to associate with the node
+     */
+    explicit AttributeSet(Nodes children, Meta m = Meta()) : Node(std::move(children), std::move(m)) {}
+
+    /**
+     * Constructs an empty set.
+     *
+     * @param m meta data to associate with the node
+     */
+    AttributeSet(Meta m = Meta()) : Node({}, std::move(m)) {}
+
+    std::string _render() const override;
+    bool isEqual(const Node& other) const override { return other.isA<AttributeSet>() && Node::isEqual(other); }
+
+    HILTI_NODE(AttributeSet);
+};
 
 } // namespace hilti

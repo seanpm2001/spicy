@@ -45,7 +45,7 @@ static inline void checkName(const Expression& op0, const Expression& op1, Node&
 }
 
 // Returns the type of a unit field referenced by an operand.
-static inline Type itemType(const Expression& op0, const Expression& op1) {
+static inline TypePtr itemType(const Expression& op0, const Expression& op1) {
     if ( auto st = op0.type().tryAs<type::Unit>() ) {
         if ( auto i = st->itemByName(memberExpression(op1).id().local()) )
             return i->itemType();
@@ -57,7 +57,7 @@ static inline Type itemType(const Expression& op0, const Expression& op1) {
 } // namespace unit::detail
 
 BEGIN_OPERATOR_CUSTOM(unit, Unset)
-    Type result(const hilti::node::Range<Expression>& ops) const { return type::void_; }
+    TypePtr result(const hilti::node::Range<Expression>& ops) const { return type::void_; }
 
     bool isLhs() const { return true; }
     auto priority() const { return hilti::operator_::Priority::Normal; }
@@ -80,7 +80,7 @@ Clears an optional field.
 END_OPERATOR_CUSTOM_x
 
 BEGIN_OPERATOR_CUSTOM_x(unit, MemberNonConst, Member)
-    Type result(const hilti::node::Range<Expression>& ops) const {
+    TypePtr result(const hilti::node::Range<Expression>& ops) const {
         if ( ops.empty() )
             return type::DocOnly("<field type>");
 
@@ -113,7 +113,7 @@ triggers an exception.
 END_OPERATOR_CUSTOM_x
 
 BEGIN_OPERATOR_CUSTOM_x(unit, MemberConst, Member)
-    Type result(const hilti::node::Range<Expression>& ops) const {
+    TypePtr result(const hilti::node::Range<Expression>& ops) const {
         if ( ops.empty() )
             return type::DocOnly("<field type>");
 
@@ -143,7 +143,7 @@ triggers an exception.
 END_OPERATOR_CUSTOM_x
 
 BEGIN_OPERATOR_CUSTOM(unit, TryMember)
-    Type result(const hilti::node::Range<Expression>& ops) const {
+    TypePtr result(const hilti::node::Range<Expression>& ops) const {
         if ( ops.empty() )
             return type::DocOnly("<field type>");
 
@@ -176,7 +176,7 @@ exception differently).
 END_OPERATOR_CUSTOM
 
 BEGIN_OPERATOR_CUSTOM(unit, HasMember)
-    Type result(const hilti::node::Range<Expression>& /* ops */) const { return type::Bool(); }
+    TypePtr result(const hilti::node::Range<Expression>& /* ops */) const { return type::Bool(); }
 
     bool isLhs() const { return false; }
     auto priority() const { return hilti::operator_::Priority::Normal; }
@@ -216,7 +216,7 @@ public:
 
         static Kind kind() { return Kind::MemberCall; }
         const std::vector<Operand>& operands() const { return _operands; }
-        Type result(const hilti::node::Range<Expression>& /* ops */) const { return _result; }
+        TypePtr result(const hilti::node::Range<Expression>& /* ops */) const { return _result; }
         bool isLhs() const { return false; }
         auto priority() const { return hilti::operator_::Priority::Normal; }
         void validate(const hilti::expression::ResolvedOperator& /* i */, position_t p) const {}
@@ -236,7 +236,7 @@ public:
     private:
         type::unit::item::Field _field;
         std::vector<Operand> _operands;
-        Type _result;
+        TypePtr _result;
     };
 };
 
@@ -407,12 +407,12 @@ END_METHOD
 
 static inline auto contextResult(bool is_const) {
     return [=](const hilti::node::Range<Expression>& /* orig_ops */,
-               const hilti::node::Range<Expression>& resolved_ops) -> std::optional<Type> {
+               const hilti::node::Range<Expression>& resolved_ops) -> TypePtr {
         if ( resolved_ops.empty() )
             return type::DocOnly("<context>&");
 
         if ( const auto& ctype = resolved_ops[0].type().as<type::Unit>().contextType() )
-            return Type(type::StrongReference(*ctype));
+            return TypePtr(type::StrongReference(*ctype));
 
         // We only arrive here if the unit did not declare a `%context`. Return
         // a dummy value for now and reject it in subsequent validation.

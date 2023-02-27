@@ -11,31 +11,31 @@ namespace hilti::type {
 
 namespace detail {
 
-// CHECK: IntegerBase = TypeBase
-/** Base class for an AST node representing an integer type. */
-class IntegerBase : public TypeBase {
+/** Common base class for an AST node representing an integer type. */
+class IntegerBase : public UnqualifiedType {
 public:
-    IntegerBase(Wildcard /*unused*/, Meta m = Meta()) : TypeBase(std::move(m)), _wildcard(true) {}
-    IntegerBase(int width, Meta m = Meta()) : TypeBase(std::move(m)), _width(width) {}
-    IntegerBase(Meta m = Meta()) : TypeBase(std::move(m)) {}
-
     auto width() const { return _width; }
+    Nodes typeParameters() const final { return {_type_arg}; }
 
-    bool isWildcard() const override { return _wildcard; }
-    bool _isResolved(ResolvedState* rstate) const override { return true; }
-    node::Properties properties() const override { return node::Properties{{"width", _width}}; }
+    node::Properties properties() const final {
+        auto p = node::Properties{{"width", _width}};
+        return UnqualifiedType::properties() + p;
+    }
 
-    bool _isAllocable() const override { return true; }
-    bool _isSortable() const override { return true; }
-    bool _isParameterized() const override { return true; }
+protected:
+    IntegerBase(Nodes children, unsigned int width, NodePtr type_arg, const Meta& m = Meta())
+        : UnqualifiedType(std::move(children), m), _width(width), _type_arg(std::move(type_arg)) {}
+    IntegerBase(Wildcard _, Meta m = Meta()) : UnqualifiedType(Wildcard(), std::move(m)) {}
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+    void setTypeArg(NodePtr t) { _type_arg = std::move(t); }
 
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    bool _isAllocable() const final { return true; }
+    bool _isSortable() const final { return true; }
+    bool _isParameterized() const final { return true; }
 
 private:
-    bool _wildcard = false;
-    int _width = 0;
+    unsigned int _width = 0;
+    NodePtr _type_arg; // outside of AST to avoid cycles
 };
 
 } // namespace detail
@@ -43,33 +43,45 @@ private:
 /** AST node for a signed integer type. */
 class SignedInteger : public detail::IntegerBase {
 public:
+    static NodeDerivedPtr<SignedInteger> create(ASTContext* ctx, int width, const Meta& m = Meta());
+
+    static auto create(ASTContext* ctx, Wildcard _, Meta m = Meta()) {
+        return NodeDerivedPtr<SignedInteger>(new SignedInteger(Wildcard(), std::move(m)));
+    }
+
+protected:
     using detail::IntegerBase::IntegerBase;
 
-    bool operator==(const SignedInteger& other) const { return width() == other.width(); }
+    bool isEqual(const Node& other) const override {
+        return other.isA<SignedInteger>() && UnqualifiedType::isEqual(other);
+    }
 
-    std::vector<Node> typeParameters() const override;
-
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
-
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    HILTI_NODE(SignedInteger)
 };
+
+inline bool operator==(const SignedInteger& x, const SignedInteger& y) { return x.width() == y.width(); }
+inline bool operator!=(const SignedInteger& x, const SignedInteger& y) { return ! (x == y); }
 
 /** AST node for an unsigned integer type. */
 class UnsignedInteger : public detail::IntegerBase {
 public:
+    static NodeDerivedPtr<UnsignedInteger> create(ASTContext* ctx, int width, const Meta& m = Meta());
+
+    static auto create(ASTContext* ctx, Wildcard _, Meta m = Meta()) {
+        return NodeDerivedPtr<UnsignedInteger>(new UnsignedInteger(Wildcard(), std::move(m)));
+    }
+
+protected:
     using detail::IntegerBase::IntegerBase;
 
-    bool operator==(const UnsignedInteger& other) const { return width() == other.width(); }
+    bool isEqual(const Node& other) const override {
+        return other.isA<UnsignedInteger>() && UnqualifiedType::isEqual(other);
+    }
 
-    std::vector<Node> typeParameters() const override;
-
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
-
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    HILTI_NODE(UnsignedInteger);
 };
+
+inline bool operator==(const UnsignedInteger& x, const UnsignedInteger& y) { return x.width() == y.width(); }
+inline bool operator!=(const UnsignedInteger& x, const UnsignedInteger& y) { return ! (x == y); }
 
 } // namespace hilti::type

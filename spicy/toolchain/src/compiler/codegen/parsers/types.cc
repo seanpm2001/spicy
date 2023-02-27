@@ -8,7 +8,6 @@
 #include <hilti/ast/types/struct.h>
 #include <hilti/base/logger.h>
 
-#include <spicy/ast/detail/visitor.h>
 #include <spicy/ast/types/unit-items/field.h>
 #include <spicy/compiler/detail/codegen/codegen.h>
 #include <spicy/compiler/detail/codegen/parser-builder.h>
@@ -42,7 +41,7 @@ struct Visitor : public hilti::visitor::PreOrder<void, Visitor>, type::Visitor {
     auto popBuilder() { return pb->popBuilder(); }
     auto guardBuilder() { return pb->makeScopeGuard(); }
 
-    Expression destination(const Type& t) {
+    Expression destination(const TypePtr& t) {
         if ( dst )
             return *dst;
 
@@ -52,7 +51,7 @@ struct Visitor : public hilti::visitor::PreOrder<void, Visitor>, type::Visitor {
         return builder()->addTmp("x", t);
     }
 
-    Expression performUnpack(const Expression& target, const Type& t, int len,
+    Expression performUnpack(const Expression& target, const TypePtr& t, int len,
                              const std::vector<Expression>& unpack_args, const Meta& m, bool is_try) {
         if ( ! is_try ) {
             auto error_msg = fmt("expecting %d bytes for unpacking value", len);
@@ -320,7 +319,7 @@ struct Visitor : public hilti::visitor::PreOrder<void, Visitor>, type::Visitor {
 
 } // namespace
 
-Expression ParserBuilder::_parseType(const Type& t, const production::Meta& meta, const std::optional<Expression>& dst,
+Expression ParserBuilder::_parseType(const TypePtr& t, const production::Meta& meta, const std::optional<Expression>& dst,
                                      bool is_try) {
     assert(! is_try || (t.isA<type::SignedInteger>() || t.isA<type::UnsignedInteger>()));
 
@@ -331,11 +330,11 @@ Expression ParserBuilder::_parseType(const Type& t, const production::Meta& meta
     hilti::logger().internalError(fmt("codegen: type parser did not return expression for '%s'", t));
 }
 
-Expression ParserBuilder::parseType(const Type& t, const production::Meta& meta, const std::optional<Expression>& dst) {
+Expression ParserBuilder::parseType(const TypePtr& t, const production::Meta& meta, const std::optional<Expression>& dst) {
     return _parseType(t, meta, dst, /*is_try =*/false);
 }
 
-Expression ParserBuilder::parseTypeTry(const Type& t, const production::Meta& meta,
+Expression ParserBuilder::parseTypeTry(const TypePtr& t, const production::Meta& meta,
                                        const std::optional<Expression>& dst) {
     assert(t.isA<type::SignedInteger>() || t.isA<type::UnsignedInteger>());
 

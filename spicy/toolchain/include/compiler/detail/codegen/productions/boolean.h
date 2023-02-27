@@ -28,7 +28,7 @@ public:
 
     // Production API
     std::vector<std::vector<Production>> rhss() const { return {{_alternatives.first}, {_alternatives.second}}; }
-    std::optional<spicy::Type> type() const { return {}; }
+    std::optional<spicy::TypePtr> type() const { return {}; }
     bool nullable() const { return production::nullable(rhss()); }
     bool eodOk() const {
         // Always false. If one of the branches is ok with no data, it will

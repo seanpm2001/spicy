@@ -58,6 +58,8 @@ public:
     /** Returns the number of namespace components (incl. the local ID0. */
     auto length() const { return util::split(_id, "::").size(); }
 
+    bool isAbsolute() const { return util::startsWith(_id, "::"); }
+
     /**
      * Returns a new ID containing just single component of the path's of the
      * ID. Indices are zero-based and, if negative, counted from the end
@@ -69,7 +71,7 @@ public:
         auto x = util::split(_id, "::");
 
         if ( i < 0 )
-            i = x.size() + i;
+            i = static_cast<int>(x.size()) + i;
 
         return Derived(i >= 0 && static_cast<size_t>(i) < x.size() ? x[i] : "", AlreadyNormalized());
     }
@@ -115,6 +117,14 @@ public:
             return Derived(root + _id, AlreadyNormalized());
 
         return Derived(_id.substr(root._id.size() + 2), AlreadyNormalized());
+    }
+
+
+    Derived makeAbsolute() const {
+        if ( isAbsolute() )
+            return Derived(_id);
+        else
+            return Derived("::" + _id);
     }
 
     /** Concantenates two IDs, separating them with `::`. */

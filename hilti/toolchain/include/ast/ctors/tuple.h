@@ -2,66 +2,56 @@
 
 #pragma once
 
-#include <algorithm>
+#include <memory>
 #include <utility>
-#include <vector>
 
 #include <hilti/ast/ctor.h>
 #include <hilti/ast/expression.h>
-#include <hilti/ast/types/auto.h>
 #include <hilti/ast/types/tuple.h>
-#include <hilti/ast/types/unknown.h>
 
 namespace hilti::ctor {
 
-/** AST node for a tuple constructor. */
-class Tuple : public NodeBase, public hilti::trait::isCtor {
+/** AST node for a tuple ctor. */
+class Tuple : public Ctor {
 public:
-    Tuple(const std::vector<Expression>& v, Meta m = Meta()) : NodeBase(nodes(_inferType(v), v), std::move(m)) {}
+    QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
 
     auto value() const { return children<Expression>(1, -1); }
 
-    void setElementTypes(std::vector<Type> t) { children()[0] = Type(type::Tuple(std::move(t), meta())); }
-
-    bool operator==(const Tuple& other) const { return value() == other.value(); }
-
-    /** Implements `Ctor` interface. */
-    const auto& type() const { return child<Type>(0); }
-
-    /** Implements `Ctor` interface. */
-    bool isConstant() const { return true; }
-
-    /** Implements `Ctor` interface. */
-    auto isLhs() const {
+    bool isLhs() const final {
         const auto& v = value();
 
         if ( v.empty() )
             return false;
 
-        return std::all_of(v.begin(), v.end(), [](const auto& e) { return e.isLhs(); });
+        return std::all_of(v.begin(), v.end(), [](const auto& e) { return e->isLhs(); });
     }
 
-    /** Implements `Ctor` interface. */
-    auto isTemporary() const { return true; }
-    /** Implements `Ctor` interface. */
-    auto isEqual(const Ctor& other) const { return node::isEqual(this, other); }
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    static auto create(ASTContext* ctx, const Expressions& exprs, const Meta& meta = {}) {
+        auto type = _inferType(ctx, exprs, meta);
+        return NodeDerivedPtr<Tuple>(new Tuple(node::flatten(type, exprs), meta));
+    }
+
+protected:
+    Tuple(Nodes children, Meta meta) : Ctor(std::move(children), std::move(meta)) {}
+
+    bool isEqual(const Node& other) const override { return other.isA<Tuple>() && Ctor::isEqual(other); }
+
+    HILTI_NODE(Tuple)
 
 private:
-    Type _inferType(const std::vector<Expression>& exprs) {
+    static QualifiedTypePtr _inferType(ASTContext* ctx, const Expressions& exprs, const Meta& meta) {
         for ( const auto& e : exprs ) {
             if ( ! expression::isResolved(e) )
-                return type::auto_;
+                return QualifiedType::createAuto(ctx, meta);
         }
 
-        std::vector<Type> types;
+        QualifiedTypes types;
         types.reserve(exprs.size());
         for ( const auto& e : exprs )
-            types.push_back(e.type());
+            types.emplace_back(e->type());
 
-        return type::Tuple(std::move(types));
+        return QualifiedType::create(ctx, type::Tuple::create(ctx, types, meta), true, meta);
     }
 };
-
 } // namespace hilti::ctor

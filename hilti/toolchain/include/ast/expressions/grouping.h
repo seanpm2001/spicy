@@ -2,35 +2,33 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/expression.h>
-#include <hilti/ast/types/auto.h>
+#include <hilti/ast/type.h>
 
 namespace hilti::expression {
 
 /** AST node for grouping another expression inside parentheses. */
-class Grouping : public NodeBase, public trait::isExpression {
+class Grouping : public Expression {
 public:
-    Grouping(Expression e, Meta m = Meta()) : NodeBase({std::move(e)}, std::move(m)) {}
+    auto expression() const { return child<Expression>(0); }
 
-    const auto& expression() const { return child<Expression>(0); }
+    QualifiedTypePtr type() const final { return expression()->type(); }
+    bool isLhs() const final { return expression()->isLhs(); }
+    bool isTemporary() const final { return expression()->isTemporary(); }
 
-    bool operator==(const Grouping& other) const { return expression() == other.expression(); }
+    static auto create(ASTContext* ctx, const ExpressionPtr& expr, const Meta& meta = {}) {
+        return NodeDerivedPtr<Grouping>(new Grouping({expr}, meta));
+    }
 
-    /** Implements `Expression` interface. */
-    bool isLhs() const { return expression().isLhs(); }
-    /** Implements `Expression` interface. */
-    bool isTemporary() const { return expression().isTemporary(); }
-    /** Implements `Expression` interface. */
-    const auto& type() const { return expression().type(); }
-    /** Implements `Expression` interface. */
-    auto isConstant() const { return expression().isConstant(); }
-    /** Implements `Expression` interface. */
-    auto isEqual(const Expression& other) const { return node::isEqual(this, other); }
+protected:
+    Grouping(Nodes children, Meta meta) : Expression(std::move(children), std::move(meta)) {}
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    bool isEqual(const Node& other) const override { return other.isA<Grouping>() && Expression::isEqual(other); }
+
+    HILTI_NODE(Grouping)
 };
 
 } // namespace hilti::expression

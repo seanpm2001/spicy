@@ -23,7 +23,6 @@
 #include <hilti/base/optional-ref.h>
 #include <hilti/global.h>
 
-#include <spicy/ast/detail/visitor.h>
 #include <spicy/ast/operators/all.h>
 #include <spicy/compiler/detail/codegen/codegen.h>
 #include <spicy/compiler/detail/codegen/grammar-builder.h>
@@ -475,7 +474,7 @@ std::optional<hilti::declaration::Function> CodeGen::compileHook(
         return {};
 
     bool is_container = false;
-    std::optional<Type> original_field_type;
+    TypePtr original_field_type;
 
     if ( field ) {
         if ( ! field->get().parseType().isA<type::Void>() && ! field->get().isSkip() )

@@ -11,6 +11,8 @@
 
 #include <hilti/ast/ctor.h>
 #include <hilti/ast/expression.h>
+#include <hilti/ast/expressions/resolved-operator.h>
+#include <hilti/ast/expressions/unresolved-operator.h>
 #include <hilti/ast/function.h>
 #include <hilti/ast/node.h>
 #include <hilti/ast/operator.h>
@@ -34,29 +36,33 @@ std::set<context::CacheIndex> importModules(const Node& root, Unit* unit);
  * Prints an AST as HILTI source code. This consults any installed plugin
  * `print_ast` hooks.
  */
-void printAST(const Node& root, std::ostream& out, bool compact = false);
+void printAST(const NodePtr& root, std::ostream& out, bool compact = false);
 
 /**
  * Prints an AST as HILTI source code. This consults any installed plugin
  * `print_ast` hooks.
  */
-void printAST(const Node& root, printer::Stream& stream); // NOLINT
+void printAST(const NodePtr& root, printer::Stream& stream); // NOLINT
 
 /** Returns a string with the prototype for an operator for display. */
-std::string renderOperatorPrototype(const expression::UnresolvedOperator& o);
+std::string renderOperatorPrototype(const std::shared_ptr<expression::UnresolvedOperator>& o);
 
+#if 0
 /** Returns a string with the prototype for an operator for display. */
-std::string renderOperatorPrototype(const expression::ResolvedOperator& o);
+std::string renderOperatorPrototype(const std::shared_ptr<expression::ResolvedOperator>& o);
+#endif
 
 /** Returns a string with an instantiated  operator for display. */
-std::string renderOperatorInstance(const expression::UnresolvedOperator& o);
+std::string renderOperatorInstance(const std::shared_ptr<expression::UnresolvedOperator>& o);
 
+#if 0
 /** Returns a string with an instantiated  operator for display. */
-std::string renderOperatorInstance(const expression::ResolvedOperator& o);
+std::string renderOperatorInstance(const std::shared_ptr<expression::ResolvedOperator>& o);
+#endif
 
 /** Prints a debug dump of a node, including its childrens. */
-void renderNode(const Node& n, std::ostream& out, bool include_scopes = false);
-void renderNode(const Node& n, logging::DebugStream stream, bool include_scopes = false);
+void renderNode(const NodePtr& n, std::ostream& out, bool include_scopes = false);
+void renderNode(const NodePtr& n, logging::DebugStream stream, bool include_scopes = false);
 
 /**
  * Folds an expression into a constant value if that's possible. Note that the
@@ -69,17 +75,17 @@ Result<std::optional<Ctor>> foldConstant(const Node& expr);
 
 namespace ast {
 /** Implements the corresponding functionality for the default HILTI compiler plugin. */
-void buildScopes(const std::shared_ptr<hilti::Context>& ctx, Node* root, Unit* unit);
+void buildScopes(const std::shared_ptr<hilti::Context>& ctx, NodePtr root, Unit* unit);
 /** Implements the corresponding functionality for the default HILTI compiler plugin. */
-bool normalize(Node* root, Unit* unit);
+bool normalize(NodePtr root, Unit* unit);
 /** Implements the corresponding functionality for the default HILTI compiler plugin. */
-bool coerce(Node* root, Unit* unit);
+bool coerce(NodePtr root, Unit* unit);
 /** Implements the corresponding functionality for the default HILTI compiler plugin. */
-bool resolve(const std::shared_ptr<hilti::Context>& ctx, Node* root, Unit* unit);
+bool resolve(const std::shared_ptr<hilti::Context>& ctx, NodePtr root, Unit* unit);
 /** Implements the corresponding functionality for the default HILTI compiler plugin. */
-void validate_pre(Node* root);
+void validate_pre(NodePtr root);
 /** Implements the corresponding functionality for the default HILTI compiler plugin. */
-void validate_post(Node* root);
+void validate_post(NodePtr root);
 } // namespace ast
 } // namespace detail
 } // namespace hilti

@@ -8,30 +8,20 @@
 
 namespace hilti::type {
 
-/** AST node for a void type. */
-class Void : public TypeBase {
+/** AST node for a `void` type. */
+class Void : public UnqualifiedType {
 public:
-    bool operator==(const Void& /* other */) const { return true; }
+    static auto create(ASTContext* ctx, Meta meta = {}) { return NodeDerivedPtr<Void>(new Void(std::move(meta))); }
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return true; }
+protected:
+    Void(Meta meta) : UnqualifiedType(std::move(meta)) {}
 
-    node::Properties properties() const override { return node::Properties{}; }
+    bool _isAllocable() const final { return true; }
+    bool _isSortable() const final { return true; }
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+    bool isEqual(const Node& other) const override { return other.isA<Void>() && UnqualifiedType::isEqual(other); }
 
-    /**
-     * Wrapper around constructor so that we can make it private. Don't use
-     * this, use the singleton `type::void_` instead.
-     */
-    static Void create(Meta m = Meta()) { return Void(std::move(m)); }
-
-    HILTI_TYPE_VISITOR_IMPLEMENT
-
-private:
-    Void(Meta m = Meta()) : TypeBase(std::move(m)) {}
+    HILTI_NODE(Void)
 };
 
-/** Singleton. */
-static const Type void_ = Void::create(Location("<singleton>"));
 } // namespace hilti::type

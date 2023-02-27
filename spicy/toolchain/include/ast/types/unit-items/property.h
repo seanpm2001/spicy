@@ -31,7 +31,7 @@ public:
     }
 
     // Unit field interface
-    const Type& itemType() const { return type::void_; }
+    const TypePtr& itemType() const { return type::void_; }
     bool isResolved() const { return type::isResolved(itemType()); }
     auto isEqual(const Item& other) const { return node::isEqual(this, other); }
 

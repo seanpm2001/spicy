@@ -2,34 +2,34 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/expression.h>
+#include <hilti/ast/type.h>
+#include <hilti/ast/types/bool.h>
 
 namespace hilti::expression {
 
-/** AST node for a "move" expression. */
-class Move : public NodeBase, public trait::isExpression {
+/** AST node for a `move` expression. */
+class Move : public Expression {
 public:
-    Move(Expression e, Meta m = Meta()) : NodeBase({std::move(e)}, std::move(m)) {}
+    auto expression() const { return child<Expression>(0); }
 
-    const auto& expression() const { return child<Expression>(0); }
+    QualifiedTypePtr type() const final { return child<QualifiedType>(1); }
+    bool isLhs() const final { return false; }
+    bool isTemporary() const final { return true; }
 
-    bool operator==(const Move& other) const { return expression() == other.expression(); }
+    static auto create(ASTContext* ctx, const ExpressionPtr& expression, const Meta& meta = {}) {
+        return NodeDerivedPtr<Move>(new Move({expression, type::Bool::create(ctx, meta)}, meta));
+    }
 
-    /** Implements `Expression` interface. */
-    bool isLhs() const { return false; }
-    /** Implements `Expression` interface. */
-    bool isTemporary() const { return true; }
-    /** Implements `Expression` interface. */
-    const auto& type() const { return expression().type(); }
-    /** Implements `Expression` interface. */
-    auto isConstant() const { return expression().isConstant(); }
-    /** Implements `Expression` interface. */
-    auto isEqual(const Expression& other) const { return node::isEqual(this, other); }
+protected:
+    Move(Nodes children, Meta meta) : Expression(std::move(children), std::move(meta)) {}
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    bool isEqual(const Node& other) const override { return other.isA<Move>() && Expression::isEqual(other); }
+
+    HILTI_NODE(Move)
 };
 
 } // namespace hilti::expression

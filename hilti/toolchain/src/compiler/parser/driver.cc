@@ -10,23 +10,25 @@
 #include <hilti/global.h>
 
 /** We compile with a source property to find this. */
-#include <__parser.h>
+#include <__parser.hh>
 
 using namespace hilti;
 using namespace hilti::detail::parser;
 
-Result<hilti::Node> hilti::parseSource(std::istream& in, const std::string& filename) {
-    return Driver().parse(in, filename);
+Result<NodePtr> hilti::parseSource(Builder* builder, std::istream& in, const std::string& filename) {
+    return Driver().parse(builder, in, filename);
 }
 
-Result<hilti::Node> Driver::parse(std::istream& in, const std::string& filename) {
+Result<NodePtr> Driver::parse(Builder* builder, std::istream& in, const std::string& filename) {
+    _builder = builder;
+
     auto old_errors = logger().errors();
     _filename = filename;
 
     Scanner scanner(&in);
     _scanner = &scanner;
 
-    Parser parser(this);
+    Parser parser(this, _builder);
     _parser = &parser;
 
     hilti::logging::Stream dbg_stream_parser(hilti::logging::debug::Parser);
@@ -39,6 +41,8 @@ Result<hilti::Node> Driver::parse(std::istream& in, const std::string& filename)
     _expression_mode = 1;
     _scanner->enableExpressionMode();
     _parser->parse();
+
+    _builder = nullptr;
 
     if ( logger().errors() > old_errors )
         return result::Error("parse error");

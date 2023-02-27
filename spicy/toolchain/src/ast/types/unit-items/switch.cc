@@ -2,7 +2,6 @@
 
 #include <hilti/ast/builder/all.h>
 
-#include <spicy/ast/detail/visitor.h>
 #include <spicy/ast/types/unit-item.h>
 #include <spicy/ast/types/unit-items/switch.h>
 

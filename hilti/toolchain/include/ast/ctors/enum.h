@@ -2,36 +2,33 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/ctor.h>
-#include <hilti/ast/declarations/type.h>
 #include <hilti/ast/types/enum.h>
+
+#include "ast/type.h"
 
 namespace hilti::ctor {
 
-/** AST node for an enum constructor. */
-class Enum : public NodeBase, public hilti::trait::isCtor {
+/** AST node for a enum constructor. */
+class Enum : public Ctor {
 public:
-    Enum(type::enum_::Label v, Meta m = Meta()) : NodeBase(nodes(std::move(v)), std::move(m)) {}
+    auto label() const { return child<type::enum_::Label>(0); }
 
-    const auto& value() const { return children()[0].as<type::enum_::Label>(); }
+    QualifiedTypePtr type() const final { return child<QualifiedType>(1); }
 
-    bool operator==(const Enum& other) const { return value() == other.value(); }
+    static auto create(ASTContext* ctx, const type::enum_::LabelPtr& label, const Meta& meta = {}) {
+        return NodeDerivedPtr<Enum>(
+            new Enum({label, QualifiedType::create(ctx, label->enumType().lock(), true, meta)}, meta));
+    }
 
-    /** Implements `Ctor` interface. */
-    const auto& type() const { return value().enumType(); }
+protected:
+    Enum(Nodes children, Meta meta) : Ctor(std::move(children), std::move(meta)) {}
 
-    /** Implements `Ctor` interface. */
-    bool isConstant() const { return true; }
-    /** Implements `Ctor` interface. */
-    auto isLhs() const { return false; }
-    /** Implements `Ctor` interface. */
-    auto isTemporary() const { return true; }
-    /** Implements `Ctor` interface. */
-    auto isEqual(const Ctor& other) const { return node::isEqual(this, other); }
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    bool isEqual(const Node& other) const override { return other.isA<Enum>() && Ctor::isEqual(other); }
+
+    HILTI_NODE(Enum)
 };
-
 } // namespace hilti::ctor

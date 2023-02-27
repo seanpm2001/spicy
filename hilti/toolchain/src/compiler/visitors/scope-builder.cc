@@ -6,7 +6,6 @@
 #include <hilti/ast/declarations/imported-module.h>
 #include <hilti/ast/declarations/local-variable.h>
 #include <hilti/ast/declarations/module.h>
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/expressions/keyword.h>
 #include <hilti/ast/expressions/list-comprehension.h>
 #include <hilti/ast/statements/declaration.h>

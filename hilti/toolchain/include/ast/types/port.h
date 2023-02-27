@@ -8,23 +8,20 @@
 
 namespace hilti::type {
 
-/** AST node for a port type. */
-class Port : public TypeBase {
+/** AST node for a `port` type. */
+class Port : public UnqualifiedType {
 public:
-    Port(Meta m = Meta()) : TypeBase(std::move(m)) {}
+    static auto create(ASTContext* ctx, Meta meta = {}) { return NodeDerivedPtr<Port>(new Port(std::move(meta))); }
 
-    bool operator==(const Port& /* other */) const { return true; }
+protected:
+    Port(Meta meta) : UnqualifiedType(std::move(meta)) {}
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return true; }
-    node::Properties properties() const override { return node::Properties{}; }
+    bool _isAllocable() const final { return true; }
+    bool _isSortable() const final { return true; }
 
-    bool _isAllocable() const override { return true; }
-    bool _isSortable() const override { return true; }
+    bool isEqual(const Node& other) const override { return other.isA<Port>() && UnqualifiedType::isEqual(other); }
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
-
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    HILTI_NODE(Port)
 };
 
 } // namespace hilti::type

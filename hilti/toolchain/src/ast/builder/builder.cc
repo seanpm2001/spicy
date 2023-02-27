@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <exception>
 
+#include <hilti/ast/builder/node-factory.h>
+
+#if 0
 #include <hilti/ast/builder/builder.h>
 #include <hilti/ast/types/enum.h>
 #include <hilti/base/util.h>
@@ -13,7 +16,7 @@ using namespace hilti::builder;
 
 using util::fmt;
 
-Expression Builder::addTmp(const std::string& prefix, const Type& t, const std::vector<Expression>& args) {
+Expression Builder::addTmp(const std::string& prefix, const TypePtr& t, const std::vector<Expression>& args) {
     int n = 0;
 
     if ( auto i = _tmps.find(prefix); i != _tmps.end() )
@@ -49,7 +52,7 @@ Expression Builder::addTmp(const std::string& prefix, const Expression& init) {
     return builder::id(tmp);
 }
 
-Expression Builder::addTmp(const std::string& prefix, const Type& t, const Expression& init) {
+Expression Builder::addTmp(const std::string& prefix, const TypePtr& t, const Expression& init) {
     int n = 0;
 
     if ( auto i = _tmps.find(prefix); i != _tmps.end() )
@@ -104,20 +107,4 @@ void Builder::addDebugDedent(const std::string& stream) {
 }
 
 void Builder::setLocation(const Location& l) { _block._add(statement::SetLocation(builder::string(l.render()))); }
-
-std::optional<Expression> Builder::startProfiler(const std::string& name) {
-    if ( ! context()->options().enable_profiling )
-        return {};
-
-    // Note the name of the temp must not clash what HILTI's code generator
-    // picks for profiler that it instantiates itself. We do not currently keep
-    // those namespace separate.
-    return addTmp("prof", builder::call("hilti::profiler_start", {builder::string(name)}));
-}
-
-void Builder::stopProfiler(Expression profiler) {
-    if ( ! context()->options().enable_profiling )
-        return;
-
-    addCall("hilti::profiler_stop", {std::move(profiler)});
-}
+#endif

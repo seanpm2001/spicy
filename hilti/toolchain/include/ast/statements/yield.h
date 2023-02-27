@@ -2,25 +2,26 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
-#include <hilti/ast/expression.h>
 #include <hilti/ast/statement.h>
 
 namespace hilti::statement {
 
-/** AST node for a "yield" statement. */
-class Yield : public NodeBase, public hilti::trait::isStatement {
+/** AST node for a `yield` statement. */
+class Yield : public Statement {
 public:
-    Yield(Meta m = Meta()) : NodeBase({}, std::move(m)) {}
+    static auto create(ASTContext* ctx, Meta meta = {}) {
+        return NodeDerivedPtr<Yield>(new Yield({}, std::move(meta)));
+    }
 
-    bool operator==(const Yield& /* other */) const { return true; }
+protected:
+    Yield(Nodes children, Meta meta) : Statement(std::move(children), std::move(meta)) {}
 
-    /** Implements the `Statement` interface. */
-    auto isEqual(const Statement& other) const { return node::isEqual(this, other); }
+    bool isEqual(const Node& other) const final { return other.isA<Yield>() && Statement::isEqual(other); }
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    HILTI_NODE(Yield)
 };
 
 } // namespace hilti::statement

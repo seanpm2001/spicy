@@ -4,46 +4,65 @@
 
 #include <algorithm>
 #include <cinttypes>
-#include <functional>
-#include <iostream>
-#include <list>
 #include <map>
 #include <memory>
-#include <optional>
+#include <ostream>
 #include <set>
 #include <string>
-#include <type_traits>
 #include <utility>
-#include <variant>
 #include <vector>
 
-namespace hilti::trait {
-class isNode {};
-} // namespace hilti::trait
-
 #include <hilti/ast/doc-string.h>
+#include <hilti/ast/forward.h>
+#include <hilti/ast/id.h>
 #include <hilti/ast/meta.h>
-#include <hilti/ast/node-ref.h>
+#include <hilti/ast/node-range.h>
 #include <hilti/ast/scope.h>
-#include <hilti/base/type_erase.h>
-#include <hilti/base/util.h>
+#include <hilti/ast/visitor-dispatcher.h>
+
+#define HILTI_NODE_BASE(CLASS) void dispatch(visitor::Dispatcher& v) override;
+
+#define HILTI_NODE(CLASS)                                                                                              \
+    NodePtr _clone(ASTContext* ctx) const final { return NodeDerivedPtr<CLASS>(new CLASS(*this)); }                    \
+    void dispatch(visitor::Dispatcher& v) final;                                                                       \
+    friend class hilti::builder::NodeBuilder;
+
+#define HILTI_NODE_IMPLEMENTATION_0(CLASS)                                                                             \
+    void ::hilti::CLASS::dispatch(visitor::Dispatcher& v) { v(*this); }
+
+#define HILTI_NODE_IMPLEMENTATION_1(CLASS, BASE)                                                                       \
+    void ::hilti::CLASS::dispatch(visitor::Dispatcher& v) {                                                            \
+        v(*static_cast<BASE*>(this));                                                                                  \
+        v(*this);                                                                                                      \
+    }
 
 namespace hilti {
+namespace builder {
+class NodeBuilder;
+}
 
-class Node;
+class Nodes : public std::vector<NodePtr> {
+public:
+    using std::vector<NodePtr>::vector;
+
+    template<typename T>
+    Nodes(std::vector<std::shared_ptr<T>> m) {
+        for ( auto&& x : m )
+            emplace_back(std::move(x));
+    }
+};
 
 namespace node {
 
-template<typename T>
-class Range;
+// Shallow copy.
+NodePtr clone(ASTContext* ctx, const NodePtr& n);
 
-template<typename T>
-class Set;
-
-namespace detail {
+// Deep copy.
+NodePtr deepClone(ASTContext* ctx, const NodePtr& n);
 
 /** Value of a node property, stored as part of `Properties`. */
-using PropertyValue = std::variant<bool, const char*, double, int, int64_t, unsigned int, uint64_t, std::string>;
+using PropertyValue = std::variant<bool, const char*, double, int, int64_t, unsigned int, uint64_t, std::string, ID,
+                                   std::optional<std::string>, std::optional<ID>>;
 
 /** Renders a property value into a string for display. */
 inline std::string to_string(const PropertyValue& v) {
@@ -54,14 +73,15 @@ inline std::string to_string(const PropertyValue& v) {
         auto operator()(int i) { return util::fmt("%d", i); }
         auto operator()(int64_t i) { return util::fmt("%" PRId64, i); }
         auto operator()(const std::string& s) { return util::escapeUTF8(s); }
+        auto operator()(const ID& id) { return id.str(); }
+        auto operator()(const std::optional<ID>& id) { return id ? id->str() : "<not set>"; }
+        auto operator()(const std::optional<std::string>& s) { return s ? util::escapeUTF8(*s) : "<not set>"; }
         auto operator()(unsigned int u) { return util::fmt("%u", u); }
         auto operator()(uint64_t u) { return util::fmt("%" PRIu64, u); }
     };
 
     return std::visit(Visitor(), v);
 };
-
-} // namespace detail
 
 /** Importance of reporting an error, relative to others. */
 enum class ErrorPriority {
@@ -95,59 +115,23 @@ struct Error {
  * recording node-specific, atomic information that's not represented by
  * further child nodes.
  */
-using Properties = std::map<std::string, node::detail::PropertyValue>;
+using Properties = std::map<std::string, node::PropertyValue>;
 
-namespace detail {
-#include <hilti/autogen/__node.h>
+bool areEqual(const Node& x, const Node& y);
 
-} // namespace detail
 } // namespace node
 
-/**
- * AST node. This is a type-erased class that wraps all AST nodes.
- *
- * @note Do not derive from this class. Derive from `NodeBase` instead and
- * then implement the `Node` interface.
- */
-class Node final : public node::detail::Node {
+class Node : public std::enable_shared_from_this<Node> {
 public:
-    /** Constructs a node from an instance of a class implementing the `Node` interface. */
-    template<typename T, typename std::enable_if_t<std::is_base_of<trait::isNode, T>::value>* = nullptr>
-    Node(T t) : node::detail::Node(std::move(t)) {}
+    virtual ~Node();
 
-    Node(const Node& other) : node::detail::Node::Node(other), _scope(other._scope) {}
+    virtual node::Properties properties() const { return {}; }
 
-    Node(Node&& other) noexcept
-        : node::detail::Node::Node(std::move(other)),
-          _control_ptr(std::move(other._control_ptr)),
-          _scope(std::move(other._scope)),
-          _errors(std::move(other._errors)) {
-        if ( _control_ptr )
-            _control_ptr->_node = this;
-    }
+    const auto& children() const { return _children; }
+    NodePtr parent() { return _parent ? _parent->shared_from_this() : NodePtr(); }
 
-    Node() = delete;
-
-    ~Node() final {
-        if ( _control_ptr )
-            _control_ptr->_node = nullptr;
-    }
-
-    /**
-     * Returns the node's unique control ID if there's at least `NodeRef` has
-     * been created that refers to it. If there's no such NodeRef, returns
-     * zero.
-     *
-     * @note This is primarily for internal usage.
-     */
-    uint64_t rid() const { return _control_ptr ? _control_ptr->_rid : 0; }
-
-    /**
-     * Returns a string representation of `rid()`.
-     *
-     * @note This is primarily for internal usage.
-     */
-    std::string renderedRid() const { return rid() ? util::fmt("%%%" PRIu64, rid()) : "%???"; };
+    const auto& meta() const { return _meta; }
+    void setMeta(Meta m) { _meta = std::move(m); }
 
     /**
      * Returns the scope associated with the node. All nodes have a scope
@@ -155,9 +139,9 @@ public:
      * scope. However, scopes can be shared across nodes through
      * `setScope()`.
      */
-    IntrusivePtr<Scope> scope() const {
+    auto scope() const {
         if ( ! _scope )
-            _scope = make_intrusive<Scope>();
+            _scope = std::make_shared<Scope>();
 
         return _scope;
     }
@@ -165,34 +149,206 @@ public:
     /**
      * Resets the node's scope to point to another one.
      */
-    void setScope(IntrusivePtr<Scope> new_scope) { _scope = std::move(new_scope); }
+    void setScope(std::shared_ptr<Scope> new_scope) { _scope = std::move(new_scope); }
 
     /** Clears out the current scope. */
-    void clearScope() {
-        if ( ! _scope )
-            return;
+    void clearScope() { _scope = nullptr; }
 
-        // Don't just clear the items because the scope might be shared with
-        // other nodes.
-        _scope = make_intrusive<Scope>();
+    auto pruneWalk() const { return _prune_walk; }
+    void setPruneWalk(bool prune) { _prune_walk = prune; }
+
+    bool inheritScope() const { return _inherit_scope; }
+    void setInheritScope(bool inherit) { _inherit_scope = inherit; }
+
+    const auto& location() const { return _meta.location(); }
+    std::string typename_() const { return typeid(*this).name(); }
+    uintptr_t identity() const { return reinterpret_cast<uintptr_t>(this); }
+
+    /**
+     * Returns a unique ID for this node.
+     *
+     * @note This is primarily for internal usage.
+     * @todo Not sure if we want to keep this, for now we just redirect to identity()
+     */
+    auto rid() const { return identity(); }
+
+    /**
+     * Returns a string representation of `rid()`.
+     *
+     * @note This is primarily for internal usage.
+     */
+    std::string renderedRid() const { return util::fmt("%%%" PRIu64, rid()); }
+
+    /**
+     * Returns a child.
+     *
+     * @tparam T type that the child nodes are assumed to (and must) have
+     * @param i index of the child, in the order they were passed into the constructor and/or added
+     * @return child casted to type `T`
+     */
+    template<typename T>
+    std::shared_ptr<T> child(int i) const {
+        assert(i < _children.size());
+        return _children[i] ? _children[i]->as<T>() : nullptr;
     }
 
-    /** Returns any error messages associated with the node. */
-    std::vector<node::Error> errors() const {
-        if ( _errors )
-            return *_errors;
-        else
-            return {};
+    NodePtr child(int i) const {
+        assert(i < _children.size());
+        return _children[i];
     }
+
+    /**
+     * Returns a subrange of children. The indices correspond to the order
+     * children were passed into the constructor and/or added.
+     *
+     * @tparam T type that the child nodes are assumed to (and must) have
+     * @param begin index of first child to include; a negative index counts Python-style from end of list
+     * @param end index of one beyond last child to include; a negative index counts Python-style from end of list
+     * @return range containing children from `start` to `end`
+     */
+    template<typename T>
+    auto children(int begin, int end) const {
+        auto end_ = (end < 0) ? _children.end() : _children.begin() + end;
+        return hilti::node::Range<T>(_children.begin() + begin, end_);
+    }
+
+    template<typename T>
+    auto children(int begin, int end) {
+        auto end_ = (end < 0) ? _children.end() : _children.begin() + end;
+        return hilti::node::Range<T>(_children.begin() + begin, end_);
+    }
+
+    /**
+     * Returns a subset of children selected by their type.
+     *
+     * @tparam T type of children to return
+     * @return set of all children that have type `T`
+     */
+    template<typename T>
+    hilti::node::Set<T> childrenOfType() const {
+        typename hilti::node::Set<T> n;
+        for ( auto c = _children.begin(); c != _children.end(); c = std::next(c) ) {
+            if ( ! *c )
+                continue;
+
+            if ( auto t = (*c)->tryAs<T>() )
+                n.insert(t);
+        }
+
+        return n;
+    }
+
+    /**
+     * Adds a child node. It will be appended to the end of the current list
+     * node of children.
+     */
+    void addChild(NodePtr n) {
+        if ( ! n->location() && _meta.location() )
+            n->setMeta(_meta);
+
+        _children.emplace_back(std::move(n));
+        _children.back()->_parent = this;
+    }
+
+    void removeChildren(int begin, int end) {
+        auto end_ = (end < 0) ? _children.end() : _children.begin() + end;
+        for ( auto i = _children.begin() + begin; i < end_; i++ ) {
+            if ( *i )
+                (*i)->_parent = nullptr;
+        }
+
+        _children.erase(_children.begin() + begin, end_);
+    }
+
+    void replaceChildren(Nodes children);
+
+    void setChild(size_t idx, NodePtr n) {
+        if ( n && ! n->location() && _meta.location() )
+            n->setMeta(_meta);
+
+        if ( _children[idx] )
+            _children[idx]->_parent = nullptr;
+
+        _children[idx] = std::move(n);
+
+        if ( _children[idx] )
+            _children[idx]->_parent = this;
+    }
+
+    void destroyChildren();
+
+    template<typename T>
+    bool isA() const {
+        return typeid(*this) == typeid(T);
+    }
+
+    template<typename T>
+    auto& as() const {
+        if ( auto p = std::dynamic_pointer_cast<T>(shared_from_this()) )
+            return p;
+
+        std::cerr << hilti::util::fmt("internal error: unexpected type, want %s but have %s",
+                                      hilti::util::typename_<T>(), typename_())
+                  << std::endl;
+        hilti::util::abort_with_backtrace();
+    }
+
+    template<typename T>
+    auto as() {
+        if ( auto p = std::dynamic_pointer_cast<T>(shared_from_this()) )
+            return p;
+
+        std::cerr << hilti::util::fmt("internal error: unexpected type, want %s but have %s",
+                                      hilti::util::typename_<T>(), typename_())
+                  << std::endl;
+        hilti::util::abort_with_backtrace();
+    }
+
+    template<typename T>
+    auto tryAs() const {
+        return std::dynamic_pointer_cast<const T>(shared_from_this());
+    }
+
+    template<typename T>
+    auto tryAs() {
+        return std::dynamic_pointer_cast<T>(shared_from_this());
+    }
+
+    /**
+     * Print out a HILTI source code representation of the node and all its
+     * children. If the node is not the root of an AST, it's not guaranteed
+     * that the result will form valid HILTI source code (but it can still be
+     * used, e.g., in error messages).
+     *
+     * @param out output stream
+     * @param compact create a one-line representation
+     *
+     */
+    void print(std::ostream& out, bool compact = false) const;
+
+    /**
+     * Returns a HILTI source code representation of the node and all its
+     * children. This can be called from inside a debugger.
+     */
+    std::string print() const;
+
+    /**
+     * Returns an internal string representation of the node and all its
+     * children.
+     *
+     * @param include_location if true, include source code locations into
+     * the output
+     */
+    std::string render(bool include_location = true) const;
 
     /** Returns true if there are any errors associated with the node. */
-    bool hasErrors() const { return _errors && _errors->size(); }
+    bool hasErrors() const { return _errors.size(); }
+
+    /** Returns any error messages associated with the node. */
+    const auto& errors() const { return _errors; }
 
     /** Clears any error message associated with the node. */
-    void clearErrors() {
-        if ( _errors )
-            _errors.reset();
-    }
+    void clearErrors() { _errors.clear(); }
 
     /**
      * Associate an error message with the node. The error's location will be
@@ -246,243 +402,69 @@ public:
         error.context = std::move(context);
         error.priority = priority;
 
-        if ( ! _errors )
-            _errors = std::make_unique<std::vector<node::Error>>();
-
-        _errors->push_back(std::move(error));
-    }
-
-    /**
-     * Recursively clears all child nodes and then deletes them from this node.
-     * This helps to break reference cycles.
-     */
-    void destroyChildren();
-
-    /**
-     * Returns an internal string representation of the node and all its
-     * children.
-     *
-     * @param include_location if true, include source code locations into
-     * the output
-     */
-    std::string render(bool include_location = true) const;
-
-    /**
-     * Print out a HILTI source code representation of the node and all its
-     * children. If the node is not the root of an AST, it's not guaranteed
-     * that the result will form valid HILTI source code (but it can still be
-     * used, e.g., in error messages).
-     *
-     * @param out output stream
-     * @param compact create a one-line representation
-     *
-     */
-    void print(std::ostream& out, bool compact = false) const;
-
-    /**
-     * Returns a HILTI source code representation of the node and all its
-     * children. This can be called from inside a debugger.
-     */
-    std::string print() const;
-
-    /** Convenience method to return the meta data's location information. */
-    const Location& location() const { return meta().location(); }
-
-    /** Aborts execution if node is not of a given type `T`. */
-    template<typename T>
-    void assertIsA() {
-        if ( ! isA<T>() ) {
-            std::cerr << "Assertion failure: Node expected to be a " << typeid(T).name() << " but is a "
-                      << typeid_().name() << std::endl;
-            util::abort_with_backtrace();
-        }
+        _errors.emplace_back(std::move(error));
     }
 
     /** Renders the node as HILTI source code. */
     operator std::string() const { return print(); }
 
-    /**
-     * Replaces the node with another one. Existing `NodeRef` pointing to
-     * this node will remain valid and reflect the new value.
-     */
-    Node& operator=(const Node& n) {
-        if ( &n == this )
-            return *this;
+    virtual void dispatch(visitor::Dispatcher& v) = 0;
 
-        _scope = n._scope;
-        node::detail::ErasedBase::operator=(n);
-        return *this;
+protected:
+    Node(Nodes children, Meta meta) : _children(std::move(children)), _meta(std::move(meta)) {
+        for ( auto& c : _children ) {
+            if ( c )
+                c->_parent = this;
+        }
     }
 
-    /**
-     * Replaces the node with another one. Existing `NodeRef` pointing to
-     * this node will remain valid and reflect the new value.
-     */
-    Node& operator=(Node&& n) noexcept {
-        _scope = std::move(n._scope);
-        node::detail::ErasedBase::operator=(std::move(n));
-        return *this;
-    }
+    Node(Meta meta) : _meta(std::move(meta)) {}
+    Node(const Node& other) = default;
+    Node(Node&& other) = default;
 
-    /**
-     * Replaces the node with an instance of a class implementing the `Node`
-     * interface. Existing `NodeRef` pointing to this node will remain valid
-     * and reflect the new value.
-     */
-    template<typename T>
-    Node& operator=(const T& t) {
-        node::detail::ErasedBase::operator=(to_node(t));
-        return *this;
-    }
-
-private:
-    friend class NodeRef;
-
-    // Returns (and potentially creates) the control block for this node that
-    // `NodeRef` uses to maintain links to it.
-    IntrusivePtr<node_ref::detail::Control> _control() const {
-        if ( ! _control_ptr )
-            _control_ptr = make_intrusive<node_ref::detail::Control>(this);
-
-        return _control_ptr;
-    }
-
-    mutable IntrusivePtr<node_ref::detail::Control> _control_ptr = nullptr;
-    mutable IntrusivePtr<Scope> _scope = nullptr;
-    std::unique_ptr<std::vector<node::Error>> _errors = nullptr;
-};
-
-/**
- * Common base class for classes implementing the `Node` interface. The base
- * implements a number of the interface methods with standard versions shared
- * across all nodes.
- */
-class NodeBase : public trait::isNode {
-public:
-    /**
-     * Constructor.
-     *
-     * @param meta meta information to associate with the node
-     */
-    NodeBase(Meta meta) : _meta(std::move(meta)) {}
-
-    /**
-     * Constructor registering child nodes.
-     *
-     * @param children children of this node
-     * @param meta meta information to associate with the node
-     */
-    NodeBase(std::vector<Node> children, Meta meta) : _meta(std::move(meta)) {
-        for ( auto& c : children )
-            addChild(std::move(c));
-    }
-
-    NodeBase() = default;
-
-    /**
-     * Returns a child.
-     *
-     * @tparam T type that the child nodes are assumed to (and must) have
-     * @param i index of the child, in the order they were passed into the constructor and/or added
-     * @return child casted to type `T`
-     */
-    template<typename T>
-    const T& child(int i) const {
-        return _children[i].as<T>();
-    }
-
-    /**
-     * Aborts execution if a given child is not an expected type `T`.
-     *
-     * @tparam T type that the child node is assumed to have
-     * @param i index of the child, in the order they were passed into the constructor and/or added
-     */
-    template<typename T>
-    void assertChildIsA(int i) {
-        _children[i].template assertIsA<T>();
-    }
-
-    /**
-     * Returns a subrange of children. The indices correspond to the order
-     * children were passed into the constructor and/or added.
-     *
-     * @tparam T type that the child nodes are assumed to (and must) have
-     * @param begin index of first child to include; a negative index counts Python-style from end of list
-     * @param end index of one beyond last child to include; a negative index counts Python-style from end of list
-     * @return range containing children from `start` to `end`
-     */
-    template<typename T>
-    auto children(int begin, int end) const {
-        auto end_ = (end < 0) ? _children.end() : _children.begin() + end;
-        return hilti::node::Range<T>(_children.begin() + begin, end_);
-    }
-
-    /**
-     * Returns a references to a subrange of children. The indices correspond
-     * to the order children were passed into the constructor and/or added.
-     *
-     * @param begin index of first child to include; a negative index counts Python-style from end of list
-     * @param end index of one beyond last child to include; a negative index counts Python-style from end of list
-     * @return vector containing child references from `start` to `end`
-     */
-    auto childRefs(int begin, int end) {
-        auto end_ = (end < 0) ? _children.end() : _children.begin() + end;
-
-        std::vector<NodeRef> refs;
-        for ( auto c = _children.begin(); c != end_; c = std::next(c) )
-            refs.emplace_back(*c);
-
-        return refs;
-    }
-
-    /**
-     * Returns a subset of children selected by their type.
-     *
-     * @tparam T type of children to return
-     * @return set of all children that have type `T`
-     */
-    template<typename T>
-    hilti::node::Set<T> childrenOfType() const;
-
-    /**
-     * Returns a vector of references to a subset of children selected by their
-     * type.
-     *
-     * @tparam T type of children to return
-     * @return set of all children that have type `T`
-     */
-    template<typename T>
-    std::vector<NodeRef> childRefsOfType() const;
-
-    /**
-     * Adds a child node. It will be appended to the end of the current list
-     * node of children.
-     */
-    void addChild(Node n) {
-        if ( _meta.location() && ! n.location() ) {
-            auto m = n.meta();
-            m.setLocation(_meta.location());
-            n.setMeta(std::move(m));
+    void clearChildren() {
+        for ( auto& c : _children ) {
+            if ( c )
+                c->clearParent();
         }
 
-        _children.push_back(std::move(n));
+        _children.clear();
     }
 
-    /** Implements the `Node` interface. */
-    const auto& children() const { return _children; }
-    /** Implements the `Node` interface. */
-    auto& children() { return _children; }
-    /** Implements the `Node` interface. */
-    auto& meta() const { return _meta; }
-    /** Implements the `Node` interface. */
-    void setMeta(Meta m) { _meta = std::move(m); }
-    /** Implements the `Node` interface. */
-    bool pruneWalk() const { return false; }
+    virtual bool isEqual(const Node& other) const {
+        if ( _children.size() != other._children.size() )
+            return false;
+
+        for ( auto i = 0; i < _children.size(); ++i ) {
+            if ( ! _children[i]->isEqual(*other._children[i]) )
+                return false;
+        }
+
+        return true;
+    }
+
+    virtual NodePtr _clone(ASTContext* ctx) const = 0; // shallow copy
+    virtual std::string _render() const { return ""; }
 
 private:
-    std::vector<::hilti::Node> _children;
+    friend NodePtr node::clone(ASTContext* ctx, const NodePtr& n);
+    friend NodePtr node::deepClone(ASTContext* ctx, const NodePtr& n);
+
+    void clearParent() { _parent = nullptr; }
+
+    void _destroyChildrenRecursively(Node* n);
+
+    Node& operator=(const Node& other) = default;
+    Node& operator=(Node&& other) noexcept = default;
+
+    Node* _parent = nullptr;
+    Nodes _children;
     Meta _meta;
-    NodeRef _orig;
+
+    bool _prune_walk = false;
+    bool _inherit_scope = true;
+    mutable std::shared_ptr<Scope> _scope = nullptr;
+    std::vector<node::Error> _errors;
 };
 
 namespace node {
@@ -508,324 +490,14 @@ private:
     std::optional<DocString> _doc;
 };
 
-/** Place-holder node for an optional node that's not set. */
-class None : public NodeBase, public util::type_erasure::trait::Singleton {
-public:
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
-
-    /**
-     * Wrapper around constructor so that we can make it private. Don't use
-     * this, use the singleton `type::unknown` instead.
-     */
-    static None create() { return None(); }
-
-private:
-    None() : NodeBase(Meta()) {}
-};
-
-/** Singleton. */
-extern const Node none;
-
-/**
- * A constant iterator over a range of nodes (`node::Range`). Internally, this
- * wrap around a vector iterator, and is adapted from
- * https://www.artificialworlds.net/blog/2017/05/12/c-iterator-wrapperadaptor-example.
- */
-template<typename T>
-class RangeIterator {
-    using BaseIterator = std::vector<Node>::const_iterator;
-
-public:
-    using value_type = BaseIterator::value_type;
-    using difference_type = BaseIterator::difference_type;
-    using pointer = BaseIterator::pointer;
-    using reference = BaseIterator::reference;
-    using iterator_category = BaseIterator::iterator_category;
-
-    explicit RangeIterator(BaseIterator i) : _iter(i) {}
-    RangeIterator(const RangeIterator& other) = default;
-    RangeIterator(RangeIterator&& other) noexcept = default;
-    RangeIterator() {}
-    ~RangeIterator() = default;
-
-    const Node& node() const { return *_iter; }
-
-    RangeIterator& operator=(const RangeIterator& other) = default;
-    RangeIterator& operator=(RangeIterator&& other) noexcept = default;
-    const T& operator*() const { return value(); }
-    const T* operator->() const { return &value(); }
-    bool operator==(const RangeIterator& other) const { return _iter == other._iter; }
-    bool operator!=(const RangeIterator& other) const { return ! (*this == other); }
-
-    RangeIterator operator++(int) {
-        auto x = RangeIterator(_iter);
-        ++_iter;
-        return x;
-    }
-
-    RangeIterator& operator++() {
-        ++_iter;
-        return *this;
-    }
-
-    RangeIterator& operator+=(difference_type i) {
-        _iter += i;
-        return *this;
-    }
-
-    RangeIterator& operator-=(difference_type i) {
-        _iter -= i;
-        return *this;
-    }
-
-    difference_type operator-(const RangeIterator& other) const { return _iter - other._iter; }
-    RangeIterator operator-(difference_type i) const { return RangeIterator(_iter - i); }
-    RangeIterator operator+(difference_type i) const { return RangeIterator(_iter + i); }
-
-private:
-    const T& value() const { return (*_iter).template as<std::remove_const_t<T>>(); }
-
-    BaseIterator _iter;
-};
-
-/**
- * A range of AST nodes, defined by start and end into an existing vector of
- * nodes. The range creates a view that can be iterated over, yielding a
- * reference to each node in turn.
- */
-template<typename T>
-class Range {
-public:
-    using iterator = RangeIterator<T>;
-    using const_iterator = RangeIterator<T>;
-
-    explicit Range() {}
-    Range(std::vector<Node>::const_iterator begin, std::vector<Node>::const_iterator end) : _begin(begin), _end(end) {}
-
-    explicit Range(const std::vector<Node>& nodes) : Range(nodes.begin(), nodes.end()) {}
-
-    Range(const Range& other) = default;
-    Range(Range&& other) noexcept = default;
-    ~Range() = default;
-
-    auto begin() const { return const_iterator(_begin); }
-    auto end() const { return const_iterator(_end); }
-    size_t size() const { return static_cast<size_t>(_end - _begin); }
-    const T& front() const { return *_begin; }
-    bool empty() const { return _begin == _end; }
-
-    /**
-     * Returns a new vector containing copies of all nodes that the range
-     * includes.
-     **/
-    std::vector<T> copy() const {
-        std::vector<T> x;
-        for ( auto i = _begin; i != _end; i++ )
-            x.push_back(*i);
-
-        return x;
-    }
-
-    const T& operator[](size_t i) const {
-        assert(static_cast<typename RangeIterator<T>::difference_type>(i) < std::distance(_begin, _end));
-        return *(_begin + i);
-    }
-
-    bool operator==(const Range& other) const {
-        if ( this == &other )
-            return true;
-
-        if ( size() != other.size() )
-            return false;
-
-        auto x = _begin;
-        auto y = other._begin;
-        while ( x != _end ) {
-            if ( ! (*x++ == *y++) )
-                return false;
-        }
-
-        return true;
-    }
-
-    Range& operator=(const Range& other) = default;
-    Range& operator=(Range&& other) noexcept = default;
-
-private:
-    RangeIterator<T> _begin;
-    RangeIterator<T> _end;
-};
-
-/**
- * A constant iterator over a set of nodes (`node::Set`). The content of the
- * set is sorted by the order that nodes were added. Internally, this wraps
- * around a iterator over a vector of node references, and is adapted from
- * https://www.artificialworlds.net/blog/2017/05/12/c-iterator-wrapperadaptor-example.
- */
-template<typename T>
-class SetIterator {
-    using BaseIterator = typename std::vector<std::reference_wrapper<const T>>::const_iterator;
-
-public:
-    // Previously provided by std::iterator
-    using value_type = T;
-    using difference_type = typename BaseIterator::difference_type;
-    using pointer = typename BaseIterator::pointer;
-    using reference = typename BaseIterator::reference;
-    using iterator_category = typename BaseIterator::iterator_category;
-
-    explicit SetIterator(BaseIterator i) : _iter(std::move(i)) {}
-    SetIterator(const SetIterator& other) = default;
-    SetIterator(SetIterator&& other) noexcept = default;
-    SetIterator() {}
-    ~SetIterator() = default;
-
-    const Node& node() const { return *_iter; }
-
-    SetIterator& operator=(const SetIterator& other) = default;
-    SetIterator& operator=(SetIterator&& other) noexcept = default;
-    const T& operator*() const { return value(); }
-    const T* operator->() const { return &value(); }
-    bool operator==(const SetIterator& other) const { return _iter == other._iter; }
-    bool operator!=(const SetIterator& other) const { return ! (*this == other); }
-
-    SetIterator operator++(int) {
-        auto x = SetIterator(_iter);
-        ++_iter;
-        return x;
-    }
-
-    SetIterator& operator++() {
-        ++_iter;
-        return *this;
-    }
-
-    SetIterator& operator+=(difference_type i) {
-        _iter += i;
-        return *this;
-    }
-
-    SetIterator& operator-=(difference_type i) {
-        _iter -= i;
-        return *this;
-    }
-
-    difference_type operator-(const SetIterator& other) const { return _iter - other._iter; }
-    SetIterator operator-(difference_type i) const { return SetIterator(_iter - i); }
-    SetIterator operator+(difference_type i) const { return SetIterator(_iter + i); }
-
-private:
-    const T& value() const { return ((*_iter).get()); }
-
-    BaseIterator _iter;
-};
-
-/**
- * A set of AST nodes. The set creates a view of nodes that can be iterated
- * over, yielding a reference to each node in turn. In contrast to `Range`, a
- * set can include nodes that are not all part of a continuous slice inside a
- * vector.
- */
-template<typename T>
-class Set {
-public:
-    using iterator = SetIterator<T>;
-    using const_iterator = SetIterator<T>;
-
-    Set() {}
-    Set(const Set& other) = default;
-    Set(Set&& other) noexcept = default;
-    ~Set() = default;
-
-    auto begin() const { return const_iterator(_set.begin()); }
-    auto end() const { return const_iterator(_set.end()); }
-    size_t size() const { return _set.size(); }
-    bool empty() const { return _set.empty(); }
-    void insert(const T& t) { _set.push_back(t); }
-
-    /**
-     * Returns a new vector containing copies of all nodes that the range
-     * includes.
-     **/
-    std::vector<T> copy() const {
-        std::vector<T> x;
-        for ( auto i = begin(); i != end(); i++ )
-            x.push_back(*i);
-
-        return x;
-    }
-
-    const T& operator[](size_t i) const { return *(begin() + i); }
-
-    bool operator==(const Set& other) const {
-        if ( this == &other )
-            return true;
-
-        if ( size() != other.size() )
-            return false;
-
-        auto x = begin();
-        auto y = other.begin();
-        while ( x != end() ) {
-            if ( ! (*x++ == *y++) )
-                return false;
-        }
-
-        return true;
-    }
-
-    Set& operator=(const Set& other) = default;
-    Set& operator=(Set&& other) noexcept = default;
-
-private:
-    std::vector<std::reference_wrapper<const T>> _set;
-};
-
-
-} // namespace node
-
-inline const Node& to_node(const node::None& /* n */) { return node::none; }
-
-/**
- * No-op function implementing the `to_node` API for instances that already
- * are of type `Node`.
- */
-template<typename T, IF_SAME(T, Node)> // Don't allow derived classes.
-inline Node to_node(const T& n) {
-    return n;
-}
-
-/** Implements the `to_node` API for optional nodes. */
-template<typename T>
-Node to_node(std::optional<T> t) {
-    if ( t )
-        return to_node(std::move(*t));
-
-    return to_node(node::none);
-}
-
 /**
  * Creates `Node` instances for a vector of objects all implementing the
  * `Node` interface.
  */
 template<typename T>
-std::vector<Node> nodes(std::vector<T> t) {
-    std::vector<Node> v;
+Nodes flatten(std::vector<T> t) {
+    Nodes v;
     v.reserve(t.size());
-    for ( const auto& i : t )
-        v.emplace_back(std::move(i));
-
-    return v;
-}
-
-/**
- * Creates `Node` instances for a list of objects all implementing the
- * `Node` interface.
- */
-template<typename T>
-std::vector<Node> nodes(std::list<T> t) {
-    std::vector<Node> v;
     for ( const auto& i : t )
         v.emplace_back(std::move(i));
 
@@ -837,8 +509,8 @@ std::vector<Node> nodes(std::list<T> t) {
  * node, this performs shallow copying.
  */
 template<typename T>
-std::vector<Node> nodes(hilti::node::Range<T> t) {
-    std::vector<Node> v;
+Nodes flatten(hilti::node::Range<T> t) {
+    Nodes v;
     v.reserve(t.size());
     for ( const auto& i : t )
         v.emplace_back(std::move(i));
@@ -848,32 +520,24 @@ std::vector<Node> nodes(hilti::node::Range<T> t) {
 
 /** Create a 1-element vector of nodes for an object implementing the `Node` API. */
 template<typename T>
-std::vector<Node> nodes(T t) {
-    return {to_node(std::move(t))};
+inline Nodes flatten(NodePtr n) {
+    return {std::move(n)};
 }
+
+template<typename T>
+inline Nodes flatten(NodeDerivedPtr<T> n) {
+    return {std::move(n)};
+}
+
+inline Nodes flatten() { return Nodes(); }
 
 /**
  * Creates `Node` instances for objects all implementing the `Node`
  * interface.
  */
 template<typename T, typename... Ts>
-std::vector<Node> nodes(T t, Ts... ts) {
-    return util::concat(nodes(t), nodes(std::move(ts)...));
-}
-
-/**
- * Checks equality for two objects both implementing the `Node` interface.
- *
- * If the two objects have different types, this will return false. Otherwise
- * it will forward to the objects equality operator.
- */
-namespace node {
-template<typename T, typename Other, IF_DERIVED_FROM(T, trait::isNode), IF_DERIVED_FROM(Other, trait::isNode)>
-bool isEqual(const T* this_, const Other& other) {
-    if ( const auto o = other.template tryAs<T>() )
-        return *this_ == *o;
-
-    return false;
+Nodes flatten(T t, Ts... ts) {
+    return util::concat(std::move(flatten(t)), flatten(std::move(ts)...));
 }
 
 /**
@@ -912,7 +576,7 @@ auto filter(const hilti::node::Set<X>& x, F f) {
  */
 template<typename X, typename F>
 auto transform(const hilti::node::Range<X>& x, F f) {
-    using Y = typename std::invoke_result_t<F, X&>;
+    using Y = std::invoke_result_t<F, X&>;
     std::vector<Y> y;
     y.reserve(x.size());
     for ( const auto& i : x )
@@ -927,7 +591,7 @@ auto transform(const hilti::node::Range<X>& x, F f) {
  */
 template<typename X, typename F>
 auto transform(const hilti::node::Set<X>& x, F f) {
-    using Y = typename std::invoke_result_t<F, X&>;
+    using Y = std::invoke_result_t<F, X&>;
     std::vector<Y> y;
     y.reserve(x.size());
     for ( const auto& i : x )
@@ -935,7 +599,6 @@ auto transform(const hilti::node::Set<X>& x, F f) {
 
     return y;
 }
-
 
 } // namespace node
 
@@ -945,44 +608,9 @@ inline std::ostream& operator<<(std::ostream& out, const Node& n) {
     return out;
 }
 
-template<typename T>
-hilti::node::Set<T> NodeBase::childrenOfType() const {
-    typename hilti::node::Set<T> n;
-    for ( auto c = _children.begin(); c != _children.end(); c = std::next(c) ) {
-        if ( auto t = c->tryAs<T>() )
-            n.insert(*t);
-    }
-
-    return n;
-}
-
-template<typename T>
-std::vector<NodeRef> NodeBase::childRefsOfType() const {
-    typename std::vector<NodeRef> n;
-    for ( auto c = _children.begin(); c != _children.end(); c = std::next(c) ) {
-        if ( c->isA<T>() )
-            n.emplace_back(*c);
-    }
-
-    return n;
-}
-
-namespace node {
-namespace detail {
-// Backend to NodeBase::flattenedChildren.
-void flattenedChildren(const hilti::Node& n, node::Set<hilti::Node>* dst);
-} // namespace detail
-
-/**
- * Returns a list of all children of specific type, descending recursively
- * to find instance anywhere below this node.
- */
-inline node::Set<Node> flattenedChildren(const Node& n) {
-    node::Set<Node> dst;
-    detail::flattenedChildren(n, &dst);
-    return dst;
-}
-
-} // namespace node
-
 } // namespace hilti
+
+inline hilti::node::Properties operator+(hilti::node::Properties p1, hilti::node::Properties p2) {
+    p1.merge(p2);
+    return p1;
+}

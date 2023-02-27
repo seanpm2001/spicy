@@ -9,13 +9,13 @@
 namespace spicy::type {
 
 /** AST node for a Sink type. */
-class Sink : public hilti::TypeBase {
+class Sink : public hilti::TypePtr {
 public:
-    Sink(hilti::Meta m = hilti::Meta()) : TypeBase(std::move(m)) {}
+    Sink(hilti::Meta m = hilti::Meta()) : TypePtr(std::move(m)) {}
 
     bool operator==(const Sink& /* other */) const { return true; }
 
-    bool isEqual(const hilti::Type& other) const override { return hilti::node::isEqual(this, other); }
+    bool isEqual(const hilti::TypePtrPtr& other) const override { return hilti::node::isEqual(this, other); }
     bool _isResolved(hilti::type::ResolvedState* rstate) const override { return true; }
     hilti::node::Properties properties() const override { return hilti::node::Properties{}; }
 

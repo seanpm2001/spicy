@@ -3,13 +3,12 @@
 #include <functional>
 
 #include <hilti/ast/declarations/all.h>
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/expressions/id.h>
 #include <hilti/ast/types/type.h>
 
 using namespace hilti;
 
-const Type& expression::ResolvedID::type() const {
+const TypePtr& expression::ResolvedID::type() const {
     struct Visitor : hilti::visitor::PreOrder<std::reference_wrapper<const Type>, Visitor> {
         result_t operator()(const declaration::Constant& c) { return c.type(); }
         result_t operator()(const declaration::Expression& e) { return e.expression().type(); }

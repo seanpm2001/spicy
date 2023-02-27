@@ -2,39 +2,34 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/expression.h>
+#include <hilti/ast/type.h>
 
 namespace hilti::expression {
 
-/** AST node for an assign expression. */
-class Assign : public NodeBase, public trait::isExpression {
+/** AST node for a assignment expression. */
+class Assign : public Expression {
 public:
-    Assign(Expression target, Expression src, Meta m = Meta())
-        : NodeBase({std::move(target), std::move(src)}, std::move(m)) {}
+    auto target() const { return child<Expression>(0); }
+    auto source() const { return child<Expression>(1); }
 
-    const auto& source() const { return child<Expression>(1); }
-    const auto& target() const { return child<Expression>(0); }
+    QualifiedTypePtr type() const final { return target()->type(); }
+    bool isLhs() const final { return target()->isLhs(); }
+    bool isTemporary() const final { return isLhs(); }
 
-    void setSource(const hilti::Expression& c) { children()[1] = c; }
-    void setTarget(const hilti::Expression& c) { children()[0] = c; }
+    static auto create(ASTContext* ctx, const ExpressionPtr& target, const ExpressionPtr& src, const Meta& meta = {}) {
+        return NodeDerivedPtr<Assign>(new Assign({target, src}, meta));
+    }
 
-    bool operator==(const Assign& other) const { return target() == other.target() && source() == other.source(); }
+protected:
+    Assign(Nodes children, Meta meta) : Expression(std::move(children), std::move(meta)) {}
 
-    /** Implements `Expression` interface. */
-    bool isLhs() const { return target().isLhs(); }
-    /** Implements `Expression` interface. */
-    bool isTemporary() const { return isLhs(); }
-    /** Implements `Expression` interface. */
-    const auto& type() const { return target().type(); }
-    /** Implements `Expression` interface. */
-    auto isConstant() const { return false; }
-    /** Implements `Expression` interface. */
-    auto isEqual(const Expression& other) const { return node::isEqual(this, other); }
+    bool isEqual(const Node& other) const override { return other.isA<Assign>() && Expression::isEqual(other); }
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    HILTI_NODE(Assign)
 };
 
 } // namespace hilti::expression

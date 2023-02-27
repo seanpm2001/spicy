@@ -51,16 +51,16 @@ public:
     /** Destructor. */
     ~Unit();
 
-    /** Returns a reference to the root node of the module AST's. */
-    NodeRef moduleRef() const { return _module ? NodeRef(*_module) : NodeRef(); }
+    /** Returns the root node of the module AST's. */
+    ModulePtr module() const { return _module->as<Module>(); }
 
     /**
      * Returns the root node of the module AST's. Must only be called if
      * `isCompiledHilti()` returns true.
      */
-    Node& module() {
+    ModulePtr module() {
         assert(_module);
-        return *_module;
+        return _module->as<Module>();
     }
 
     /**
@@ -79,7 +79,7 @@ public:
      * unification, in particular if there are more than one module with the
      * same ID.
      *
-     * @returns globally unique ID for the module; the method guaranteees that
+     * @returns globally unique ID for the module; the method guarantees that
      * the ID represents a valid C++ identifier
      */
     ID uniqueID() const { return _unique_id; }
@@ -96,7 +96,7 @@ public:
     const auto& extension() const { return _extension; }
 
     /**
-     * Set a file extension associagted with the unit's code. By default, the
+     * Set a file extension associated with the unit's code. By default, the
      * extension is set when a AST module is being created, for example from
      * the file it's being parsed from. This method can explicitly override the
      * extension to have the AST processed by a different plugin.
@@ -222,7 +222,7 @@ public:
      * usually the case, but we also represent HILTI's linker output as a
      * unit and there's no corresponding HILTI source code for that.
      */
-    bool isCompiledHILTI() const { return _module.has_value(); }
+    bool isCompiledHILTI() const { return _module != nullptr; }
 
     /**
      * Returns true if the AST has been determined to contain code that needs
@@ -288,7 +288,7 @@ public:
      * processing the AST
      * @return instantiated unit, or an appropriate error result if operation failed
      */
-    static std::shared_ptr<Unit> fromModule(const std::shared_ptr<Context>& context, const hilti::Module& module,
+    static std::shared_ptr<Unit> fromModule(const std::shared_ptr<Context>& context, const ModulePtr& module,
                                             hilti::rt::filesystem::path extension);
 
     /**
@@ -372,7 +372,7 @@ private:
     // Private constructor initializing the unit's meta data. Use the public
     // `from*()` factory functions instead to instantiate a unit.
     Unit(const std::shared_ptr<Context>& context, const ID& id, const std::optional<ID>& scope,
-         const hilti::rt::filesystem::path& path, hilti::rt::filesystem::path extension, Node&& module)
+         const hilti::rt::filesystem::path& path, hilti::rt::filesystem::path extension, NodePtr module)
         : _index(id, scope, util::normalizePath(path)),
           _unique_id(_makeUniqueID(id)),
           _extension(std::move(std::move(extension))),
@@ -406,13 +406,12 @@ private:
     void _recursiveDependencies(std::vector<std::weak_ptr<Unit>>* dst, std::unordered_set<const Unit*>* seen) const;
 
     // Parses a source file with the appropriate plugin.
-    static Result<hilti::Module> _parse(const std::shared_ptr<Context>& context,
-                                        const hilti::rt::filesystem::path& path);
+    static Result<NodePtr> _parse(const std::shared_ptr<Context>& context, const hilti::rt::filesystem::path& path);
 
     context::CacheIndex _index;                     // index for the context's module cache
     ID _unique_id;                                  // globally unique ID for this module
     hilti::rt::filesystem::path _extension;         // AST extension, which may differ from source file
-    std::optional<Node> _module;                    // root node for AST (always a `Module`), if available
+    NodePtr _module;                                // root node for AST, if available; must be a Module
     std::vector<std::weak_ptr<Unit>> _dependencies; // recorded dependencies
     std::weak_ptr<Context> _context;                // global context
     std::optional<detail::cxx::Unit> _cxx_unit;     // compiled C++ code for this unit, once available

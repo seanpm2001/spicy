@@ -9,7 +9,7 @@
 #include <hilti/compiler/detail/parser/driver.h>
 
 /** We compile with a source property to find this. */
-#include <__parser.h>
+#include <__parser.hh>
 
 namespace hilti::detail::parser {
 

@@ -38,7 +38,7 @@ namespace detail {
  * This functionality is not implemented in `Unit` since we want to use
  * `assignIndices` in a call to a base class's constructor before `Unit` is
  * fully constructed. Putting the counter `_next_index` into `Unit` would lead
- * to it being initialized after `Unit`'s base class `TypeBase`.
+ * to it being initialized after `Unit`'s base class `TypePtr`.
  */
 struct AssignIndices {
     /**
@@ -54,20 +54,20 @@ struct AssignIndices {
 } // namespace detail
 
 /** AST node for a Spicy unit. */
-class Unit : detail::AssignIndices, public hilti::TypeBase {
+class Unit : detail::AssignIndices, public hilti::TypePtr {
 public:
     Unit(const std::vector<type::function::Parameter>& params, std::vector<unit::Item> i,
          const std::optional<AttributeSet>& /* attrs */ = {}, Meta m = Meta())
-        : TypeBase(hilti::nodes(node::none, node::none, node::none,
-                                hilti::util::transform(params,
-                                                       [](auto p) {
-                                                           p.setIsTypeParameter();
-                                                           return Declaration(p);
-                                                       }),
-                                assignIndices(std::move(i))),
-                   std::move(m)) {}
+        : TypePtr(hilti::nodes(node::none, node::none, node::none,
+                               hilti::util::transform(params,
+                                                      [](auto p) {
+                                                          p.setIsTypeParameter();
+                                                          return Declaration(p);
+                                                      }),
+                               assignIndices(std::move(i))),
+                  std::move(m)) {}
 
-    Unit(Wildcard /*unused*/, Meta m = Meta()) : TypeBase(std::move(m)), _wildcard(true) {}
+    Unit(Wildcard /*unused*/, Meta m = Meta()) : TypePtr(std::move(m)), _wildcard(true) {}
 
     NodeRef selfRef() const {
         if ( children()[0].isA<Declaration>() )
@@ -88,7 +88,7 @@ public:
     auto attributes() const { return children()[2].tryAs<AttributeSet>(); }
 
     /** Returns the type set through ``%context`, if available. */
-    hilti::optional_ref<const Type> contextType() const {
+    hilti::TypePtrPtr contextType() const {
         if ( auto context = propertyItem("%context") )
             if ( auto ty = context->expression()->tryAs<hilti::expression::Type_>() )
                 return ty->typeValue();
@@ -175,11 +175,11 @@ public:
 
     bool operator==(const Unit& other) const {
         // We treat units as equal (only) if their type IDs match. That's
-        // checked upstream in the Type's comparison operator.
+        // checked upstream in the TypePtr's comparison operator.
         return false;
     }
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
+    bool isEqual(const TypePtr& other) const override { return node::isEqual(this, other); }
 
     bool _isResolved(ResolvedState* rstate) const override {
         auto xs = items();
@@ -204,7 +204,7 @@ public:
     static void setSelf(Node* n) {
         assert(n->isA<type::Unit>());
         Expression self = hilti::expression::Keyword(hilti::expression::keyword::Kind::Self,
-                                                     hilti::type::pruneWalk(n->as<Type>()), n->meta());
+                                                     hilti::type::pruneWalk(n->as<TypePtr>()), n->meta());
         Declaration d =
             hilti::declaration::Expression("self", std::move(self), declaration::Linkage::Private, n->meta());
         n->children()[0] = d;

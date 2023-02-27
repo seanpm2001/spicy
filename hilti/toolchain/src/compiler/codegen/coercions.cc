@@ -3,7 +3,6 @@
 #include <optional>
 
 #include <hilti/ast/declarations/global-variable.h>
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/expressions/all.h>
 #include <hilti/base/logger.h>
 #include <hilti/compiler/detail/codegen/codegen.h>
@@ -17,10 +16,10 @@ using namespace hilti::detail;
 namespace {
 
 struct Visitor : public hilti::visitor::PreOrder<void, Visitor>, type::Visitor {
-    Visitor(CodeGen* cg, const cxx::Expression& expr, const Type& dst) : cg(cg), expr(expr), dst(dst) {}
+    Visitor(CodeGen* cg, const cxx::Expression& expr, const TypePtr& dst) : cg(cg), expr(expr), dst(dst) {}
     CodeGen* cg;
     const cxx::Expression& expr;
-    const Type& dst;
+    const TypePtr& dst;
 
     std::optional<cxx::Expression> _result;
 
@@ -251,7 +250,7 @@ struct Visitor : public hilti::visitor::PreOrder<void, Visitor>, type::Visitor {
 
 } // anonymous namespace
 
-cxx::Expression CodeGen::coerce(const cxx::Expression& e, const Type& src, const Type& dst) {
+cxx::Expression CodeGen::coerce(const cxx::Expression& e, const TypePtr& src, const TypePtr& dst) {
     if ( type::sameExceptForConstness(src, dst) )
         // If only difference is constness, nothing to do.
         return e;

@@ -43,13 +43,15 @@ public:
     /**
      * Renders the comment back into a multi-line string. This is primarily for debugging.
      */
-    void render(std::ostream& out) const;
+    void print(std::ostream& out) const;
 
     /**
      * Renders the comment back into a code representation through our code
      * printer.
      */
-    void render(printer::Stream& out) const;
+    void print(printer::Stream& out) const;
+
+    std::string render() const;
 
     /** Returns true if any summary or documentation text has been added. */
     explicit operator bool() const { return ! (_summary.empty() && _text.empty()); }

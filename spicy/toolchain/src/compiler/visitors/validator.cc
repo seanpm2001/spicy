@@ -21,7 +21,6 @@
 #include <hilti/compiler/plugin.h>
 
 #include <spicy/ast/all.h>
-#include <spicy/ast/detail/visitor.h>
 #include <spicy/ast/hook.h>
 #include <spicy/ast/operators/unit.h>
 #include <spicy/ast/types.h>
@@ -33,10 +32,10 @@ using hilti::util::fmt;
 
 namespace {
 
-bool isEnumType(const Type& t, const char* expected_id) { return t.typeID() && *t.typeID() == ID(expected_id); }
+bool isEnumType(const TypePtr& t, const char* expected_id) { return t.typeID() && *t.typeID() == ID(expected_id); }
 
 // Helper to validate that a type is parseable.
-hilti::Result<hilti::Nothing> isParseableType(const Type& pt, const type::unit::item::Field& f) {
+hilti::Result<hilti::Nothing> isParseableType(const TypePtr& pt, const type::unit::item::Field& f) {
     if ( pt.isA<type::Bitfield>() )
         return hilti::Nothing();
 

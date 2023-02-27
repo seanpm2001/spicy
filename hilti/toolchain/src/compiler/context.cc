@@ -1,9 +1,11 @@
 // Copyright (c) 2020-2023 by the Zeek Project. See LICENSE for details.
 
+#include <hilti/ast/ast-context.h>
 #include <hilti/ast/detail/operator-registry.h>
 #include <hilti/compiler/context.h>
 #include <hilti/compiler/plugin.h>
 #include <hilti/compiler/unit.h>
+#include <hilti/global.h>
 
 using namespace hilti;
 using namespace hilti::context;
@@ -59,7 +61,8 @@ void Options::print(std::ostream& out) const {
     out << "\n";
 }
 
-Context::Context(Options options) : _options(std::move(std::move(options))) {
+Context::Context(Options options)
+    : _options(std::move(std::move(options))), _ast_context(std::make_shared<ASTContext>()) {
     operator_::Registry::singleton().printDebug();
 }
 
@@ -168,7 +171,7 @@ void Context::dumpUnitCache(const hilti::logging::DebugStream& stream) {
         auto idx = x.first;
         auto unit = x.second->unit;
         HILTI_DEBUG(stream, util::fmt("- %s -> %s %s [%p] [%p]", idx, unit->uniqueID(), unit->extension(),
-                                      unit->module().renderedRid(), unit.get()));
+                                      unit->module()->renderedRid(), unit.get()));
     }
 
     HILTI_DEBUG(stream, "");
@@ -177,7 +180,7 @@ void Context::dumpUnitCache(const hilti::logging::DebugStream& stream) {
         auto idx = x.first;
         auto unit = x.second->unit;
         HILTI_DEBUG(stream, util::fmt("- %s -> %s %s [%p] [%p]", idx, unit->uniqueID(), unit->extension(),
-                                      unit->module().renderedRid(), unit.get()));
+                                      unit->module()->renderedRid(), unit.get()));
     }
 
     HILTI_DEBUG(stream, "");
@@ -185,12 +188,12 @@ void Context::dumpUnitCache(const hilti::logging::DebugStream& stream) {
     for ( const auto& x : _unit_cache_by_id ) {
         auto unit = x.second->unit;
         HILTI_DEBUG(stream, util::fmt("### %s %s [%p] [%p]", unit->uniqueID(), unit->extension(),
-                                      unit->module().renderedRid(), unit.get()));
+                                      unit->module()->renderedRid(), unit.get()));
 
         for ( const auto& d_ : unit->dependencies() ) {
             auto d = d_.lock();
             HILTI_DEBUG(stream, util::fmt("###  Dependency: %s %s [%p] [%p]", d->uniqueID(), d->extension(),
-                                          d->module().renderedRid(), d.get()));
+                                          d->module()->renderedRid(), d.get()));
         }
 
         hilti::render(stream, unit->module(), true);

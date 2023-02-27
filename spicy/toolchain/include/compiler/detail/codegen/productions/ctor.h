@@ -19,7 +19,7 @@ public:
 
     spicy::Ctor ctor() const { return _ctor; };
     Expression expression() const { return hilti::expression::Ctor(_ctor); }
-    std::optional<spicy::Type> type() const { return _ctor.type(); }
+    std::optional<spicy::TypePtr> type() const { return _ctor.type(); }
     bool nullable() const { return false; }
     bool eodOk() const { return nullable(); }
     bool atomic() const { return true; }

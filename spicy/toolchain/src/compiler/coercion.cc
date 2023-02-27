@@ -8,7 +8,6 @@
 #include <hilti/compiler/plugin.h>
 
 #include <spicy/ast/ctors/unit.h>
-#include <spicy/ast/detail/visitor.h>
 #include <spicy/ast/types/unit.h>
 #include <spicy/compiler/detail/coercion.h>
 #include <spicy/compiler/detail/visitors.h>
@@ -23,9 +22,9 @@ inline const DebugStream Operator("operator");
 namespace {
 
 struct VisitorCtor : public hilti::visitor::PreOrder<std::optional<Ctor>, VisitorCtor> {
-    VisitorCtor(const Type& dst, bitmask<hilti::CoercionStyle> style) : dst(dst), style(style) {}
+    VisitorCtor(const TypePtr& dst, bitmask<hilti::CoercionStyle> style) : dst(dst), style(style) {}
 
-    const Type& dst;
+    const TypePtr& dst;
     bitmask<hilti::CoercionStyle> style;
 
     result_t operator()(const hilti::ctor::String& c) {
@@ -56,12 +55,12 @@ struct VisitorCtor : public hilti::visitor::PreOrder<std::optional<Ctor>, Visito
 };
 
 struct VisitorType : public hilti::visitor::PreOrder<void, VisitorType>, public hilti::type::Visitor {
-    VisitorType(const Type& dst, bitmask<hilti::CoercionStyle> style) : dst(dst), style(style) {}
+    VisitorType(const TypePtr& dst, bitmask<hilti::CoercionStyle> style) : dst(dst), style(style) {}
 
-    const Type& dst;
+    const TypePtr& dst;
     bitmask<hilti::CoercionStyle> style;
 
-    std::optional<Type> _result;
+    TypePtr _result;
 
     void operator()(const type::Unit& t, hilti::type::Visitor::position_t& p) override {
         if ( auto x = dst.tryAs<type::StrongReference>(); x && x->dereferencedType() == p.node.as<Type>() )
@@ -75,7 +74,7 @@ struct VisitorType : public hilti::visitor::PreOrder<void, VisitorType>, public 
 } // anonymous namespace
 
 // Plugin-specific version just kicking off the local visitor.
-std::optional<Ctor> spicy::detail::coerceCtor(Ctor c, const Type& dst, bitmask<hilti::CoercionStyle> style) {
+std::optional<Ctor> spicy::detail::coerceCtor(Ctor c, const TypePtr& dst, bitmask<hilti::CoercionStyle> style) {
     if ( ! (type::isResolved(c.type()) && type::isResolved(dst)) )
         return {};
 
@@ -86,7 +85,7 @@ std::optional<Ctor> spicy::detail::coerceCtor(Ctor c, const Type& dst, bitmask<h
 }
 
 // Plugin-specific version just kicking off the local visitor.
-std::optional<Type> spicy::detail::coerceType(Type t, const Type& dst, bitmask<hilti::CoercionStyle> style) {
+TypePtr spicy::detail::coerceType(Type t, const TypePtr& dst, bitmask<hilti::CoercionStyle> style) {
     if ( ! (type::isResolved(t) && type::isResolved(dst)) )
         return {};
 

@@ -2,7 +2,6 @@
 
 #include <optional>
 
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/module.h>
 #include <hilti/ast/types/all.h>
 #include <hilti/base/logger.h>
@@ -28,7 +27,7 @@ struct VisitorDeclaration : hilti::visitor::PreOrder<void, VisitorDeclaration>, 
 
     std::optional<cxx::declaration::Type> _result;
 
-    void addDependency(const Type& t) {
+    void addDependency(const TypePtr& t) {
         for ( auto&& t : cg->typeDependencies(t) )
             dependencies.push_back(std::move(t));
     }
@@ -1066,7 +1065,7 @@ struct VisitorTypeInfoDynamic : hilti::visitor::PreOrder<void, VisitorTypeInfoDy
 
 } // anonymous namespace
 
-cxx::Type CodeGen::compile(const hilti::Type& t, codegen::TypeUsage usage) {
+cxx::Type CodeGen::compile(const hilti::TypePtrPtr& t, codegen::TypeUsage usage) {
     auto v = VisitorStorage(this, &_cache_types_storage, usage);
     v.dispatch(t);
     auto& x = v._result;
@@ -1153,7 +1152,7 @@ cxx::Type CodeGen::compile(const hilti::Type& t, codegen::TypeUsage usage) {
     }
 }
 
-std::optional<cxx::Expression> CodeGen::typeDefaultValue(const hilti::Type& t) {
+std::optional<cxx::Expression> CodeGen::typeDefaultValue(const hilti::TypePtrPtr& t) {
     auto v = VisitorStorage(this, &_cache_types_storage, codegen::TypeUsage::None);
     v.dispatch(t);
     auto& x = v._result;
@@ -1167,19 +1166,19 @@ std::optional<cxx::Expression> CodeGen::typeDefaultValue(const hilti::Type& t) {
     return std::move(x->default_);
 };
 
-std::list<cxx::declaration::Type> CodeGen::typeDependencies(const hilti::Type& t) {
+std::list<cxx::declaration::Type> CodeGen::typeDependencies(const hilti::TypePtrPtr& t) {
     VisitorDeclaration v(this, &_cache_types_declarations);
     v.dispatch(t);
     return v.dependencies;
 };
 
-std::optional<cxx::declaration::Type> CodeGen::typeDeclaration(const hilti::Type& t) {
+std::optional<cxx::declaration::Type> CodeGen::typeDeclaration(const hilti::TypePtrPtr& t) {
     auto v = VisitorDeclaration(this, &_cache_types_declarations);
     v.dispatch(t);
     return v._result;
 };
 
-const CxxTypeInfo& CodeGen::_getOrCreateTypeInfo(const hilti::Type& t) {
+const CxxTypeInfo& CodeGen::_getOrCreateTypeInfo(const hilti::TypePtrPtr& t) {
     std::stringstream display;
 
     if ( t.typeID() )
@@ -1238,7 +1237,7 @@ const CxxTypeInfo& CodeGen::_getOrCreateTypeInfo(const hilti::Type& t) {
         });
 }
 
-cxx::Expression CodeGen::_makeLhs(cxx::Expression expr, const Type& type) {
+cxx::Expression CodeGen::_makeLhs(cxx::Expression expr, const TypePtr& type) {
     if ( expr.isLhs() )
         return expr;
 
@@ -1257,6 +1256,6 @@ cxx::Expression CodeGen::_makeLhs(cxx::Expression expr, const Type& type) {
     return result;
 }
 
-cxx::Expression CodeGen::typeInfo(const hilti::Type& t) { return _getOrCreateTypeInfo(t).reference; };
+cxx::Expression CodeGen::typeInfo(const hilti::TypePtrPtr& t) { return _getOrCreateTypeInfo(t).reference; };
 
-void CodeGen::addTypeInfoDefinition(const hilti::Type& t) { _getOrCreateTypeInfo(t); }
+void CodeGen::addTypeInfoDefinition(const hilti::TypePtrPtr& t) { _getOrCreateTypeInfo(t); }

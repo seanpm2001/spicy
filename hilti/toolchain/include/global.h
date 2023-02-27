@@ -9,10 +9,8 @@
 #include <hilti/ast/expression.h>
 #include <hilti/ast/id.h>
 #include <hilti/ast/module.h>
-#include <hilti/ast/node-ref.h>
 #include <hilti/ast/type.h>
 #include <hilti/base/logger.h>
-#include <hilti/base/visitor-types.h>
 
 namespace hilti {
 
@@ -24,7 +22,7 @@ namespace hilti {
  *
  * Returns: The parsed AST, or a corresponding error if parsing failed.
  */
-Result<Node> parseSource(std::istream& in, const std::string& filename);
+Result<NodePtr> parseSource(Builder* builder, std::istream& in, const std::string& filename);
 
 /**
  * Prints out a debug representation of an AST node to a debug stream. The
@@ -35,7 +33,7 @@ Result<Node> parseSource(std::istream& in, const std::string& filename);
  * @param include_scopes if true, include a dump of each node's identifier
  *        scope
  */
-extern void render(std::ostream& out, const Node& node, bool include_scopes = false);
+extern void render(std::ostream& out, const NodePtr& node, bool include_scopes = false);
 
 /**
  * Log a debug representation of an AST node to a debug stream. The output
@@ -46,7 +44,7 @@ extern void render(std::ostream& out, const Node& node, bool include_scopes = fa
  * @param include_scopes if true, include a dump of each node's identifier
  *        scope
  */
-extern void render(logging::DebugStream stream, const Node& node, bool include_scopes = false);
+extern void render(logging::DebugStream stream, const NodePtr& node, bool include_scopes = false);
 
 /**
  * Print out an AST node as HILTI source.
@@ -60,6 +58,6 @@ extern void render(logging::DebugStream stream, const Node& node, bool include_s
  * @param compact if true, print a compact one-line representation (e.g., for
  *        use in error messages)
  */
-inline void print(std::ostream& out, const Node& node, bool compact = false) { node.print(out, compact); }
+inline void print(std::ostream& out, const NodePtr& node, bool compact = false) { node->print(out, compact); }
 
 } // namespace hilti

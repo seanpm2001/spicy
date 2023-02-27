@@ -2,16 +2,15 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <hilti/ast/attribute.h>
 #include <hilti/ast/declaration.h>
 #include <hilti/ast/expression.h>
-#include <hilti/ast/id.h>
 #include <hilti/ast/type.h>
-#include <hilti/ast/types/auto.h>
-#include <hilti/ast/types/unknown.h>
 
 namespace hilti::declaration {
 
@@ -42,67 +41,76 @@ constexpr auto from_string(const std::string_view& s) { return util::enum_::from
 
 } // namespace parameter
 
-/** AST node for a declaration of a function parameter. */
-class Parameter : public DeclarationBase {
+
+/** AST node for a parameter declaration. */
+class Parameter : public Declaration {
 public:
-    Parameter(ID id, hilti::Type type, parameter::Kind kind, std::optional<hilti::Expression> default_,
-              std::optional<AttributeSet> attrs, Meta m = Meta())
-        : DeclarationBase(nodes(std::move(id), type::nonConstant(std::move(type)), std::move(default_),
-                                std::move(attrs)),
-                          std::move(m)),
-          _kind(kind) {}
-
-    Parameter(ID id, hilti::Type type, parameter::Kind kind, std::optional<hilti::Expression> default_,
-              bool is_type_param, std::optional<AttributeSet> attrs, Meta m = Meta())
-        : DeclarationBase(nodes(std::move(id), type::nonConstant(std::move(type)), std::move(default_),
-                                std::move(attrs)),
-                          std::move(m)),
-          _kind(kind),
-          _is_type_param(is_type_param) {}
-
-    Parameter() : DeclarationBase({node::none, type::unknown, node::none, node::none}, Meta()) {}
-
-    auto attributes() const { return children()[3].tryAs<AttributeSet>(); }
-    auto default_() const { return children()[2].tryAs<hilti::Expression>(); }
+    auto attributes() const { return child<AttributeSet>(2); }
+    auto default_() const { return child<hilti::Expression>(1); }
     auto kind() const { return _kind; }
-    const auto& type() const { return child<hilti::Type>(1); }
+    auto type() const { return child<hilti::QualifiedType>(0); }
     auto isTypeParameter() const { return _is_type_param; }
     auto isResolved(type::ResolvedState* rstate) const { return type::detail::isResolved(type(), rstate); }
 
-    void setDefault(const hilti::Expression& e) { children()[2] = e; }
+    void setDefault(const ExpressionPtr& e) { setChild(1, e); }
     void setIsTypeParameter() { _is_type_param = true; }
-    void setType(const hilti::Type& t) { children()[1] = t; }
+    void setType(const QualifiedTypePtr& t) { setChild(0, t); }
 
-    bool operator==(const Parameter& other) const {
-        return id() == other.id() && type() == other.type() && kind() == other.kind() && default_() == other.default_();
+    std::string displayName() const final { return "parameter"; }
+
+    node::Properties properties() const final {
+        auto p = node::Properties{{"kind", to_string(_kind)}, {"is_type_param", _is_type_param}};
+        return Declaration::properties() + p;
     }
 
-    /** Implements `Declaration` interface. */
-    bool isConstant() const { return _kind == parameter::Kind::In; }
-    /** Implements `Declaration` interface. */
-    const ID& id() const { return child<ID>(0); }
-    /** Implements `Declaration` interface. */
-    Linkage linkage() const { return Linkage::Private; }
-    /** Implements `Declaration` interface. */
-    std::string displayName() const { return "parameter"; };
-    /** Implements `Declaration` interface. */
-    auto isEqual(const Declaration& other) const { return node::isEqual(this, other); }
+    static auto create(ASTContext* ctx, ID id, const QualifiedTypePtr& type, parameter::Kind kind,
+                       const hilti::ExpressionPtr& default_, const AttributeSetPtr& attrs, Meta meta = {}) {
+        return NodeDerivedPtr<Parameter>(
+            new Parameter({type, default_, attrs}, std::move(id), kind, false, std::move(meta)));
+    }
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{{"kind", to_string(_kind)}, {"is_type_param", _is_type_param}}; }
+    static auto create(ASTContext* ctx, ID id, const QualifiedTypePtr& type, parameter::Kind kind,
+                       const hilti::ExpressionPtr& default_, bool is_type_param, const AttributeSetPtr& attrs,
+                       Meta meta = {}) {
+        return DeclarationPtr(
+            new Parameter({type, default_, attrs}, std::move(id), kind, is_type_param, std::move(meta)));
+    }
+
+protected:
+    Parameter(Nodes children, ID id, parameter::Kind kind, bool is_type_param, Meta meta)
+        : Declaration(std::move(children), std::move(id), Linkage::Private, std::move(meta)),
+          _kind(kind),
+          _is_type_param(is_type_param) {}
+
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<Parameter>();
+        if ( ! n )
+            return false;
+
+        return Declaration::isEqual(other) && _kind == n->_kind && _is_type_param == n->_is_type_param;
+    }
+
+    HILTI_NODE(Parameter)
 
 private:
     parameter::Kind _kind = parameter::Kind::Unknown;
     bool _is_type_param = false;
 };
 
+using ParameterPtr = std::shared_ptr<declaration::Parameter>;
+using Parameters = std::vector<ParameterPtr>;
+
+} // namespace hilti::declaration
+
+namespace hilti::declaration {
+
 /** Returns true if two parameters are different only by name of their ID. */
 inline bool areEquivalent(const Parameter& p1, const Parameter& p2) {
     if ( p1.kind() != p2.kind() || p1.default_() != p2.default_() )
         return false;
 
-    auto auto1 = p1.type().tryAs<type::Auto>();
-    auto auto2 = p2.type().tryAs<type::Auto>();
+    auto auto1 = p1.type()->isAuto();
+    auto auto2 = p2.type()->isAuto();
 
     if ( auto1 || auto2 )
         return true;

@@ -17,7 +17,7 @@ public:
     bool nullable() const { return true; }
     bool eodOk() const { return nullable(); }
     bool atomic() const { return true; }
-    std::optional<spicy::Type> type() const { return {}; }
+    std::optional<spicy::TypePtr> type() const { return {}; }
     std::string render() const { return "()"; }
 };
 

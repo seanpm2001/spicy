@@ -5,7 +5,6 @@
 #include <hilti/rt/util.h>
 
 #include <hilti/ast/ctors/all.h>
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/base/logger.h>
 #include <hilti/compiler/detail/codegen/codegen.h>
 #include <hilti/compiler/detail/cxx/all.h>

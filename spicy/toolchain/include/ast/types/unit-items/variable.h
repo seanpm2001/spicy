@@ -20,7 +20,7 @@ namespace spicy::type::unit::item {
  */
 class Variable : public hilti::NodeBase, public spicy::trait::isUnitItem {
 public:
-    Variable(ID id, Type type, const std::optional<Expression>& default_, std::optional<AttributeSet> attrs = {},
+    Variable(ID id, TypePtr type, const std::optional<Expression>& default_, std::optional<AttributeSet> attrs = {},
              Meta m = Meta())
         : NodeBase(nodes(std::move(id), std::move(type), default_, std::move(attrs)), std::move(m)) {}
 
@@ -36,7 +36,7 @@ public:
     }
 
     // Unit item interface
-    const Type& itemType() const { return child<Type>(1); }
+    const TypePtr& itemType() const { return child<TypePtr>(1); }
     bool isResolved() const { return type::isResolved(itemType()); }
     auto isEqual(const Item& other) const { return node::isEqual(this, other); }
 

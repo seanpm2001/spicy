@@ -38,7 +38,7 @@ Converts the string into a binary representation encoded with the given characte
 END_METHOD
 
 BEGIN_OPERATOR_CUSTOM(string, Modulo)
-    Type result(const hilti::node::Range<Expression>& /* ops */) const { return type::String(); }
+    TypePtr result(const hilti::node::Range<Expression>& /* ops */) const { return type::String(); }
 
     bool isLhs() const { return false; }
     auto priority() const { return hilti::operator_::Priority::Normal; }

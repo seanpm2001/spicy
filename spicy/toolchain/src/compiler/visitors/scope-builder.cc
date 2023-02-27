@@ -5,7 +5,6 @@
 #include <hilti/compiler/unit.h>
 
 #include <spicy/ast/declarations/unit-hook.h>
-#include <spicy/ast/detail/visitor.h>
 #include <spicy/ast/types/unit-items/unit-hook.h>
 #include <spicy/ast/types/unit-items/variable.h>
 #include <spicy/compiler/detail/visitors.h>

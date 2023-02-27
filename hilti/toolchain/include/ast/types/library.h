@@ -2,7 +2,9 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
+#include <utility>
 
 #include <hilti/ast/type.h>
 
@@ -15,29 +17,34 @@ namespace hilti::type {
  * making it accessible in the `hilti::*` namespace. HILTI assumes the
  * library type to be mutable.
  */
-class Library : public TypeBase {
+class Library : public UnqualifiedType {
 public:
-    Library(std::string cxx_name, Meta m = Meta());
-
     const std::string& cxxName() const { return _cxx_name; }
-    bool operator==(const Library& other) const { return _cxx_name == other._cxx_name; }
 
-    bool isEqual(const Type& other) const override {
-        if ( other.cxxID() == _cxx_name )
-            return true;
-
-        return node::isEqual(this, other);
+    node::Properties properties() const final {
+        auto p = node::Properties{{"cxx_name", _cxx_name}};
+        return UnqualifiedType::properties() + p;
     }
 
-    bool _isResolved(ResolvedState* rstate) const override { return true; }
-    node::Properties properties() const override { return node::Properties{{"cxx_name", _cxx_name}}; }
+    static auto create(ASTContext* ctx, const std::string& cxx_name, Meta meta = {}) {
+        return NodeDerivedPtr<Library>(new Library(cxx_name, std::move(meta)));
+    }
 
-    bool _isAllocable() const override { return true; }
-    bool _isMutable() const override { return true; }
+protected:
+    Library(std::string cxx_name, Meta meta) : UnqualifiedType(std::move(meta)), _cxx_name(std::move(cxx_name)) {}
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+    bool _isAllocable() const final { return true; }
+    bool _isMutable() const final { return true; }
 
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<Library>();
+        if ( ! n )
+            return false;
+
+        return UnqualifiedType::isEqual(other) && _cxx_name == n->_cxx_name;
+    }
+
+    HILTI_NODE(Library)
 
 private:
     std::string _cxx_name;

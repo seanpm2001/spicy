@@ -12,8 +12,7 @@
 #include <utility>
 #include <vector>
 
-#include <hilti/ast/node-ref.h>
-#include <hilti/base/intrusive-ptr.h>
+#include <hilti/ast/forward.h>
 
 namespace hilti {
 
@@ -24,21 +23,21 @@ class ID;
  * Identifier scope. A scope maps identifiers to AST nodes (more precisely: to
  * references to AST nodes). An identifier can be mapped to more than one node.
  */
-class Scope : public intrusive_ptr::ManagedObject {
+class Scope {
 public:
     Scope() = default;
     ~Scope() = default;
 
-    void insert(NodeRef&& n);
-    void insert(const ID& id, NodeRef&& n);
+    void insert(NodePtr&& n);
+    void insert(const ID& id, NodePtr&& n);
     void insertNotFound(const ID& id);
 
     /** Returns if there's at least one mapping for an ID.  */
     bool has(const ID& id) const { return ! _findID(id).empty(); }
 
-    /** Result typer for the lookup methods. */
+    /** Result type for the lookup methods. */
     struct Referee {
-        NodeRef node;          /**< node that ID maps to */
+        NodePtr node;          /**< node that ID maps to */
         std::string qualified; /**< qualified ID with full path used to find it */
         bool external{};       /**< true if found in a different (imported) module  */
     };
@@ -74,17 +73,7 @@ public:
     Scope& operator=(Scope&& other) = delete;
 
 private:
-    // Specialized implementation for `NodeRef` hashing and equality checks for
-    // nodes referencing declarations.
-    struct NodeRefHash {
-        std::size_t operator()(const hilti::NodeRef& n) const;
-    };
-
-    struct NodeRefEqual {
-        bool operator()(const hilti::NodeRef& a, const hilti::NodeRef& b) const;
-    };
-
-    using ItemMap = std::map<std::string, std::unordered_set<NodeRef, NodeRefHash, NodeRefEqual>>;
+    using ItemMap = std::map<std::string, std::unordered_set<NodePtr>>;
 
     std::vector<Referee> _findID(const ID& id, bool external = false) const;
     std::vector<Referee> _findID(const Scope* scope, const ID& id, bool external = false) const;

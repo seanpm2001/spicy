@@ -2,36 +2,33 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/expression.h>
-#include <hilti/ast/types/library.h>
+#include <hilti/ast/type.h>
 
 namespace hilti::expression {
 
-/** AST node for a "move" expression. */
-class TypeInfo : public NodeBase, public trait::isExpression {
+/** AST node for a `typeinfo` expression. */
+class TypeInfo : public Expression {
 public:
-    TypeInfo(Expression e, Meta m = Meta())
-        : NodeBase(nodes(std::move(e), Type(type::Library("hilti::rt::TypeInfo const*"))), std::move(m)) {}
+    auto expression() const { return child<Expression>(0); }
 
-    const auto& expression() const { return child<Expression>(0); }
+    QualifiedTypePtr type() const final { return expression()->type(); }
+    bool isLhs() const final { return false; }
+    bool isTemporary() const final { return true; }
 
-    bool operator==(const TypeInfo& other) const { return expression() == other.expression(); }
+    static auto create(ASTContext* ctx, const ExpressionPtr& expr, const Meta& meta = {}) {
+        return NodeDerivedPtr<TypeInfo>(new TypeInfo({expr}, meta));
+    }
 
-    /** Implements `Expression` interface. */
-    bool isLhs() const { return false; }
-    /** Implements `Expression` interface. */
-    bool isTemporary() const { return true; }
-    /** Implements `Expression` interface. */
-    const auto& type() const { return child<Type>(1); }
-    /** Implements `Expression` interface. */
-    auto isConstant() const { return true; }
-    /** Implements `Expression` interface. */
-    auto isEqual(const Expression& other) const { return node::isEqual(this, other); }
+protected:
+    TypeInfo(Nodes children, Meta meta) : Expression(std::move(children), std::move(meta)) {}
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    bool isEqual(const Node& other) const override { return other.isA<TypeInfo>() && Expression::isEqual(other); }
+
+    HILTI_NODE(TypeInfo)
 };
 
 } // namespace hilti::expression

@@ -2,53 +2,33 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <utility>
 
 #include <hilti/ast/declaration.h>
-#include <hilti/ast/expression.h>
-#include <hilti/ast/id.h>
-#include <hilti/ast/meta.h>
 #include <hilti/ast/module.h>
-#include <hilti/ast/node-ref.h>
-#include <hilti/ast/node.h>
-#include <hilti/base/result.h>
-#include <hilti/base/type_erase.h>
 
 namespace hilti::declaration {
 
-/** AST node for an AST's top-level module declaration. */
-class Module : public DeclarationBase {
+/** AST node for a module declaration. */
+class Module : public Declaration {
 public:
-    /**
-     * Constructor.
-     *
-     * @param root reference to root node of module's AST; must be a ``Module`` node.
-     */
-    Module(NodeRef root, Meta m = Meta()) : DeclarationBase(std::move(m)), _root(std::move(root)) {
-        assert(_root && _root->isA<hilti::Module>());
+    auto module_() const { return child<Module>(0); }
+
+    std::string displayName() const final { return "module"; }
+
+    static auto create(ASTContext* ctx, const ModulePtr& module_, Meta meta = {}) {
+        return NodeDerivedPtr<Module>(new Module({module_}, module_->id(), std::move(meta)));
     }
 
-    const Node& root() const { return *_root; }
+protected:
+    Module(Nodes children, ID id, Meta meta)
+        : Declaration(std::move(children), std::move(id), Linkage::Public, std::move(meta)) {}
 
-    bool operator==(const Module& other) const { return id() == other.id(); }
+    bool isEqual(const Node& other) const override { return other.isA<Module>() && Declaration::isEqual(other); }
 
-    /** Implements `Declaration` interface. */
-    bool isConstant() const { return true; }
-    /** Implements `Declaration` interface. */
-    ID id() const { return _root->as<hilti::Module>().id(); }
-    /** Implements `Declaration` interface. */
-    Linkage linkage() const { return Linkage::Public; }
-    /** Implements `Declaration` interface. */
-    std::string displayName() const { return "module"; };
-    /** Implements `Declaration` interface. */
-    auto isEqual(const Declaration& other) const { return node::isEqual(this, other); }
-
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{{"id", id()}}; }
-
-private:
-    NodeRef _root;
+    HILTI_NODE(Module)
 };
 
 } // namespace hilti::declaration

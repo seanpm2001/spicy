@@ -8,14 +8,20 @@
 
 using namespace hilti;
 
-std::optional<std::pair<int, const type::tuple::Element*>> type::Tuple::elementByID(const ID& id) const {
+type::tuple::Element::~Element() = default;
+
+std::optional<std::pair<int, std::shared_ptr<type::tuple::Element>>> type::Tuple::elementByID(const ID& id) const {
     int i = 0;
     for ( const auto& e : elements() ) {
-        if ( e.id() == id )
-            return std::make_optional(std::make_pair(i, &e));
+        if ( e->id() == id )
+            return std::make_optional(std::make_pair(i, e));
 
         i++;
     }
 
     return {};
+}
+
+std::string type::tuple::Element::_render() const {
+    return _id ? util::fmt("[id: %s]", *_id) : "";
 }

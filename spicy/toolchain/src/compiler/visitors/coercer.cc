@@ -6,7 +6,6 @@
 #include <hilti/compiler/context.h>
 #include <hilti/compiler/plugin.h>
 
-#include <spicy/ast/detail/visitor.h>
 #include <spicy/compiler/detail/visitors.h>
 
 using namespace hilti;

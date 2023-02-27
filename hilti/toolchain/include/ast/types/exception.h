@@ -2,43 +2,46 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
-#include <vector>
 
 #include <hilti/ast/type.h>
 
+#include "ast/type.h"
+
 namespace hilti::type {
 
-/** AST node for an `exception` type. */
-class Exception : public TypeBase {
+/** AST node for a `exception` type. */
+class Exception : public UnqualifiedType {
 public:
-    Exception(Meta m = Meta()) : TypeBase({node::none}, std::move(m)) {}
-    Exception(Type base, Meta m = Meta()) : TypeBase({std::move(base)}, std::move(m)) {}
-    Exception(Wildcard /*unused*/, Meta m = Meta()) : TypeBase({node::none}, std::move(m)), _wildcard(true) {}
+    auto baseType() const { return child<UnqualifiedType>(0); }
 
-    hilti::optional_ref<const Type> baseType() const { return children()[0].tryAs<Type>(); }
+    Nodes typeParameters() const final { return children(); }
 
-    bool operator==(const Exception& other) const { return baseType() == other.baseType(); }
-
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-
-    bool _isResolved(ResolvedState* rstate) const override {
-        return baseType().has_value() ? type::detail::isResolved(baseType(), rstate) : true;
+    static auto create(ASTContext* ctx, const UnqualifiedTypePtr& base, Meta meta = {}) {
+        return NodeDerivedPtr<Exception>(new Exception({base}, std::move(meta)));
     }
 
-    std::vector<Node> typeParameters() const override { return children(); }
-    bool isWildcard() const override { return _wildcard; }
-    node::Properties properties() const override { return node::Properties{}; }
+    static auto create(ASTContext* ctx, const Meta& meta = {}) { return create(ctx, nullptr, meta); }
 
-    bool _isAllocable() const override { return true; }
-    bool _isParameterized() const override { return true; }
+    static auto create(ASTContext* ctx, Wildcard _, Meta m = Meta()) {
+        return NodeDerivedPtr<Exception>(new Exception(Wildcard(), std::move(m)));
+    }
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+protected:
+    Exception(Nodes children, Meta meta) : UnqualifiedType(std::move(children), std::move(meta)) {}
+    Exception(Wildcard _, Meta meta) : UnqualifiedType(Wildcard(), std::move(meta)) {}
 
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    bool _isAllocable() const final { return true; }
+    bool _isParameterized() const final { return true; }
 
-private:
-    bool _wildcard = false;
+    bool _isResolved(ResolvedState* rstate) const final {
+        return baseType() ? type::detail::isResolved(baseType(), rstate) : true;
+    }
+
+    bool isEqual(const Node& other) const override { return other.isA<Exception>() && UnqualifiedType::isEqual(other); }
+
+    HILTI_NODE(Exception)
 };
 
 } // namespace hilti::type

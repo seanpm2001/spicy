@@ -54,7 +54,7 @@ private:                                                                        
                                                                                                                        \
     std::string doc() const { return signature().doc; }                                                                \
                                                                                                                        \
-    hilti::Type result(const hilti::node::Range<hilti::Expression>& ops) const {                                       \
+    hilti::TypePtr result(const hilti::node::Range<hilti::Expression>& ops) const {                                    \
         return *hilti::operator_::type(signature().result, ops, ops);                                                  \
     }                                                                                                                  \
                                                                                                                        \
@@ -229,7 +229,7 @@ private:                                                                        
 #define END_METHOD                                                                                                     \
     __END_METHOD                                                                                                       \
                                                                                                                        \
-    hilti::Type result(const hilti::node::Range<hilti::Expression>& ops) const {                                       \
+    hilti::TypePtr result(const hilti::node::Range<hilti::Expression>& ops) const {                                    \
         return *hilti::operator_::type(signature().result, hilti::node::Range(ops), ops);                              \
     }                                                                                                                  \
                                                                                                                        \
@@ -265,7 +265,7 @@ private:                                                                        
                                                                                                                        \
     std::string doc() const { return signature().doc; }                                                                \
                                                                                                                        \
-    hilti::Type result(const hilti::node::Range<hilti::Expression>& ops) const {                                       \
+    hilti::TypePtr result(const hilti::node::Range<hilti::Expression>& ops) const {                                    \
         if ( ops.size() )                                                                                              \
             return ops[0].type().as<hilti::type::Type_>().typeValue();                                                 \
                                                                                                                        \
@@ -296,7 +296,7 @@ private:                                                                        
                                                                                                                        \
     std::string doc() const { return signature().doc; }                                                                \
                                                                                                                        \
-    hilti::Type result(const hilti::node::Range<hilti::Expression>& ops) const {                                       \
+    hilti::TypePtr result(const hilti::node::Range<hilti::Expression>& ops) const {                                    \
         return *hilti::operator_::type(signature().result, ops, ops);                                                  \
     }                                                                                                                  \
                                                                                                                        \

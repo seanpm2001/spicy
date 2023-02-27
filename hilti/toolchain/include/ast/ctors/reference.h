@@ -2,100 +2,75 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/ctor.h>
-#include <hilti/ast/ctors/null.h>
-#include <hilti/ast/expressions/ctor.h>
-#include <hilti/ast/type.h>
-#include <hilti/ast/types/auto.h>
 #include <hilti/ast/types/reference.h>
-#include <hilti/base/optional-ref.h>
+
+#include "ast/expression.h"
+#include "ast/types/auto.h"
+#include "ast/types/reference.h"
 
 namespace hilti::ctor {
 
-/** AST node for a constructor for a `ref<T>` value (which can only be null). */
-class StrongReference : public NodeBase, public hilti::trait::isCtor {
+/** AST node for a `strong_ref<T>` constructor value (which can only be null). */
+class StrongReference : public Ctor {
 public:
-    /** Constructs a null value of type `t`. */
-    StrongReference(const Type& t, const Meta& m = Meta()) : NodeBase(nodes(t, type::StrongReference(t, m)), m) {}
+    QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
+    QualifiedTypePtr dereferencedType() const {
+        return type()->type()->as<type::StrongReference>()->dereferencedType();
+    }
 
-    optional_ref<const Type> dereferencedType() const { return child<Type>(0); }
+    static auto create(ASTContext* ctx, const QualifiedTypePtr& t, const Meta& meta = {}) {
+        return CtorPtr(
+            new StrongReference({QualifiedType::create(ctx, type::StrongReference::create(ctx, t, meta), true)}, meta));
+    }
 
-    bool operator==(const StrongReference& other) const { return dereferencedType() == other.dereferencedType(); }
+protected:
+    StrongReference(Nodes children, Meta meta) : Ctor(std::move(children), std::move(meta)) {}
 
-    /** Implements `Ctor` interface. */
-    const Type& type() const { return child<Type>(1); }
+    bool isEqual(const Node& other) const override { return other.isA<StrongReference>() && Ctor::isEqual(other); }
 
-    /** Implements `Ctor` interface. */
-    bool isConstant() const { return true; }
-    /** Implements `Ctor` interface. */
-    bool isLhs() const { return false; }
-    /** Implements `Ctor` interface. */
-    auto isTemporary() const { return true; }
-
-    /** Implements `Ctor` interface. */
-    auto isEqual(const Ctor& other) const { return node::isEqual(this, other); }
-
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    HILTI_NODE(StrongReference)
 };
 
-/** AST node for a constructor for a `weak_ref<T>` value (which can only be null). */
-class WeakReference : public NodeBase, public hilti::trait::isCtor {
+/** AST node for a `weak_ref<T>` constructor value (which can only be null). */
+class WeakReference : public Ctor {
 public:
-    /** Constructs a null value of type `t`. */
-    WeakReference(const Type& t, const Meta& m = Meta()) : NodeBase(nodes(t, type::WeakReference(t, m)), m) {}
+    QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
+    QualifiedTypePtr dereferencedType() const { return type()->type()->as<type::WeakReference>()->dereferencedType(); }
 
-    optional_ref<const Type> dereferencedType() const { return child<Type>(0); }
+    static auto create(ASTContext* ctx, const QualifiedTypePtr& t, const Meta& meta = {}) {
+        return CtorPtr(
+            new WeakReference({QualifiedType::create(ctx, type::WeakReference::create(ctx, t, meta), true)}, meta));
+    }
 
-    bool operator==(const WeakReference& other) const { return dereferencedType() == other.dereferencedType(); }
+protected:
+    WeakReference(Nodes children, Meta meta) : Ctor(std::move(children), std::move(meta)) {}
 
-    /** Implements `Ctor` interface. */
-    const Type& type() const { return child<Type>(1); }
+    bool isEqual(const Node& other) const override { return other.isA<WeakReference>() && Ctor::isEqual(other); }
 
-    /** Implements `Ctor` interface. */
-    bool isConstant() const { return true; }
-    /** Implements `Ctor` interface. */
-    bool isLhs() const { return false; }
-    /** Implements `Ctor` interface. */
-    auto isTemporary() const { return true; }
-
-    /** Implements `Ctor` interface. */
-    auto isEqual(const Ctor& other) const { return node::isEqual(this, other); }
-
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    HILTI_NODE(WeakReference)
 };
 
-/** AST node for a constructor for a `value_ref<T>` instance. */
-class ValueReference : public NodeBase, public hilti::trait::isCtor {
+/** AST node for a `value_ref<T>` constructor value. */
+class ValueReference : public Ctor {
 public:
-    /** Constructs a reference value of type `t`. */
-    ValueReference(Expression e, Meta m = Meta())
-        : NodeBase(nodes(type::ValueReference(type::auto_, m), std::move(e)), std::move(m)) {}
+    ExpressionPtr expression() const { return child<Expression>(0); }
+    QualifiedTypePtr type() const final { return expression()->type(); }
+    QualifiedTypePtr dereferencedType() const { return type()->type()->as<type::ValueReference>()->dereferencedType(); }
 
-    optional_ref<const Type> dereferencedType() const { return child<type::ValueReference>(0).dereferencedType(); }
-    const Expression& expression() const { return child<Expression>(1); }
+    static auto create(ASTContext* ctx, const ExpressionPtr& expr, const Meta& meta = {}) {
+        return NodeDerivedPtr<ValueReference>(new ValueReference({expr}, meta));
+    }
 
-    void setDereferencedType(Type x) { children()[0] = type::ValueReference(std::move(x)); }
+protected:
+    ValueReference(Nodes children, Meta meta) : Ctor(std::move(children), std::move(meta)) {}
 
-    bool operator==(const ValueReference& other) const { return dereferencedType() == other.dereferencedType(); }
+    bool isEqual(const Node& other) const override { return other.isA<ValueReference>() && Ctor::isEqual(other); }
 
-    /** Implements `Ctor` interface. */
-    const Type& type() const { return child<Type>(0); }
-    /** Implements `Ctor` interface. */
-    bool isConstant() const { return true; }
-    /** Implements `Ctor` interface. */
-    bool isLhs() const { return false; }
-    /** Implements `Ctor` interface. */
-    auto isTemporary() const { return true; }
-
-    /** Implements `Ctor` interface. */
-    auto isEqual(const Ctor& other) const { return node::isEqual(this, other); }
-
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    HILTI_NODE(ValueReference)
 };
 
 } // namespace hilti::ctor

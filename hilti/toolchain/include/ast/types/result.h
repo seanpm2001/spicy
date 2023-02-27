@@ -6,41 +6,34 @@
 #include <vector>
 
 #include <hilti/ast/type.h>
-#include <hilti/ast/types/unknown.h>
-#include <hilti/base/optional-ref.h>
 
 namespace hilti::type {
 
-/** AST node for a "result" type. */
-class Result : public TypeBase {
+/** AST node for an `result<T>` type. */
+class Result : public UnqualifiedType {
 public:
-    Result(Wildcard /*unused*/, Meta m = Meta()) : TypeBase({type::unknown}, std::move(m)), _wildcard(true) {}
-    Result(Type ct, Meta m = Meta()) : TypeBase({std::move(ct)}, std::move(m)) {}
+    QualifiedTypePtr dereferencedType() const final { return child(0)->as<QualifiedType>(); }
+    Nodes typeParameters() const final { return children(); }
 
-    optional_ref<const Type> dereferencedType() const override { return children()[0].as<Type>(); }
-
-    bool operator==(const Result& other) const { return dereferencedType() == other.dereferencedType(); }
-
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-
-    bool _isResolved(ResolvedState* rstate) const override {
-        return type::detail::isResolved(dereferencedType(), rstate);
+    static auto create(ASTContext* ctx, const QualifiedTypePtr& t, Meta m = Meta()) {
+        return NodeDerivedPtr<Result>(new Result({t}, std::move(m)));
     }
 
-    std::vector<Node> typeParameters() const override { return children(); }
-    bool isWildcard() const override { return _wildcard; }
+    static auto create(ASTContext* ctx, Wildcard _, Meta m = Meta()) {
+        return NodeDerivedPtr<Result>(new Result(Wildcard(), std::move(m)));
+    }
 
-    node::Properties properties() const override { return node::Properties{}; }
+protected:
+    Result(Nodes children, Meta meta) : UnqualifiedType(std::move(children), std::move(meta)) {}
+    Result(Wildcard _, Meta meta) : UnqualifiedType(Wildcard(), std::move(meta)) {}
 
-    bool _isAllocable() const override { return true; }
-    bool _isParameterized() const override { return true; }
+    bool _isAllocable() const final { return true; }
+    bool _isParameterized() const final { return true; }
+    bool _isResolved(ResolvedState* rstate) const final { return type::detail::isResolved(dereferencedType(), rstate); }
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+    bool isEqual(const Node& other) const override { return other.isA<Result>() && UnqualifiedType::isEqual(other); }
 
-    HILTI_TYPE_VISITOR_IMPLEMENT
-
-private:
-    bool _wildcard = false;
+    HILTI_NODE(Result)
 };
 
 } // namespace hilti::type

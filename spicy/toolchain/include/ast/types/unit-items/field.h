@@ -21,7 +21,7 @@ namespace spicy::type::unit::item {
 /** AST node for a unit field. */
 class Field : public hilti::NodeBase, public hilti::node::WithDocString, public spicy::trait::isUnitItem {
 public:
-    Field(const std::optional<ID>& id, Type type, Engine e, bool skip, const std::vector<Expression>& args,
+    Field(const std::optional<ID>& id, TypePtr type, Engine e, const std::vector<Expression>& args,
           std::optional<Expression> repeat, const std::vector<Expression>& sinks,
           std::optional<AttributeSet> attrs = {}, std::optional<Expression> cond = {},
           const std::vector<Hook>& hooks = {}, Meta m = Meta())
@@ -101,7 +101,7 @@ public:
           _sinks_end(_sinks_start + static_cast<int>(sinks.size())),
           _hooks_start(_sinks_end),
           _hooks_end(_hooks_start + static_cast<int>(hooks.size())) {
-        (*_type)->isA<hilti::declaration::Type>();
+        (*_type)->isA<hilti::declaration::TypePtr>();
     }
 
     Field() = delete;
@@ -129,11 +129,11 @@ public:
     bool isSkip() const { return _is_skip; }
     bool emitHook() const { return ! isAnonymous() || hooks().size(); }
 
-    const Type& originalType() const {
+    const TypePtr& originalType() const {
         if ( _type )
-            return (*_type)->as<hilti::declaration::Type>().type();
+            return (*_type)->as<hilti::declaration::TypePtr>().type();
 
-        if ( auto t = children()[1].tryAs<Type>() )
+        if ( auto t = children()[1].tryAs<TypePtr>() )
             return *t;
 
         if ( auto c = ctor() )
@@ -145,11 +145,11 @@ public:
         hilti::util::cannot_be_reached();
     }
 
-    const Type& parseType() const { return children()[2].as<Type>(); }
+    const TypePtr& parseType() const { return children()[2].as<TypePtr>(); }
     NodeRef parseTypeRef() const { return NodeRef(children()[2]); }
-    const Type& itemType() const { return children()[4].as<Type>(); }
+    const TypePtr& itemType() const { return children()[4].as<TypePtr>(); }
 
-    const Type& ddType() const {
+    const TypePtr& ddType() const {
         if ( auto x = children()[3].tryAs<hilti::declaration::Expression>() )
             return x->expression().type();
         else
@@ -166,14 +166,15 @@ public:
     auto itemRef() { return NodeRef(children()[5]); }
 
     // Get the `&convert` expression, if any.
-    std::optional<std::pair<const Expression, std::optional<const Type>>> convertExpression() const;
+    std::optional<std::pair<const Expression, std::optional<const TypePtr>>> convertExpression() const;
 
     void setForwarding(bool is_forwarding) { _is_forwarding = is_forwarding; }
-    void setTransient(bool is_transient) { _is_transient = is_transient; }
-    void setDDType(Type t) { children()[3] = hilti::expression::Keyword::createDollarDollarDeclaration(std::move(t)); }
+    void setDDType(TypePtr t) {
+        children()[3] = hilti::expression::Keyword::createDollarDollarDeclaration(std::move(t));
+    }
     void setIndex(uint64_t index) { _index = index; }
-    void setItemType(Type t) { children()[4] = hilti::type::pruneWalk(std::move(t)); }
-    void setParseType(Type t) { children()[2] = hilti::type::pruneWalk(std::move(t)); }
+    void setItemType(TypePtr t) { children()[4] = hilti::type::pruneWalk(std::move(t)); }
+    void setParseType(TypePtr t) { children()[2] = hilti::type::pruneWalk(std::move(t)); }
 
     bool operator==(const Field& other) const {
         return _is_skip == other._is_skip && _engine == other._engine && id() == other.id() &&

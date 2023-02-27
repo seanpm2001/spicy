@@ -26,7 +26,7 @@ public:
     bool operator==(const Sink& other) const { return id() == other.id() && attributes() == other.attributes(); }
 
     // Unit field interface
-    const Type& itemType() const { return child<Type>(2); }
+    const TypePtr& itemType() const { return child<TypePtr>(2); }
     bool isResolved() const { return type::isResolved(itemType()); }
     auto isEqual(const Item& other) const { return node::isEqual(this, other); }
 

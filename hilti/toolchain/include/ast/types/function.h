@@ -2,25 +2,29 @@
 
 #pragma once
 
-#include <algorithm>
+#include <memory>
 #include <utility>
-#include <vector>
 
+#include <hilti/ast/declaration.h>
 #include <hilti/ast/declarations/parameter.h>
-#include <hilti/ast/expressions/void.h>
-#include <hilti/ast/id.h>
+#include <hilti/ast/forward.h>
 #include <hilti/ast/type.h>
-#include <hilti/ast/types/error.h>
-#include <hilti/ast/types/operand-list.h>
-#include <hilti/base/util.h>
+#include <hilti/ast/types/auto.h>
 
-namespace hilti {
-namespace type {
+namespace hilti::type {
 
 namespace function {
 
+using Parameter = declaration::Parameter;
+using ParameterPtr = declaration::ParameterPtr;
+using Parameters = declaration::Parameters;
+
+namespace parameter {
+using Kind = declaration::parameter::Kind;
+} // namespace parameter
+
 /**
- * A function's flavor diffrentiates between a set of "function-like"
+ * A function's flavor differentiates between a set of "function-like"
  * language element.
  */
 enum class Flavor {
@@ -43,111 +47,100 @@ namespace flavor {
 constexpr auto from_string(const std::string_view& s) { return util::enum_::from_string<Flavor>(s, detail::flavors); }
 } // namespace flavor
 
-/** AST node for a result type. */
-class Result : public NodeBase {
-public:
-    Result(Type type, Meta m = Meta()) : NodeBase(nodes(std::move(type)), std::move(m)) {}
-
-    Result() : NodeBase(nodes(node::none), Meta()) {}
-
-    const auto& type() const { return child<Type>(0); }
-
-    void setType(const Type& x) { children()[0] = x; }
-
-    bool operator==(const Result& other) const { return type() == other.type(); }
-
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
-};
-
-using Parameter = declaration::Parameter;
-
-namespace parameter {
-using Kind = declaration::parameter::Kind;
-} // namespace parameter
-
 } // namespace function
 
-class Function : public TypeBase {
+/** AST node for a `function` type. */
+class Function : public UnqualifiedType {
 public:
-    Function(Wildcard /*unused*/, Meta m = Meta())
-        : TypeBase(nodes(function::Result(type::Error(m))), std::move(m)), _wildcard(true) {}
-    Function(function::Result result, const std::vector<function::Parameter>& params,
-             function::Flavor flavor = function::Flavor::Standard, Meta m = Meta())
-        : TypeBase(nodes(std::move(result), util::transform(params, [](const auto& p) { return Declaration(p); })),
-                   std::move(m)),
-          _flavor(flavor) {}
+    auto result() const { return child<QualifiedType>(0); }
+    auto flavor() const { return _flavor; }
 
-    const auto& result() const { return child<function::Result>(0); }
+    void setResultType(const QualifiedTypePtr& t) { setChild(0, t); }
 
-    node::Set<type::function::Parameter> parameters() const override {
+    node::Set<type::function::Parameter> parameters() const final {
         node::Set<type::function::Parameter> result;
         for ( auto&& p : children<function::Parameter>(1, -1) )
             result.insert(p);
         return result;
     }
 
-    auto parameterRefs() const { return childRefsOfType<type::function::Parameter>(); }
-    auto flavor() const { return _flavor; }
+    Nodes typeParameters() const final { return children(); }
 
-    void setResultType(const Type& t) { children()[0].as<function::Result>().setType(t); }
-
-    bool operator==(const Function& other) const {
-        return result() == other.result() && parameters() == other.parameters();
+    node::Properties properties() const final {
+        auto p = node::Properties{{"flavor", to_string(_flavor)}};
+        return UnqualifiedType::properties() + p;
     }
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
+    static auto create(ASTContext* ctx, const QualifiedTypePtr& result, const declaration::Parameters& params,
+                       function::Flavor flavor = function::Flavor::Standard, const Meta& meta = {}) {
+        return NodeDerivedPtr<Function>(new Function(flatten(result, params), flavor, meta));
+    }
 
-    bool _isResolved(ResolvedState* rstate) const override {
-        if ( result().type().isA<type::Auto>() )
+    static auto create(ASTContext* ctx, Wildcard _, Meta m = Meta()) {
+        return NodeDerivedPtr<Function>(new Function(Wildcard(), std::move(m)));
+    }
+
+protected:
+    Function(Nodes children, function::Flavor flavor, Meta meta)
+        : UnqualifiedType(std::move(children), std::move(meta)), _flavor(flavor) {}
+
+    Function(Wildcard _, Meta meta) : UnqualifiedType(Wildcard(), std::move(meta)) {}
+
+    bool _isResolved(ResolvedState* rstate) const final {
+        if ( result()->isAuto() )
             // We treat this as resolved because (1) it doesn't need to hold up
             // other resolving, and (2) can lead to resolver dead-locks if we
             // let it.
             return true;
 
-        if ( ! type::detail::isResolved(result().type(), rstate) )
+        if ( ! type::detail::isResolved(result(), rstate) )
             return false;
 
         for ( auto p = children().begin() + 1; p != children().end(); p++ ) {
-            if ( ! p->as<function::Parameter>().isResolved(rstate) )
+            if ( ! (*p)->as<declaration::Parameter>()->isResolved(rstate) )
                 return false;
         }
 
         return true;
     }
 
-    std::vector<Node> typeParameters() const override { return children(); }
-    bool isWildcard() const override { return _wildcard; }
+    bool _isParameterized() const final { return true; }
 
-    node::Properties properties() const override { return node::Properties{{"flavor", to_string(_flavor)}}; }
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<Function>();
+        if ( ! n )
+            return false;
 
-    bool _isParameterized() const override { return true; }
+        return UnqualifiedType::isEqual(other) && _flavor == n->_flavor;
+    }
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
-
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    HILTI_NODE(Function)
 
 private:
-    bool _wildcard = false;
-    function::Flavor _flavor = function::Flavor::Standard;
+    function::Flavor _flavor;
 };
 
-/**
- * Returns true if two function types are equivalent, even if not
- * identical. This for example allows parameter ID to be different.
+using FunctionPtr = std::shared_ptr<Function>;
+
+} // namespace hilti::type
+
+
+// TODO: Do we need this?
+/*
+ * #<{(|* AST node for a result type. |)}>#
+ * class Result : public NodeBase {
+ * public:
+ *     Result(TypePtr type, Meta m = Meta()) : NodeBase(nodes(std::move(type)), std::move(m)) {}
+ *
+ *     Result() : NodeBase(nodes(node::none), Meta()) {}
+ *
+ *     const auto& type() const { return child<TypePtr>(0); }
+ *
+ *     void setType(const TypePtr& x) { children()[0] = x; }
+ *
+ *     bool operator==(const Result& other) const { return type() == other.type(); }
+ *
+ *     #<{(|* Implements the `Node` interface. |)}>#
+ *     auto properties() const { return node::Properties{}; }
+ * };
  */
-inline bool areEquivalent(const Function& f1, const Function& f2) {
-    if ( ! (f1.result() == f2.result()) )
-        return false;
-
-    auto p1 = f1.parameters();
-    auto p2 = f2.parameters();
-    return std::equal(std::begin(p1), std::end(p1), std::begin(p2), std::end(p2),
-                      [](const auto& p1, const auto& p2) { return areEquivalent(p1, p2); });
-}
-
-} // namespace type
-
-inline Node to_node(type::function::Result t) { return Node(std::move(t)); }
-
-} // namespace hilti

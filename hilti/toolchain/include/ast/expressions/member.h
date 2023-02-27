@@ -2,42 +2,55 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/expression.h>
 #include <hilti/ast/id.h>
-#include <hilti/ast/node-ref.h>
-#include <hilti/ast/node.h>
-#include <hilti/ast/types/auto.h>
+#include <hilti/ast/type.h>
 #include <hilti/ast/types/member.h>
-#include <hilti/base/logger.h>
 
 namespace hilti::expression {
 
-/** AST node for a member-access expression. */
-class Member : public NodeBase, hilti::trait::isExpression {
+/** AST node for a member expression. */
+class Member : public Expression {
 public:
-    Member(const ID& id, Meta m = Meta()) : NodeBase({id, Type(type::Member(id))}, std::move(m)) {}
-    Member(ID id, Type member_type, Meta m = Meta())
-        : NodeBase({std::move(id), std::move(member_type)}, std::move(m)) {}
+    const auto& id() const { return _id; }
 
-    const auto& id() const { return child<ID>(0); }
+    QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
+    bool isLhs() const final { return true; }
+    bool isTemporary() const final { return false; }
 
-    bool operator==(const Member& other) const { return id() == other.id() && type() == other.type(); }
+    node::Properties properties() const final {
+        auto p = node::Properties{{"id", _id}};
+        return Expression::properties() + p;
+    }
 
-    /** Implements `Expression` interface. */
-    bool isLhs() const { return true; }
-    /** Implements `Expression` interface. */
-    bool isTemporary() const { return false; }
-    /** Implements `Expression` interface. */
-    const Type& type() const { return child<Type>(1); }
-    /** Implements `Expression` interface. */
-    auto isConstant() const { return true; }
-    /** Implements `Expression` interface. */
-    auto isEqual(const Expression& other) const { return node::isEqual(this, other); }
+    static auto create(ASTContext* ctx, const QualifiedTypePtr& member_type, const hilti::ID& id,
+                       const Meta& meta = {}) {
+        return NodeDerivedPtr<Member>(new Member({member_type}, id, meta));
+    }
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    static auto create(ASTContext* ctx, const hilti::ID& id, const Meta& meta = {}) {
+        return create(ctx, QualifiedType::create(ctx, type::Member::create(ctx, id, meta), true, meta), id, meta);
+    }
+
+protected:
+    Member(Nodes children, hilti::ID id, Meta meta)
+        : Expression(std::move(children), std::move(meta)), _id(std::move(id)) {}
+
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<Member>();
+        if ( ! n )
+            return false;
+
+        return Expression::isEqual(other) && _id == n->_id;
+    }
+
+    HILTI_NODE(Member)
+
+private:
+    hilti::ID _id;
 };
 
 } // namespace hilti::expression

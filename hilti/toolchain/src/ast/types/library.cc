@@ -16,4 +16,4 @@ static std::string normalize(std::string cxx_name) {
     return cxx_name;
 }
 
-Library::Library(std::string cxx_name, Meta m) : TypeBase(std::move(m)), _cxx_name(normalize(std::move(cxx_name))) {}
+Library::Library(std::string cxx_name, Meta m) : Type(std::move(m)), _cxx_name(normalize(std::move(cxx_name))) {}

@@ -1,0 +1,41 @@
+#! /usr/bin/env bash
+
+function run_tidy {
+    clang-tidy --load "${base}/build/libchange-type.dylib" "--checks=-*,spicy-*" -p "${build}/compile_commands.json" -header-filter="XXX" ${fixit} "$1"
+}
+
+function usage {
+    echo "usage: $(basename $0) [--fixit] <build-dir> <file> [<file> ...]"
+    echo "       echo <files> | $(basename $0) [--fixit] <build-dir>"
+}
+
+base=$(cd $(dirname $0) && pwd)
+
+fixit=""
+if [ "$1" == "--fixit" ]; then
+    fixit="--fix"
+    shift
+fi
+
+if [[ "$1" == -* ]];  then
+    usage
+    exit 1
+fi
+
+build="$1"
+shift
+
+if [ -z "${build}" ]; then
+    usage
+    exit 1
+fi
+
+if [ $# -eq 0 ]; then
+    while read i; do
+        run_tidy "${i}"
+    done
+else
+    for i in $@; do
+        run_tidy "${i}"
+    done
+fi

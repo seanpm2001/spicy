@@ -2,63 +2,64 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/type.h>
 #include <hilti/ast/types/integer.h>
-#include <hilti/base/optional-ref.h>
 
 namespace hilti::type {
 
 namespace bytes {
 
-/** AST node for a list iterator type. */
-class Iterator : public TypeBase {
+/** AST node for a bytes iterator type. */
+class Iterator : public UnqualifiedType {
 public:
-    Iterator(Meta m = Meta()) : TypeBase(nodes(Type(type::UnsignedInteger(8))), std::move(m)) {}
+    QualifiedTypePtr dereferencedType() const final { return child<QualifiedType>(0); }
+    Nodes typeParameters() const final { return children(); }
 
-    bool operator==(const Iterator& /* other */) const { return true; }
+    static auto create(ASTContext* ctx, Meta meta = {}) {
+        auto etype = QualifiedType::create(ctx, type::UnsignedInteger::create(ctx, 8, meta), true, meta);
+        return NodeDerivedPtr<Iterator>(new Iterator({etype}, std::move(meta)));
+    }
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return true; }
-    optional_ref<const Type> dereferencedType() const override { return child<Type>(0); }
-    node::Properties properties() const override { return node::Properties{}; }
+protected:
+    Iterator(Nodes children, Meta meta) : UnqualifiedType(std::move(children), std::move(meta)) {}
 
-    bool _isAllocable() const override { return true; }
-    bool _isIterator() const override { return true; }
-    bool _isMutable() const override { return true; }
-    bool _isRuntimeNonTrivial() const override { return true; }
+    bool _isAllocable() const final { return true; }
+    bool _isIterator() const final { return true; }
+    bool _isMutable() const final { return true; }
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+    bool isEqual(const Node& other) const final { return other.isA<Iterator>() && UnqualifiedType::isEqual(other); }
 
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    HILTI_NODE(Iterator)
 };
 
 } // namespace bytes
 
-/** AST node for a bytes type. */
-class Bytes : public TypeBase {
+/** AST node for a `bytes` type. */
+class Bytes : public UnqualifiedType {
 public:
-    Bytes(const Meta& m = Meta()) : TypeBase(nodes(Type(type::UnsignedInteger(8)), Type(bytes::Iterator(m))), m) {}
+    QualifiedTypePtr elementType() const final { return child<bytes::Iterator>(0)->dereferencedType(); }
+    UnqualifiedTypePtr iteratorType() const final { return child<UnqualifiedType>(0); }
 
-    bool operator==(const Bytes& /* other */) const { return true; }
+    static auto create(ASTContext* ctx, const Meta& meta = {}) {
+        return NodeDerivedPtr<Bytes>(new Bytes({bytes::Iterator::create(ctx, meta)}, meta));
+    }
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return true; }
-    optional_ref<const Type> elementType() const override { return child<Type>(0); }
+protected:
+    Bytes(Nodes children, Meta meta) : UnqualifiedType(std::move(children), std::move(meta)) {}
+    Bytes(Wildcard _, Meta meta) : UnqualifiedType(Wildcard(), std::move(meta)) {}
 
-    optional_ref<const Type> iteratorType(bool /* const */) const override { return child<Type>(1); }
+    bool _isAllocable() const final { return true; }
+    bool _isMutable() const final { return true; }
+    bool _isRuntimeNonTrivial() const final { return true; }
+    bool _isSortable() const final { return true; }
+    bool _isResolved(ResolvedState* rstate) const final { return true; }
 
-    node::Properties properties() const override { return node::Properties{}; }
+    bool isEqual(const Node& other) const override { return other.isA<Bytes>() && UnqualifiedType::isEqual(other); }
 
-    bool _isAllocable() const override { return true; }
-    bool _isMutable() const override { return true; }
-    bool _isRuntimeNonTrivial() const override { return true; }
-    bool _isSortable() const override { return true; }
-
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
-
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    HILTI_NODE(Bytes)
 };
 
 } // namespace hilti::type

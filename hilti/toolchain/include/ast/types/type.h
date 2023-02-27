@@ -2,38 +2,38 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
-#include <vector>
 
 #include <hilti/ast/type.h>
-#include <hilti/ast/types/any.h>
 
 namespace hilti::type {
 
 /** AST node for a type representing a type value. */
-class Type_ : public TypeBase {
+class Type_ : public UnqualifiedType {
 public:
-    Type_(Type t, Meta m = Meta()) : TypeBase(nodes(std::move(t)), std::move(m)) {}
-    Type_(Wildcard /*unused*/, Meta m = Meta()) : TypeBase(nodes(type::Any()), std::move(m)), _wildcard(true) {}
+    auto typeValue() const { return child<QualifiedType>(0); }
 
-    const auto& typeValue() const { return child<Type>(0); }
+    Nodes typeParameters() const final { return children(); }
 
-    bool operator==(const Type_& other) const { return typeValue() == other.typeValue(); }
+    static auto create(ASTContext* ctx, const QualifiedTypePtr& type, Meta meta = {}) {
+        return NodeDerivedPtr<Type_>(new Type_({type}, std::move(meta)));
+    }
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return type::detail::isResolved(typeValue(), rstate); }
-    bool isWildcard() const override { return _wildcard; }
-    node::Properties properties() const override { return node::Properties{}; }
+    static auto create(ASTContext* ctx, Wildcard _, Meta m = Meta()) {
+        return NodeDerivedPtr<Type_>(new Type_(Wildcard(), std::move(m)));
+    }
 
-    std::vector<Node> typeParameters() const override { return children(); }
-    bool _isParameterized() const override { return true; }
+protected:
+    Type_(Nodes children, Meta meta) : UnqualifiedType(std::move(children), std::move(meta)) {}
+    Type_(Wildcard _, Meta meta) : UnqualifiedType(Wildcard(), std::move(meta)) {}
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+    bool _isParameterized() const final { return true; }
+    bool _isResolved(ResolvedState* rstate) const final { return type::detail::isResolved(typeValue(), rstate); }
 
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    bool isEqual(const Node& other) const override { return other.isA<Type_>() && UnqualifiedType::isEqual(other); }
 
-private:
-    bool _wildcard = false;
+    HILTI_NODE(Type_)
 };
 
 } // namespace hilti::type

@@ -1,7 +1,6 @@
 // Copyright (c) 2020-2023 by the Zeek Project. See LICENSE for details.
 
 #include <hilti/ast/declarations/global-variable.h>
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/expressions/all.h>
 #include <hilti/ast/types/reference.h>
 #include <hilti/base/logger.h>

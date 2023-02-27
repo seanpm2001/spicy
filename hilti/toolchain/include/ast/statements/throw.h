@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/ast/expression.h>
@@ -9,21 +10,25 @@
 
 namespace hilti::statement {
 
-/** AST node for a "throw" statement. */
-class Throw : public NodeBase, public hilti::trait::isStatement {
+/** AST node for a `throw` statement. */
+class Throw : public Statement {
 public:
-    Throw(Meta m = Meta()) : NodeBase({node::none}, std::move(m)) {}
-    Throw(hilti::Expression excpt, Meta m = Meta()) : NodeBase({std::move(excpt)}, std::move(m)) {}
+    auto expression() const { return child<::hilti::Expression>(0); }
 
-    auto expression() const { return children()[0].tryAs<hilti::Expression>(); }
+    static auto create(ASTContext* ctx, const ExpressionPtr& expr, Meta meta = {}) {
+        return NodeDerivedPtr<Throw>(new Throw({expr}, std::move(meta)));
+    }
 
-    bool operator==(const Throw& other) const { return expression() == other.expression(); }
+    static auto create(ASTContext* ctx, Meta meta = {}) {
+        return NodeDerivedPtr<Throw>(new Throw({nullptr}, std::move(meta)));
+    }
 
-    /** Implements the `Statement` interface. */
-    auto isEqual(const Statement& other) const { return node::isEqual(this, other); }
+protected:
+    Throw(Nodes children, Meta meta) : Statement(std::move(children), std::move(meta)) {}
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    bool isEqual(const Node& other) const final { return other.isA<Throw>() && Statement::isEqual(other); }
+
+    HILTI_NODE(Throw)
 };
 
 } // namespace hilti::statement

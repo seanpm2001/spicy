@@ -6,7 +6,6 @@
 #include <hilti/ast/declarations/global-variable.h>
 #include <hilti/ast/declarations/imported-module.h>
 #include <hilti/ast/detail/operator-registry.h>
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/scope-lookup.h>
 #include <hilti/base/logger.h>
 #include <hilti/base/util.h>
@@ -76,7 +75,7 @@ struct VisitorNormalizer : visitor::PreOrder<void, VisitorNormalizer>, type::Vis
     }
 
     // Log debug message recording resolving a type.
-    void logChange(const Node& old, const Type& ntype) {
+    void logChange(const Node& old, const TypePtr& ntype) {
         HILTI_DEBUG(logging::debug::Normalizer,
                     util::fmt("[%s] %s -> type %s (%s)", old.typename_(), old, ntype, old.location()));
     }

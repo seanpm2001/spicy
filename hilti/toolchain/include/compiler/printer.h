@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -62,14 +63,14 @@ public:
         _first_in_block = _last_in_block = false;
     }
 
-    template<typename T, IF_DERIVED_FROM(T, trait::isNode)>
-    Stream& operator<<(const T& t) {
+    template<typename T, IF_DERIVED_FROM(T, Node)>
+    Stream& operator<<(const std::shared_ptr<T>& t) {
         _flush_pending();
-            hilti::detail::printAST(t, *this);
+        hilti::detail::printAST(t, *this);
         return *this;
     }
 
-    template<typename T, IF_NOT_DERIVED_FROM(T, trait::isNode)>
+    template<typename T, IF_NOT_DERIVED_FROM(T, Node)>
     Stream& operator<<(const T& t) {
         _wrote_nl = false;
         _flush_pending();
@@ -82,13 +83,29 @@ public:
     template<typename T>
     Stream& operator<<(std::pair<T, const char*> p) {
         bool first = true;
-        for ( auto& i : p.first ) {
+        for ( const auto& i : p.first ) {
             _flush_pending();
 
             if ( ! first )
                 _stream << p.second;
 
             (*this) << i;
+            first = false;
+        }
+
+        return *this;
+    }
+
+    template<typename T>
+    Stream& operator<<(std::pair<std::shared_ptr<T>, const char*> p) {
+        bool first = true;
+        for ( auto& i : p.first ) {
+            _flush_pending();
+
+            if ( ! first )
+                _stream << p.second;
+
+            (*this) << *i;
             first = false;
         }
 

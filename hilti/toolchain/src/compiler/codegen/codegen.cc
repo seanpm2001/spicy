@@ -2,7 +2,6 @@
 
 #include <hilti/ast/ctors/string.h>
 #include <hilti/ast/declarations/all.h>
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/expressions/ctor.h>
 #include <hilti/ast/id.h>
 #include <hilti/ast/module.h>
@@ -739,7 +738,7 @@ std::vector<cxx::Expression> CodeGen::compileCallArguments(const node::Range<Exp
     return x;
 }
 
-Result<cxx::Unit> CodeGen::compileModule(Node& root, hilti::Unit* hilti_unit, bool include_implementation) {
+Result<cxx::Unit> CodeGen::compileModule(const ModulePtr& root, hilti::Unit* hilti_unit, bool include_implementation) {
     util::timing::Collector _("hilti/compiler/codegen");
 
     _cxx_unit = std::make_unique<cxx::Unit>(context());

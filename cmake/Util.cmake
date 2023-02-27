@@ -169,17 +169,17 @@ function (spicy_link_executable_in_tree exec)
     set_property(TARGET ${exec} PROPERTY ENABLE_EXPORTS true)
 endfunction ()
 
-include(CheckCXXCompilerFlag)
-
-# Wrapper around `BISON_TARGET` with Spicy-specific preprocessing.
+# Wrapper around `BISON_TARGET` with Spicy-specific preprocessing if needed.
 macro (BISON_TARGET_PP Name BisonInput BisonOutput)
     # Name of the preprocessed Bison input.
-    string(JOIN "." BisonInputPP "${BisonOutput}" "pp")
+    string(JOIN "." BisonInputPP "${BisonOutput}" "pp.yy")
 
     # Preprocess the input file:
     #
     # - in versions <bison-3.3.0 `api.parser.name` was called `parser_class_name`
-    if (${BISON_VERSION} VERSION_LESS "3.3.0")
+    if (${BISON_VERSION} VERSION_GREATER_EQUAL "3.3.0")
+        bison_target(${Name} ${BisonInput} ${BisonOutput})
+    else ()
         add_custom_command(
             OUTPUT ${BisonInputPP}
             DEPENDS ${BisonInput}
@@ -187,38 +187,22 @@ macro (BISON_TARGET_PP Name BisonInput BisonOutput)
                     's/api.parser.class/parser_class_name/' ${BisonInput} > ${BisonInputPP}
             WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
             COMMENT "Preprocessing Bison file ${BisonInput}")
-    else ()
-        add_custom_command(
-            OUTPUT ${BisonInputPP}
-            DEPENDS ${BisonInput}
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${BisonInput} ${BisonInputPP}
-            WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-            COMMENT "Preprocessing Bison file ${BisonInput}")
-    endif ()
 
-    # Pass preprocessed file to `BISON_TARGET`.
-    #
-    # TODO(bbannier): Since `ARGV` is a list of lists normal list manipulations like
-    # `list(REPLACE_AT ...)` do not seem to work so we create a new output list.
-    set(i 0)
-    foreach (arg ${ARGV})
-        if (i EQUAL 1)
-            list(APPEND args "${BisonInputPP}")
-        else ()
-            list(APPEND args "${arg}")
-        endif ()
-        math(EXPR i "${i}+1")
-    endforeach ()
+        # Pass preprocessed file to `BISON_TARGET`.
+        #
+        # TODO(bbannier): Since `ARGV` is a list of lists normal list manipulations like
+        # `list(REPLACE_AT ...)` do not seem to work so we create a new output list.
+        set(i 0)
+        foreach (arg ${ARGV})
+            if (i EQUAL 1)
+                list(APPEND args "${BisonInputPP}")
+            else ()
+                list(APPEND args "${arg}")
+            endif ()
+            math(EXPR i "${i}+1")
+        endforeach ()
 
-    # Invoke the actual Bison processing.
-    bison_target(${args})
-
-    check_cxx_compiler_flag("-Wunused-but-set-variable" have_unused_but_set_variable)
-    if (have_unused_but_set_variable)
-        # Suppress warnings in generated code.
-        # cmake-format: off
-        # (cmake-format and cmake-lint don't agree on how this line should be formatted).
-        set_source_files_properties(${BisonOutput} PROPERTIES COMPILE_FLAGS "-Wno-unused-but-set-variable")
-        # cmake-format: on
+        # Invoke the actual Bison processing.
+        bison_target(${Name} ${args})
     endif ()
 endmacro ()

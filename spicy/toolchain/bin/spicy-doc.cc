@@ -16,7 +16,7 @@ static std::string to_string(const T& t) {
     return std::string(hilti::Node(t));
 }
 
-static std::string formatType(const hilti::Type& t) {
+static std::string formatType(const hilti::TypePtrPtr& t) {
     if ( auto d = t.tryAs<hilti::type::DocOnly>() )
         return d->description();
 
@@ -85,14 +85,14 @@ static std::string kindToString(hilti::operator_::Kind kind) {
 static json operandToJSON(const hilti::operator_::Operand& o) {
     json op;
 
-    hilti::Type t;
+    hilti::TypePtr t;
 
-    if ( auto f = std::get_if<std::function<std::optional<hilti::Type>(const hilti::node::Range<hilti::Expression>&,
+    if ( auto f = std::get_if<std::function<std::optional<hilti::TypePtr>(const hilti::node::Range<hilti::Expression>&,
                                                                        const hilti::node::Range<hilti::Expression>&)>>(
              &o.type) )
         t = *(*f)(hilti::node::Range<hilti::Expression>{}, hilti::node::Range<hilti::Expression>{});
     else
-        t = std::get<hilti::Type>(o.type);
+        t = std::get<hilti::TypePtr>(o.type);
 
     op["type"] = formatType(hilti::type::nonConstant(t));
     op["const"] = hilti::type::isConstant(t);
@@ -138,7 +138,7 @@ int main(int argc, char** argv) {
         if ( op.kind() == hilti::operator_::Kind::Call ) {
             auto operands = op.operands();
             auto callee = operands[0];
-            auto params = std::get<hilti::Type>(operands[1].type).as<hilti::type::OperandList>();
+            auto params = std::get<hilti::TypePtr>(operands[1].type).as<hilti::type::OperandList>();
 
             jop["operands"].push_back(operandToJSON(callee));
 
@@ -148,12 +148,12 @@ int main(int argc, char** argv) {
         else if ( op.kind() == hilti::operator_::Kind::MemberCall ) {
             auto operands = op.operands();
             auto self = operands[0];
-            auto method = std::get<hilti::Type>(operands[1].type).as<hilti::type::Member>();
+            auto method = std::get<hilti::TypePtr>(operands[1].type).as<hilti::type::Member>();
 
-            if ( ! std::get<hilti::Type>(operands[2].type).isA<hilti::type::OperandList>() )
+            if ( ! std::get<hilti::TypePtr>(operands[2].type).isA<hilti::type::OperandList>() )
                 return;
 
-            auto params = std::get<hilti::Type>(operands[2].type).as<hilti::type::OperandList>();
+            auto params = std::get<hilti::TypePtr>(operands[2].type).as<hilti::type::OperandList>();
 
             jop["self"] = operandToJSON(self);
             jop["id"] = method.id();

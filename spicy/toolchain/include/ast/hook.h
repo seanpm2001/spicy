@@ -59,13 +59,15 @@ public:
     void setID(const ID& id) { children()[0].as<Function>().setID(id); }
     void setUnitTypeRef(NodeRef p) { _unit_type = std::move(p); }
     void setFieldRef(NodeRef p) { _unit_field = std::move(p); }
-    void setDDType(Type t) { children()[1] = hilti::expression::Keyword::createDollarDollarDeclaration(std::move(t)); }
+    void setDDType(TypePtr t) {
+        children()[1] = hilti::expression::Keyword::createDollarDollarDeclaration(std::move(t));
+    }
     void setParameters(const std::vector<type::function::Parameter>& params) {
         children()[0].as<Function>().setFunctionType(
             type::Function(type::function::Result(type::void_, meta()), params, type::function::Flavor::Hook, meta()));
     }
 
-    void setResultType(const Type& t) { children()[0].as<Function>().setResultType(t); }
+    void setResultType(const TypePtr& t) { children()[0].as<Function>().setResultType(t); }
 
     bool operator==(const Hook& other) const { return function() == other.function() && _engine == other._engine; }
 

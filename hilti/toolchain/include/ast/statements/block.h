@@ -2,37 +2,32 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
-#include <vector>
 
 #include <hilti/ast/statement.h>
-#include <hilti/ast/statements/expression.h>
 
 namespace hilti::statement {
 
-/** AST node for a statement block. */
-class Block : public NodeBase, public hilti::trait::isStatement {
+/** AST node for a block statement. */
+class Block : public Statement {
 public:
-    Block(std::vector<Statement> stmts = {}, Meta m = Meta()) : NodeBase(nodes(std::move(stmts)), std::move(m)) {}
-
     auto statements() const { return childrenOfType<Statement>(); }
 
-    bool operator==(const Block& /* other */) const {
-        // return statements() == other.statements();
-        return true; // FIXME
+    void add(StatementPtr s) { addChild(std::move(s)); }
+
+    static auto create(ASTContext* ctx, Statements stmts = {}, Meta meta = {}) {
+        return NodeDerivedPtr<Block>(new Block(std::move(stmts), std::move(meta)));
     }
 
-    /** Internal method for use by builder API only. */
-    void _add(Statement s) { addChild(std::move(s)); }
+    static auto create(ASTContext* ctx, Meta meta = {}) { return create(ctx, {}, std::move(meta)); }
 
-    /** Internal method for use by builder API only. */
-    auto& _lastStatementNode() { return children().back(); }
+protected:
+    Block(Nodes children, Meta meta) : Statement(std::move(children), std::move(meta)) {}
 
-    /** Implements the `Statement` interface. */
-    auto isEqual(const Statement& other) const { return node::isEqual(this, other); }
+    bool isEqual(const Node& other) const final { return other.isA<Block>() && Statement::isEqual(other); }
 
-    /** Implements the `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+    HILTI_NODE(Block)
 };
 
 } // namespace hilti::statement

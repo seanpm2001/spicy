@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -10,28 +11,36 @@
 
 namespace hilti::ctor {
 
-/** AST node for a string constructor. */
-class String : public NodeBase, public hilti::trait::isCtor {
+/** AST node for a `string` ctor. */
+class String : public Ctor {
 public:
-    String(std::string v, const Meta& m = Meta()) : NodeBase(nodes(type::String(m)), m), _value(std::move(v)) {}
+    const auto& value() const { return _value; }
 
-    auto value() const { return _value; }
+    QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
 
-    bool operator==(const String& other) const { return value() == other.value(); }
+    node::Properties properties() const final {
+        auto p = node::Properties{{"value", _value}};
+        return Ctor::properties() + p;
+    }
 
-    /** Implements `Ctor` interface. */
-    const auto& type() const { return child<Type>(0); }
-    /** Implements `Ctor` interface. */
-    bool isConstant() const { return true; }
-    /** Implements `Ctor` interface. */
-    auto isLhs() const { return false; }
-    /** Implements `Ctor` interface. */
-    auto isTemporary() const { return true; }
-    /** Implements `Ctor` interface. */
-    auto isEqual(const Ctor& other) const { return node::isEqual(this, other); }
+    static auto create(ASTContext* ctx, std::string value, const Meta& meta = {}) {
+        return CtorPtr(
+            new String({QualifiedType::create(ctx, type::String::create(ctx, meta), true)}, std::move(value), meta));
+    }
 
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{{"value", _value}}; }
+protected:
+    String(Nodes children, std::string value, Meta meta)
+        : Ctor(std::move(children), std::move(meta)), _value(std::move(value)) {}
+
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<String>();
+        if ( ! n )
+            return false;
+
+        return Ctor::isEqual(other) && _value == n->_value;
+    }
+
+    HILTI_NODE(String)
 
 private:
     std::string _value;

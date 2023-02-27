@@ -25,7 +25,7 @@
 namespace hilti::operator_ {
 
 BEGIN_OPERATOR_CUSTOM(generic, Pack)
-    Type result(const hilti::node::Range<Expression>& ops) const {
+    TypePtr result(const hilti::node::Range<Expression>& ops) const {
         if ( ops.empty() )
             return type::DocOnly("<packable>");
 
@@ -92,7 +92,7 @@ BEGIN_OPERATOR_CUSTOM(generic, Pack)
 END_OPERATOR_CUSTOM
 
 BEGIN_OPERATOR_CUSTOM(generic, Unpack)
-    Type result(const hilti::node::Range<Expression>& ops) const {
+    TypePtr result(const hilti::node::Range<Expression>& ops) const {
         if ( ops.empty() )
             return type::DocOnly("<unpackable>");
 
@@ -103,7 +103,7 @@ BEGIN_OPERATOR_CUSTOM(generic, Unpack)
         auto t = type::Tuple({ops[0].type().as<type::Type_>().typeValue(), args[0].type()}, ops[0].meta());
 
         auto throw_on_error = ops[2].as<expression::Ctor>().ctor().as<ctor::Bool>().value();
-        return throw_on_error ? Type(t) : Type(type::Result(t));
+        return throw_on_error ? TypePtr(t) : TypePtr(type::Result(t));
     }
 
     bool isLhs() const { return false; }
@@ -174,7 +174,7 @@ BEGIN_OPERATOR_CUSTOM(generic, Unpack)
 END_OPERATOR_CUSTOM
 
 BEGIN_OPERATOR_CUSTOM(generic, Begin)
-    Type result(const hilti::node::Range<Expression>& ops) const {
+    TypePtr result(const hilti::node::Range<Expression>& ops) const {
         if ( ops.empty() )
             return type::DocOnly("<iterator>");
 
@@ -200,7 +200,7 @@ BEGIN_OPERATOR_CUSTOM(generic, Begin)
 END_OPERATOR_CUSTOM
 
 BEGIN_OPERATOR_CUSTOM(generic, End)
-    Type result(const hilti::node::Range<Expression>& ops) const {
+    TypePtr result(const hilti::node::Range<Expression>& ops) const {
         if ( ops.empty() )
             return type::DocOnly("<iterator>");
 
@@ -226,7 +226,7 @@ BEGIN_OPERATOR_CUSTOM(generic, End)
 END_OPERATOR_CUSTOM
 
 BEGIN_OPERATOR_CUSTOM(generic, New)
-    Type result(const hilti::node::Range<Expression>& ops) const {
+    TypePtr result(const hilti::node::Range<Expression>& ops) const {
         if ( ops.empty() )
             return type::DocOnly("strong_ref<T>");
 
@@ -289,7 +289,7 @@ public:
             static std::vector<Operand> _operands = {}; // Won't participate in overload resolution
             return _operands;
         }
-        Type result(const hilti::node::Range<Expression>& ops) const {
+        TypePtr result(const hilti::node::Range<Expression>& ops) const {
             return ops[1].as<expression::Type_>().typeValue();
         }
         bool isLhs() const { return false; }

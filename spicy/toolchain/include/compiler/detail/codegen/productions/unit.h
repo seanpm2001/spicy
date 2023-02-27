@@ -31,7 +31,7 @@ public:
 
     // Production API
     std::vector<std::vector<Production>> rhss() const { return {_fields}; };
-    std::optional<spicy::Type> type() const { return spicy::Type(_type); }
+    std::optional<spicy::TypePtr> type() const { return spicy::TypePtr(_type); }
     bool nullable() const { return production::nullable(rhss()); }
     bool eodOk() const { return nullable(); }
     bool atomic() const { return false; }

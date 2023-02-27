@@ -32,7 +32,7 @@ public:
 
         static operator_::Kind kind() { return operator_::Kind::Call; }
         const std::vector<operator_::Operand>& operands() const { return _operands; }
-        Type result(const hilti::node::Range<Expression>& /* ops */) const { return _result; }
+        TypePtr result(const hilti::node::Range<Expression>& /* ops */) const { return _result; }
         bool isLhs() const { return false; }
         auto priority() const { return hilti::operator_::Priority::Normal; }
         void validate(const expression::ResolvedOperator& /* i */, operator_::position_t /* p */) const {}
@@ -52,7 +52,7 @@ public:
     private:
         Scope::Referee _referee;
         std::vector<operator_::Operand> _operands;
-        Type _result;
+        TypePtr _result;
     };
 };
 

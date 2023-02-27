@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 
 #include <hilti/rt/types/network.h>
@@ -11,32 +12,38 @@
 
 namespace hilti::ctor {
 
-/** AST node for a Network constructor. */
-class Network : public NodeBase, public hilti::trait::isCtor {
+/** AST node for a `network` ctor. */
+class Network : public Ctor {
 public:
-    using Value = hilti::rt::Network;
+    const auto& value() const { return _value; }
 
-    Network(const Value& network, const Meta& m = Meta()) : NodeBase(nodes(type::Network(m)), m), _network(network) {}
+    QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
 
-    const auto& value() const { return _network; }
+    node::Properties properties() const final {
+        auto p = node::Properties{{"value", to_string(_value)}};
+        return Ctor::properties() + p;
+    }
 
-    bool operator==(const Network& other) const { return value() == other.value(); }
+    static auto create(ASTContext* ctx, hilti::rt::Network v, const Meta& meta = {}) {
+        return NodeDerivedPtr<Network>(
+            new Network({QualifiedType::create(ctx, type::Network::create(ctx, meta), true)}, v, meta));
+    }
 
-    /** Implements `Ctor` interface. */
-    const auto& type() const { return child<Type>(0); }
-    /** Implements `Ctor` interface. */
-    bool isConstant() const { return true; }
-    /** Implements `Ctor` interface. */
-    auto isLhs() const { return false; }
-    /** Implements `Ctor` interface. */
-    auto isTemporary() const { return true; }
-    /** Implements `Ctor` interface. */
-    auto isEqual(const Ctor& other) const { return node::isEqual(this, other); }
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{{"network", to_string(_network)}}; }
+protected:
+    Network(Nodes children, hilti::rt::Network v, Meta meta) : Ctor(std::move(children), std::move(meta)), _value(v) {}
+
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<Network>();
+        if ( ! n )
+            return false;
+
+        return Ctor::isEqual(other) && _value == n->_value;
+    }
+
+    HILTI_NODE(Network)
 
 private:
-    Value _network;
+    hilti::rt::Network _value;
 };
 
 } // namespace hilti::ctor

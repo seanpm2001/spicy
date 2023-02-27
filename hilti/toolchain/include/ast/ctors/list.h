@@ -2,54 +2,42 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
-#include <vector>
 
-#include <hilti/ast/builder/type.h>
 #include <hilti/ast/ctor.h>
 #include <hilti/ast/expression.h>
-#include <hilti/ast/types/auto.h>
 #include <hilti/ast/types/bool.h>
 #include <hilti/ast/types/list.h>
 
 namespace hilti::ctor {
 
-/** AST node for a List constructor. */
-class List : public NodeBase, public hilti::trait::isCtor {
+/** AST node for a `list` ctor. */
+class List : public Ctor {
 public:
-    List(const std::vector<Expression>& e, Meta m = Meta())
-        : NodeBase(nodes(type::List(e.size() ? Type(type::auto_) : Type(type::Bool())), e), std::move(m)) {
-    } // Bool is just an arbitrary place-holder type for empty values
-    List(const Type& t, std::vector<Expression> e, const Meta& m = Meta())
-        : NodeBase(nodes(type::List(t, m), std::move(e)), m) {}
-
-    const auto& elementType() const { return *children()[0].as<type::List>().elementType(); }
+    auto elementType() const { return type()->type()->as<type::List>()->elementType(); }
     auto value() const { return children<Expression>(1, -1); }
 
-    void setElementType(const Type& t) { children()[0] = type::List(t, meta()); }
+    QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
 
-    void setValue(const std::vector<Expression>& elems) {
-        children().erase(children().begin() + 1, children().end());
-        for ( auto&& e : elems )
-            children().emplace_back(e);
+    static auto create(ASTContext* ctx, const QualifiedTypePtr& etype, Expressions exprs, const Meta& meta = {}) {
+        auto stype = QualifiedType::create(ctx, type::List::create(ctx, etype, meta), true, meta);
+        return NodeDerivedPtr<List>(new List(node::flatten(stype, std::move(exprs)), meta));
     }
 
-    bool operator==(const List& other) const {
-        return elementType() == other.elementType() && value() == other.value();
+    static auto create(ASTContext* ctx, Expressions exprs, const Meta& meta = {}) {
+        // Bool is just an arbitrary place-holder type for empty values.
+        auto etype = exprs.empty() ? QualifiedType::create(ctx, type::Bool::create(ctx, meta), true, meta) :
+                                     QualifiedType::createAuto(ctx, meta);
+        return create(ctx, etype, std::move(exprs), meta);
     }
 
-    /** Implements `Ctor` interface. */
-    const auto& type() const { return child<Type>(0); }
-    /** Implements `Ctor` interface. */
-    bool isConstant() const { return false; }
-    /** Implements `Ctor` interface. */
-    auto isLhs() const { return false; }
-    /** Implements `Ctor` interface. */
-    auto isTemporary() const { return true; }
-    /** Implements `Ctor` interface. */
-    auto isEqual(const Ctor& other) const { return node::isEqual(this, other); }
-    /** Implements `Node` interface. */
-    auto properties() const { return node::Properties{}; }
+protected:
+    List(Nodes children, Meta meta) : Ctor(std::move(children), std::move(meta)) {}
+
+    bool isEqual(const Node& other) const override { return other.isA<List>() && Ctor::isEqual(other); }
+
+    HILTI_NODE(List)
 };
 
 } // namespace hilti::ctor

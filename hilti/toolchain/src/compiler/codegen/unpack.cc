@@ -4,7 +4,6 @@
 #include <string>
 #include <utility>
 
-#include <hilti/ast/detail/visitor.h>
 #include <hilti/ast/expression.h>
 #include <hilti/ast/type.h>
 #include <hilti/base/logger.h>
@@ -69,7 +68,7 @@ cxx::Expression CodeGen::pack(const Expression& data, const std::vector<Expressi
     logger().internalError("pack failed to compile", data.type());
 }
 
-cxx::Expression CodeGen::pack(const hilti::Type& t, const cxx::Expression& data,
+cxx::Expression CodeGen::pack(const hilti::TypePtrPtr& t, const cxx::Expression& data,
                               const std::vector<cxx::Expression>& args) {
     if ( auto x = Visitor(this, Visitor::Kind::Pack, data, args).dispatch(t) )
         return cxx::Expression(*x);
@@ -77,7 +76,8 @@ cxx::Expression CodeGen::pack(const hilti::Type& t, const cxx::Expression& data,
     logger().internalError("pack failed to compile", t);
 }
 
-cxx::Expression CodeGen::unpack(const hilti::Type& t, const Expression& data, const std::vector<Expression>& args, bool throw_on_error) {
+cxx::Expression CodeGen::unpack(const hilti::TypePtrPtr& t, const Expression& data, const std::vector<Expression>& args,
+                                bool throw_on_error) {
     auto cxx_args = util::transform(args, [&](const auto& e) { return compile(e, false); });
     if ( auto x = Visitor(this, Visitor::Kind::Unpack, compile(data), cxx_args).dispatch(t) ) {
         if ( throw_on_error )
@@ -89,7 +89,7 @@ cxx::Expression CodeGen::unpack(const hilti::Type& t, const Expression& data, co
     logger().internalError("unpack failed to compile", t);
 }
 
-cxx::Expression CodeGen::unpack(const hilti::Type& t, const cxx::Expression& data,
+cxx::Expression CodeGen::unpack(const hilti::TypePtrPtr& t, const cxx::Expression& data,
                                 const std::vector<cxx::Expression>& args, bool throw_on_error) {
     if ( auto x = Visitor(this, Visitor::Kind::Unpack, data, args).dispatch(t) ) {
         if ( throw_on_error )

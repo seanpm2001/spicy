@@ -4,31 +4,34 @@
 
 #include <utility>
 
-#include <hilti/ast/declaration.h>
-#include <hilti/ast/declarations/type.h>
-#include <hilti/ast/id.h>
-#include <hilti/ast/node-ref.h>
 #include <hilti/ast/type.h>
 
 namespace hilti::type {
 
-/** AST node for an unresolved type ID. */
-class UnresolvedID : public TypeBase {
+/** AST node for type referenced by Name. */
+class Name : public UnqualifiedType {
 public:
-    UnresolvedID(::hilti::ID id, Meta m = Meta()) : TypeBase({std::move(id)}, std::move(m)) {}
+    auto id() const { return _id; }
 
-    const auto& id() const { return child<::hilti::ID>(0); }
+    static auto create(ASTContext* ctx, ID id, Meta meta = {}) {
+        return NodeDerivedPtr<Name>(new Name(std::move(id), std::move(meta)));
+    }
 
-    bool operator==(const UnresolvedID& other) const { return id() == other.id(); }
+protected:
+    Name(ID id, Meta meta) : UnqualifiedType(std::move(meta)), _id(std::move(id)) {}
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return false; }
+    bool isEqual(const Node& other) const override {
+        auto n = other.tryAs<Name>();
+        if ( ! n )
+            return false;
 
-    node::Properties properties() const override { return node::Properties{}; }
+        return UnqualifiedType::isEqual(other) && _id == n->_id;
+    }
 
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
+    HILTI_NODE(Name)
 
-    HILTI_TYPE_VISITOR_IMPLEMENT
+private:
+    ID _id;
 };
 
 } // namespace hilti::type

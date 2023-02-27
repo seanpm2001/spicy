@@ -6,7 +6,7 @@ class ResolvedOperator(trait::isResolvedOperator) : trait::isExpression {
     Operator operator_() const;
 
     /** Returns the type of the operator expressions's result. */
-    const hilti::Type& result() const;
+    const hilti::TypePtrPtr& result() const;
 
     /** Returns the operator expression's operands. */
     hilti::node::Range<Expression> operands() const;
@@ -52,7 +52,7 @@ class ResolvedOperator(trait::isResolvedOperator) : trait::isExpression {
     /** Implements `Expression` interface. */
     bool isTemporary() const;
     /** Implements the `Expression` interface. */
-    const hilti::Type& type() const;
+    const hilti::TypePtrPtr& type() const;
     /** Implements the `Expression` interface. */
     bool isEqual(const Expression& other) const;
     /** Implements the `Expression` interface. */

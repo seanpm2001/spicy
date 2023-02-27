@@ -17,17 +17,17 @@ namespace spicy::detail::codegen::production {
  */
 class Variable : public ProductionBase, public spicy::trait::isTerminal {
 public:
-    Variable(const std::string& symbol, spicy::Type type, const Location& l = location::None)
+    Variable(const std::string& symbol, spicy::TypePtr type, const Location& l = location::None)
         : ProductionBase(symbol, l), _type(std::move(type)) {}
 
-    spicy::Type type() const { return _type; }
+    spicy::TypePtr type() const { return _type; }
     bool nullable() const { return false; }
     bool eodOk() const { return nullable(); }
     bool atomic() const { return true; }
     std::string render() const { return hilti::util::fmt("%s", _type); }
 
 private:
-    spicy::Type _type;
+    spicy::TypePtr _type;
 };
 
 } // namespace spicy::detail::codegen::production

@@ -48,7 +48,7 @@ static hilti::Meta toMeta(spicy::detail::parser::location l) {
     return hilti::Meta(hilti::Location(*l.begin.filename, l.begin.line, l.end.line, l.begin.column, l.end.column));
 }
 
-static hilti::Type iteratorForType(hilti::Type t, bool const_, hilti::Meta m) {
+static hilti::TypePtr iteratorForType(hilti::TypePtr t, bool const_, hilti::Meta m) {
     if ( hilti::type::isIterable(t) )
         return *t.iteratorType(const_);
     else {
@@ -57,7 +57,7 @@ static hilti::Type iteratorForType(hilti::Type t, bool const_, hilti::Meta m) {
         }
 }
 
-static hilti::Type viewForType(hilti::Type t, hilti::Meta m) {
+static hilti::TypePtr viewForType(hilti::TypePtr t, hilti::Meta m) {
     if ( auto v = t.viewType() )
         return *v;
     else {
@@ -253,7 +253,7 @@ static std::vector<hilti::DocString> _docs;
 %type <hilti::ID>                                    local_id scoped_id dotted_id unit_hook_id
 %type <hilti::Declaration>                           local_decl local_init_decl global_decl type_decl import_decl constant_decl function_decl global_scope_decl property_decl hook_decl struct_field
 %type <std::vector<hilti::Declaration>>              struct_fields
-%type <hilti::Type>                                  base_type_no_ref base_type type tuple_type struct_type enum_type unit_type bitfield_type reference_type
+%type <hilti::TypePtr>                                  base_type_no_ref base_type type tuple_type struct_type enum_type unit_type bitfield_type reference_type
 %type <hilti::Ctor>                                  ctor tuple struct_ regexp list vector map set unit_field_ctor
 %type <hilti::Expression>                            expr tuple_elem tuple_expr member_expr ctor_expr expr_0 expr_1 expr_2 expr_3 expr_4 expr_5 expr_6 expr_7 expr_8 expr_9 expr_a expr_b expr_c expr_d expr_e expr_f expr_g
 %type <std::vector<hilti::Expression>>               opt_tuple_elems1 opt_tuple_elems2 exprs opt_exprs opt_unit_field_args opt_unit_field_sinks
@@ -296,7 +296,7 @@ static std::vector<hilti::DocString> _docs;
 %type <std::vector<spicy::type::unit::Item>>                unit_items opt_unit_items
 %type <spicy::type::unit::item::switch_::Case>              unit_switch_case
 %type <std::vector<spicy::type::unit::item::switch_::Case>> unit_switch_cases
-%type <std::pair<hilti::Type, std::optional<hilti::Expression>>> global_decl_type_and_init
+%type <std::pair<hilti::TypePtr, std::optional<hilti::Expression>>> global_decl_type_and_init
 
 %type <int64_t>  const_sint
 %type <uint64_t> const_uint

@@ -8,21 +8,21 @@
 
 namespace hilti::type {
 
-/** AST node for a null type. */
-class Null : public TypeBase {
+/**
+ * AST node for a null type.
+ *
+ * TODO: Do we still need this?
+ */
+class Null : public UnqualifiedType {
 public:
-    Null(Meta m = Meta()) : TypeBase(std::move(m)) {}
+    static auto create(ASTContext* ctx, Meta meta = {}) { return NodeDerivedPtr<Null>(new Null(std::move(meta))); }
 
-    bool operator==(const Null& /* other */) const { return true; }
+protected:
+    Null(Meta meta) : UnqualifiedType(std::move(meta)) {}
 
-    bool isEqual(const Type& other) const override { return node::isEqual(this, other); }
-    bool _isResolved(ResolvedState* rstate) const override { return true; }
+    bool isEqual(const Node& other) const override { return other.isA<Null>() && UnqualifiedType::isEqual(other); }
 
-    node::Properties properties() const override { return node::Properties{}; }
-
-    const std::type_info& typeid_() const override { return typeid(decltype(*this)); }
-
-    HILTI_TYPE_VISITOR_IMPLEMENT
+    HILTI_NODE(Null)
 };
 
 } // namespace hilti::type

@@ -2,47 +2,38 @@
 
 #pragma once
 
+#include <string>
 #include <utility>
 
+#include <hilti/ast/forward.h>
 #include <hilti/ast/node.h>
-#include <hilti/ast/type.h>
-#include <hilti/base/type_erase.h>
 
 namespace hilti {
 
-namespace trait {
-/** Trait for classes implementing the `Ctor` interface. */
-class isCtor : public isNode {};
-} // namespace trait
+/** Base class for classes implementing constructor nodes. */
+class Ctor : public Node {
+public:
+    ~Ctor() override;
 
-namespace ctor::detail {
-#include <hilti/autogen/__ctor.h>
+    /** Returns the HILTI type of the constructor's value. */
+    virtual QualifiedTypePtr type() const = 0;
 
-/** Creates an AST node representing a `Ctor`. */
-inline Node to_node(Ctor t) { return Node(std::move(t)); }
+    /** Returns true if the ctor can be the target of an assignment. */
+    virtual bool isLhs() const { return false; }
 
-/** Renders a constructor as HILTI source code. */
-inline std::ostream& operator<<(std::ostream& out, Ctor c) { return out << to_node(std::move(c)); }
+    /**
+     * Returns true if, when evaluated as RHS, the ctor will yield a
+     * temporary value.
+     */
+    virtual bool isTemporary() const { return true; }
 
-inline bool operator==(const Ctor& x, const Ctor& y) {
-    if ( &x == &y )
-        return true;
+protected:
+    Ctor(Nodes children, Meta meta) : Node::Node(std::move(children), std::move(meta)) {}
 
-    assert(x.isEqual(y) == y.isEqual(x)); // Expected to be symmetric.
-    return x.isEqual(y);
-}
+    std::string _render() const override;
+    bool isEqual(const Node& other) const override { return other.isA<Ctor>() && Node::isEqual(other); }
 
-inline bool operator!=(const Ctor& c1, const Ctor& c2) { return ! (c1 == c2); }
-
-} // namespace ctor::detail
-
-using Ctor = ctor::detail::Ctor;
-using ctor::detail::to_node; // NOLINT(misc-unused-using-decls)
-
-/** Constructs an AST node from any class implementing the `Ctor` interface. */
-template<typename T, typename std::enable_if_t<std::is_base_of<trait::isCtor, T>::value>* = nullptr>
-inline Node to_node(T t) {
-    return Node(Ctor(std::move(t)));
-}
+    HILTI_NODE_BASE(Ctor);
+};
 
 } // namespace hilti

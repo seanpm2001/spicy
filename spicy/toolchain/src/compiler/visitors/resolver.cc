@@ -22,7 +22,6 @@
 #include <hilti/global.h>
 
 #include <spicy/ast/aliases.h>
-#include <spicy/ast/detail/visitor.h>
 #include <spicy/ast/types/unit-item.h>
 #include <spicy/ast/types/unit-items/field.h>
 #include <spicy/ast/types/unit-items/unresolved-field.h>
@@ -62,7 +61,7 @@ struct FieldTypeVisitor : public hilti::visitor::PreOrder<void, FieldTypeVisitor
 
     FieldType ft;
 
-    std::optional<Type> _result;
+    TypePtr _result;
 
     result_t operator()(const type::Bitfield& t, type::Visitor::position_t&) override {
         switch ( ft ) {
@@ -85,7 +84,7 @@ struct FieldTypeVisitor : public hilti::visitor::PreOrder<void, FieldTypeVisitor
 };
 
 // Helper function to compute one of several kinds of a field's types.
-std::optional<Type> _fieldType(const type::unit::item::Field& f, const Type& type, FieldType ft, bool is_container,
+TypePtr _fieldType(const type::unit::item::Field& f, const TypePtr& type, FieldType ft, bool is_container,
                                const Meta& meta) {
     Type nt;
     auto v = FieldTypeVisitor(ft);
@@ -140,7 +139,7 @@ struct Visitor : hilti::visitor::PreOrder<void, Visitor>, type::Visitor {
     }
 
     // Log debug message recording resolving a type.
-    void logChange(const Node& old, const Type& ntype, const char* msg = "type") {
+    void logChange(const Node& old, const TypePtr& ntype, const char* msg = "type") {
         HILTI_DEBUG(logging::debug::Resolver,
                     hilti::util::fmt("[%s] %s -> %s %s (%s)", old.typename_(), old, msg, ntype, old.location()));
     }
@@ -155,7 +154,7 @@ struct Visitor : hilti::visitor::PreOrder<void, Visitor>, type::Visitor {
         if ( ! h.unitField() || h.ddRef() )
             return;
 
-        std::optional<Type> dd;
+        TypePtr dd;
 
         if ( h.isForEach() ) {
             if ( ! h.unitField()->ddRef() )
@@ -238,7 +237,7 @@ struct Visitor : hilti::visitor::PreOrder<void, Visitor>, type::Visitor {
         }
 
         if ( ! type::isResolved(f.itemType()) && type::isResolved(f.parseType()) ) {
-            std::optional<Type> t;
+            TypePtr t;
 
             if ( auto x = f.convertExpression() ) {
                 if ( x->second ) {

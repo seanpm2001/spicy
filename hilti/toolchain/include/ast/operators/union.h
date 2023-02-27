@@ -33,7 +33,7 @@ static inline void checkName(const Expression& op0, const Expression& op1, Node&
 }
 
 // Returns the type of a union field referenced by an operand.
-static inline Type itemType(const Expression& op0, const Expression& op1) {
+static inline TypePtr itemType(const Expression& op0, const Expression& op1) {
     if ( auto st = op0.type().tryAs<type::Union>() ) {
         if ( auto f = st->field(memberExpression(op1).id().local()) )
             return f->type();
@@ -43,7 +43,7 @@ static inline Type itemType(const Expression& op0, const Expression& op1) {
 }
 
 // Returns the result type of a union method referenced by an operand.
-static inline Type methodResult(const Expression& /* op0 */, const Expression& op1) {
+static inline TypePtr methodResult(const Expression& /* op0 */, const Expression& op1) {
     if ( auto f = memberExpression(op1).type().template tryAs<type::Function>() )
         return f->result().type();
 
@@ -58,7 +58,7 @@ STANDARD_OPERATOR_2(union_, Unequal, type::Bool(), type::constant(type::Union(ty
                     operator_::sameTypeAs(0, "union<*>"), "Compares two unions element-wise.");
 
 BEGIN_OPERATOR_CUSTOM_x(union_, MemberConst, Member)
-    Type result(const hilti::node::Range<Expression>& ops) const {
+    TypePtr result(const hilti::node::Range<Expression>& ops) const {
         if ( ops.empty() )
             return type::DocOnly("<field type>");
 
@@ -88,7 +88,7 @@ this triggers an exception.
 END_OPERATOR_CUSTOM_x
 
 BEGIN_OPERATOR_CUSTOM_x(union_, MemberNonConst, Member)
-    Type result(const hilti::node::Range<Expression>& ops) const {
+    TypePtr result(const hilti::node::Range<Expression>& ops) const {
         if ( ops.empty() )
             return type::DocOnly("<field type>");
 
@@ -117,7 +117,7 @@ this triggers an exception unless the value is only being assigned to.
 END_OPERATOR_CUSTOM_x
 
 BEGIN_OPERATOR_CUSTOM(union_, HasMember)
-    Type result(const hilti::node::Range<Expression>& /* ops */) const { return type::Bool(); }
+    TypePtr result(const hilti::node::Range<Expression>& /* ops */) const { return type::Bool(); }
 
     bool isLhs() const { return false; }
     auto priority() const { return hilti::operator_::Priority::Normal; }
