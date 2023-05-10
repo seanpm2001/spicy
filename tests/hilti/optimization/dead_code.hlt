@@ -1,0 +1,9 @@
+# @TEST-EXEC: hiltic -p %INPUT -o opt.hlt
+# @TEST-EXEC: btest-diff opt.hlt
+
+module foo {
+
+uint8(10);
+default<void>();
+
+}
