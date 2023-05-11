@@ -60,7 +60,7 @@ const bool __feat%foo__F%supports_filters = False;
 const bool __feat%foo__F%supports_sinks = False;
 const bool __feat%foo__F%synchronization = False;
 
-init function void __register_foo_A() {
+init function void __register_foo_A() &pure {
 }
 
 method method tuple<view<stream>, int<64>, iterator<stream>, optional<hilti::RecoverableFailure>> foo::B::__parse_stage1(inout value_ref<stream> __data, copy view<stream> __cur, copy bool __trim, copy int<64> __lah, copy iterator<stream> __lahe, copy optional<hilti::RecoverableFailure> __error) {
@@ -193,7 +193,7 @@ method method tuple<view<stream>, int<64>, iterator<stream>, optional<hilti::Rec
     return __result;
 }
 
-init function void __register_foo_C() {
+init function void __register_foo_C() &pure {
 }
 
 method method tuple<view<stream>, int<64>, iterator<stream>, optional<hilti::RecoverableFailure>> foo::D::__parse_stage1(inout value_ref<stream> __data, copy view<stream> __cur, copy bool __trim, copy int<64> __lah, copy iterator<stream> __lahe, copy optional<hilti::RecoverableFailure> __error) {
@@ -300,7 +300,7 @@ init function void __register_foo_D() {
     spicy_rt::registerParser(foo::D::__parser, $scope, Null);
 }
 
-init function void __register_foo_F() {
+init function void __register_foo_F() &pure {
 }
 
 }
