@@ -15,6 +15,14 @@ function X fn_pure3() {
     return x;
 }
 
+type Y = struct {
+    hook void ~finally() {}
+};
+function Y fn_pure4() {
+    local Y y;
+    return y;
+}
+
 global uint<64> num_calls = 0;
 function uint<64> fn_not_pure() {
     num_calls += 1;
@@ -27,6 +35,7 @@ default<void>();
 fn_pure1();
 fn_pure2();
 fn_pure3();
+fn_pure4();
 fn_not_pure();
 
 }
