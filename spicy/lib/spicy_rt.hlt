@@ -29,7 +29,7 @@ public type Sink = struct {
     method void set_auto_trim(bool enable);
     method void set_initial_sequence_number(uint<64> seq);
     method void set_policy(any policy);
-    method uint<64> size();
+    method uint<64> size() &pure;
     method void skip(uint<64> seq);
     method void trim(uint<64> seq);
     method void write(bytes data, optional<uint<64>> seq = Null, optional<uint<64>> len = Null);
@@ -89,7 +89,7 @@ declare public void backtrack() &cxxname="spicy::rt::detail::backtrack" &have_pr
 
 public type BitOrder = enum { LSB0, MSB0 } &cxxname="hilti::rt::integer::BitOrder";
   # TODO: Should accept BitOrder instead of enum<*> here.
-declare public uint<*> extractBits(uint<*> v, uint<64> lower, uint<64> upper, enum<*> order) &cxxname="hilti::rt::integer::bits" &have_prototype;
+declare public uint<*> extractBits(uint<*> v, uint<64> lower, uint<64> upper, enum<*> order) &cxxname="hilti::rt::integer::bits" &have_prototype &pure;
 
 declare public void initializeParsedUnit(inout ParsedUnit punit, any unit, TypeInfo ti) &cxxname="spicy::rt::ParsedUnit::initialize" &have_prototype;
 
