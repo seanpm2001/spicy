@@ -10,7 +10,7 @@
 #include <hilti/ast/declarations/local-variable.h>
 #include <hilti/ast/declarations/parameter.h>
 #include <hilti/ast/expression.h>
-#include <hilti/ast/expressions/id.h>
+#include <hilti/ast/expressions/name.h>
 #include <hilti/ast/expressions/unresolved-operator.h>
 #include <hilti/ast/statement.h>
 #include <hilti/base/logger.h>

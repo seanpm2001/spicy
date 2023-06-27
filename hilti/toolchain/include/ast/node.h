@@ -28,12 +28,12 @@
     friend class hilti::builder::NodeBuilder;
 
 #define HILTI_NODE_IMPLEMENTATION_0(CLASS)                                                                             \
-    void ::hilti::CLASS::dispatch(visitor::Dispatcher& v) { v(*this); }
+    void ::hilti::CLASS::dispatch(visitor::Dispatcher& v) { v(this); }
 
 #define HILTI_NODE_IMPLEMENTATION_1(CLASS, BASE)                                                                       \
     void ::hilti::CLASS::dispatch(visitor::Dispatcher& v) {                                                            \
-        v(*static_cast<BASE*>(this));                                                                                  \
-        v(*this);                                                                                                      \
+        v(static_cast<BASE*>(this));                                                                                   \
+        v(this);                                                                                                       \
     }
 
 namespace hilti {
@@ -128,31 +128,39 @@ public:
     virtual node::Properties properties() const { return {}; }
 
     const auto& children() const { return _children; }
-    NodePtr parent() { return _parent ? _parent->shared_from_this() : NodePtr(); }
+    Node* parent() const { return _parent; }
 
     const auto& meta() const { return _meta; }
     void setMeta(Meta m) { _meta = std::move(m); }
 
     /**
-     * Returns the scope associated with the node. All nodes have a scope
-     * used for ID resolution. Initially, a new node receive its own, empty
-     * scope. However, scopes can be shared across nodes through
-     * `setScope()`.
+     * Returns the scope associated with the node, if any.
      */
-    auto scope() const {
-        if ( ! _scope )
-            _scope = std::make_shared<Scope>();
-
-        return _scope;
-    }
+    auto scope() const { return _scope.get(); }
 
     /**
-     * Resets the node's scope to point to another one.
+     * Returns the node's direct scope if already created, or creates one if
+     * not yet.
      */
-    void setScope(std::shared_ptr<Scope> new_scope) { _scope = std::move(new_scope); }
+    auto getOrCreateScope() {
+        if ( ! _scope )
+            _scope = std::make_unique<Scope>();
+
+        return _scope.get();
+    }
 
     /** Clears out the current scope. */
-    void clearScope() { _scope = nullptr; }
+    void clearScope() { _scope.reset(); }
+
+    /**
+     * Looks an ID in the node's chain of scope, following HILTI's scoping and visibility rules.
+     *
+     * @param id id to look up
+     * @param what description of what we're looking for, for error reporting
+     * @return if found, a pair of the declaration the ID refers to plus the declarations canonical ID; if not found an
+     * error message appropriate for reporting to the user
+     */
+    Result<std::pair<DeclarationPtr, ID>> lookupID(const ID& id, const std::string_view& what) const;
 
     auto pruneWalk() const { return _prune_walk; }
     void setPruneWalk(bool prune) { _prune_walk = prune; }
@@ -283,8 +291,8 @@ public:
     }
 
     template<typename T>
-    auto& as() const {
-        if ( auto p = std::dynamic_pointer_cast<T>(shared_from_this()) )
+    auto as() const {
+        if ( const auto p = std::dynamic_pointer_cast<const T>(shared_from_this()) )
             return p;
 
         std::cerr << hilti::util::fmt("internal error: unexpected type, want %s but have %s",
@@ -410,6 +418,8 @@ public:
 
     virtual void dispatch(visitor::Dispatcher& v) = 0;
 
+    Node& operator=(const Node& other) = delete;
+
 protected:
     Node(Nodes children, Meta meta) : _children(std::move(children)), _meta(std::move(meta)) {
         for ( auto& c : _children ) {
@@ -419,13 +429,19 @@ protected:
     }
 
     Node(Meta meta) : _meta(std::move(meta)) {}
-    Node(const Node& other) = default;
     Node(Node&& other) = default;
+    Node(const Node& other) {
+        _meta = other._meta;
+        _prune_walk = other._prune_walk;
+        _inherit_scope = other._inherit_scope;
+        _children = other._children; // shallow copy by default; deepClone() will recreate this if needed
+    }
+
 
     void clearChildren() {
         for ( auto& c : _children ) {
             if ( c )
-                c->clearParent();
+                c->_clearParent();
         }
 
         _children.clear();
@@ -446,15 +462,15 @@ protected:
     virtual NodePtr _clone(ASTContext* ctx) const = 0; // shallow copy
     virtual std::string _render() const { return ""; }
 
+    friend bool operator==(const Node& x, const Node& y) { return x.isEqual(y); }
+
 private:
     friend NodePtr node::clone(ASTContext* ctx, const NodePtr& n);
     friend NodePtr node::deepClone(ASTContext* ctx, const NodePtr& n);
 
-    void clearParent() { _parent = nullptr; }
-
+    void _clearParent() { _parent = nullptr; }
     void _destroyChildrenRecursively(Node* n);
 
-    Node& operator=(const Node& other) = default;
     Node& operator=(Node&& other) noexcept = default;
 
     Node* _parent = nullptr;
@@ -463,7 +479,7 @@ private:
 
     bool _prune_walk = false;
     bool _inherit_scope = true;
-    mutable std::shared_ptr<Scope> _scope = nullptr;
+    std::unique_ptr<Scope> _scope = nullptr;
     std::vector<node::Error> _errors;
 };
 
@@ -576,7 +592,7 @@ auto filter(const hilti::node::Set<X>& x, F f) {
  */
 template<typename X, typename F>
 auto transform(const hilti::node::Range<X>& x, F f) {
-    using Y = std::invoke_result_t<F, X&>;
+    using Y = std::invoke_result_t<F, NodeDerivedPtr<X>&>;
     std::vector<Y> y;
     y.reserve(x.size());
     for ( const auto& i : x )
@@ -591,7 +607,7 @@ auto transform(const hilti::node::Range<X>& x, F f) {
  */
 template<typename X, typename F>
 auto transform(const hilti::node::Set<X>& x, F f) {
-    using Y = std::invoke_result_t<F, X&>;
+    using Y = std::invoke_result_t<F, NodeDerivedPtr<X>&>;
     std::vector<Y> y;
     y.reserve(x.size());
     for ( const auto& i : x )

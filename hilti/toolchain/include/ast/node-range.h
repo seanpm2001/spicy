@@ -9,6 +9,8 @@
 
 #include <hilti/ast/forward.h>
 
+#include "ast/forward.h"
+
 namespace hilti {
 
 namespace node {
@@ -33,6 +35,8 @@ public:
     using iterator_category = BaseIterator::iterator_category;
 
     explicit RangeIterator(BaseIterator i) : _iter(i) {}
+    explicit RangeIterator(typename std::vector<NodeDerivedPtr<T>>::const_iterator i)
+        : _iter(reinterpret_cast<BaseIterator&>(i)) {}
     RangeIterator(const RangeIterator& other) = default;
     RangeIterator(RangeIterator&& other) noexcept = default;
     RangeIterator() {}
@@ -94,6 +98,12 @@ public:
     using const_iterator = RangeIterator<T>;
 
     explicit Range() {}
+    Range(typename std::vector<NodeDerivedPtr<T>>::const_iterator begin,
+          typename std::vector<NodeDerivedPtr<T>>::const_iterator end)
+        : _begin(begin), _end(end) {}
+
+    explicit Range(const std::vector<NodeDerivedPtr<T>>& nodes) : Range(nodes.begin(), nodes.end()) {}
+
     Range(std::vector<NodePtr>::const_iterator begin, std::vector<NodePtr>::const_iterator end)
         : _begin(begin), _end(end) {}
 

@@ -1,16 +1,18 @@
 // Copyright (c) 2020-2023 by the Zeek Project. See LICENSE for details.
 
+#include <hilti/ast/ast-context.h>
 #include <hilti/ast/ctors/integer.h>
 #include <hilti/ast/ctors/interval.h>
 #include <hilti/ast/ctors/time.h>
 #include <hilti/ast/declarations/global-variable.h>
 #include <hilti/ast/declarations/imported-module.h>
 #include <hilti/ast/detail/operator-registry.h>
-#include <hilti/ast/scope-lookup.h>
 #include <hilti/base/logger.h>
 #include <hilti/base/util.h>
 #include <hilti/compiler/detail/visitors.h>
 #include <hilti/compiler/unit.h>
+
+#include "base/timing.h"
 
 using namespace hilti;
 
@@ -19,9 +21,10 @@ inline const hilti::logging::DebugStream Normalizer("normalizer");
 } // namespace hilti::logging::debug
 namespace {
 
-struct VisitorConstants : public visitor::PreOrder<void, VisitorConstants> {
+struct VisitorConstants : visitor::PreOrder {
     bool modified = false;
 
+#if 0
     // Log debug message recording resolving a expression.
     void logChange(const Node& old, const Ctor& ctor) {
         HILTI_DEBUG(logging::debug::Normalizer,
@@ -49,13 +52,13 @@ struct VisitorConstants : public visitor::PreOrder<void, VisitorConstants> {
         p.node = nexpr;
         modified = true;
     }
+#endif
 };
 
-struct VisitorNormalizer : visitor::PreOrder<void, VisitorNormalizer>, type::Visitor {
-    using position_t = visitor::PreOrder<void, VisitorNormalizer>::position_t;
-
+struct VisitorNormalizer : visitor::PreOrder {
     bool modified = false;
 
+#if 0
     // Log debug message recording resolving a expression.
     void logChange(const Node& old, const Expression& nexpr) {
         HILTI_DEBUG(logging::debug::Normalizer,
@@ -229,29 +232,30 @@ struct VisitorNormalizer : visitor::PreOrder<void, VisitorNormalizer>, type::Vis
             }
         }
     }
+#endif
 };
 
-} // anonymous namespace
-
-struct VisitorComputeCanonicalIDs;
-static void _computeCanonicalIDs(VisitorComputeCanonicalIDs* v, Node* node, ID current);
-
 // Visitor to unset all canonical IDs in preparation for their recalculation.
-struct VisitorClearCanonicalIDs : public visitor::PreOrder<void, VisitorClearCanonicalIDs> {
+struct VisitorClearCanonicalIDs : visitor::PreOrder {
+#if 0
     result_t operator()(const Declaration& d, position_t p) { p.node.as<Declaration>().setCanonicalID(ID()); };
+#endif
 };
 
 // Visitor computing canonical IDs.
-struct VisitorComputeCanonicalIDs : public visitor::PreOrder<ID, VisitorComputeCanonicalIDs> {
+struct VisitorComputeCanonicalIDs : visitor::PreOrder {
     // This visitor runs twice, with slightly different behaviour by pass.
     VisitorComputeCanonicalIDs(int pass) : pass(pass) { assert(pass == 1 || pass == 2); }
 
     int pass;
+    ID result;
+
     ID parent_id;
     ID module_id;
     int ctor_struct_count = 0;
     Scope* module_scope = nullptr;
 
+#if 0
     result_t operator()(const Module& m, position_t p) {
         module_id = m.id();
         module_scope = p.node.scope().get();
@@ -312,22 +316,27 @@ struct VisitorComputeCanonicalIDs : public visitor::PreOrder<ID, VisitorComputeC
         _computeCanonicalIDs(this, const_cast<Node*>(d.children().data()), std::move(id));
         return {};
     }
+#endif
 };
 
 // Visitor double-checking that all declarations have their canonical IDs set.
-struct VisitorCheckCanonicalIDs : public visitor::PreOrder<void, VisitorCheckCanonicalIDs> {
+struct VisitorCheckCanonicalIDs : visitor::PreOrder {
+#if 0
     result_t operator()(const Declaration& d, position_t p) {
         if ( ! d.canonicalID() )
             hilti::render(std::cerr, p.node);
         assert(d.canonicalID());
     };
+#endif
 };
 
-static void _computeCanonicalIDs(VisitorComputeCanonicalIDs* v, Node* node, ID current) {
+void _computeCanonicalIDs(VisitorComputeCanonicalIDs* v, const NodePtr& node, ID current) {
     v->parent_id = current;
 
-    if ( auto x = v->dispatch(node) )
-        current = *x;
+    v->result = {};
+    v->dispatch(node);
+    if ( v->result )
+        current = v->result;
 
     if ( node->pruneWalk() )
         return;
@@ -338,22 +347,22 @@ static void _computeCanonicalIDs(VisitorComputeCanonicalIDs* v, Node* node, ID c
         return;
 
     for ( auto& c : node->children() )
-        _computeCanonicalIDs(v, &c, current);
+        _computeCanonicalIDs(v, c, current);
 }
 
-bool hilti::detail::ast::normalize(Node* root, Unit* unit) {
+} // namespace
+
+bool hilti::detail::ast::normalize(Builder* builder, const ASTRootPtr& root) {
     util::timing::Collector _("hilti/compiler/ast/normalizer");
 
     auto v0 = VisitorConstants();
-    for ( auto i : v0.walk(root) )
-        v0.dispatch(i);
+    ::hilti::visitor::visit(v0, root);
 
     if ( logger().errors() )
         return v0.modified;
 
     auto v1 = VisitorNormalizer();
-    for ( auto i : v1.walk(root) )
-        v1.dispatch(i);
+    ::hilti::visitor::visit(v1, root);
 
     auto v2 = VisitorComputeCanonicalIDs(1);
     _computeCanonicalIDs(&v2, root, ID());
@@ -363,8 +372,7 @@ bool hilti::detail::ast::normalize(Node* root, Unit* unit) {
 
 #ifndef NDEBUG
     auto v4 = VisitorCheckCanonicalIDs();
-    for ( auto i : v4.walk(root) )
-        v4.dispatch(i);
+    ::hilti::visitor::visit(v4, root);
 #endif
 
     return v0.modified || v1.modified;

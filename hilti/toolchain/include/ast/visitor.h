@@ -171,14 +171,8 @@ public:
     /** Execute matching dispatch methods for a single node.  */
     void dispatch(const NodePtr& n) { n->dispatch(*this); }
 
-    /** Execute matching dispatch methods for a single node.  */
-    void dispatch(Node& n) { n.dispatch(*this); }
-
-    /** * Walk the AST recursively and call dispatch for each node. */
-    void visitAll(const NodePtr& root) {
-        for ( auto i : walk(root) )
-            dispatch(i);
-    }
+    // /** Execute matching dispatch methods for a single node.  */
+    // void dispatch(Node& n) { n.dispatch(*this); }
 
     /**
      * Return a range that iterates over AST, returning each node successively.
@@ -211,6 +205,33 @@ using PostOrder = detail::visitor::Visitor<detail::visitor::Order::Post>;
  * Iterator range traversing an AST in post-order.
  */
 using RangePostOrder = detail::visitor::Range<detail::visitor::Order::Post>;
+
+/** Walk the AST recursively and call dispatch for each node. */
+template<typename Visitor, typename NodePtr>
+auto visit(Visitor&& visitor, NodePtr& root) {
+    for ( auto i : visitor.walk(root) )
+        visitor.dispatch(i);
+}
+
+/** Walk the AST recursively and call dispatch for each node, then run callback to retrieve a result. */
+template<typename Visitor, typename NodePtr, typename ResultFunc>
+auto visit(Visitor&& visitor, NodePtr& root, ResultFunc result) {
+    for ( auto i : visitor.walk(root) )
+        visitor.dispatch(i);
+
+    return result(visitor);
+}
+
+template<typename Visitor>
+void dispatch(Visitor&& visitor, const NodePtr& node, const NodePtr& n) {
+    n->dispatch(visitor);
+}
+
+template<typename Visitor, typename ResultFunc>
+auto dispatch(Visitor&& visitor, const NodePtr& node, ResultFunc result) {
+    node->dispatch(visitor);
+    return result(visitor);
+}
 
 } // namespace visitor
 } // namespace hilti

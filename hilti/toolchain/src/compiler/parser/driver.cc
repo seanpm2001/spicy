@@ -15,11 +15,11 @@
 using namespace hilti;
 using namespace hilti::detail::parser;
 
-Result<NodePtr> hilti::parseSource(Builder* builder, std::istream& in, const std::string& filename) {
+Result<ModulePtr> hilti::parseSource(Builder* builder, std::istream& in, const std::string& filename) {
     return Driver().parse(builder, in, filename);
 }
 
-Result<NodePtr> Driver::parse(Builder* builder, std::istream& in, const std::string& filename) {
+Result<ModulePtr> Driver::parse(Builder* builder, std::istream& in, const std::string& filename) {
     _builder = builder;
 
     auto old_errors = logger().errors();

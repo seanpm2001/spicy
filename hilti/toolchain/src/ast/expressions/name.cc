@@ -3,12 +3,14 @@
 #include <functional>
 
 #include <hilti/ast/declarations/all.h>
-#include <hilti/ast/expressions/id.h>
+#include <hilti/ast/expressions/name.h>
 #include <hilti/ast/types/type.h>
 
 using namespace hilti;
 
-const TypePtr& expression::ResolvedID::type() const {
+#if 0
+const QualifiedTypePtr& expression::Name::type() const {
+    assert(false && "TODO");
     struct Visitor : hilti::visitor::PreOrder<std::reference_wrapper<const Type>, Visitor> {
         result_t operator()(const declaration::Constant& c) { return c.type(); }
         result_t operator()(const declaration::Expression& e) { return e.expression().type(); }
@@ -20,16 +22,14 @@ const TypePtr& expression::ResolvedID::type() const {
         result_t operator()(const declaration::Type& t) { return t.type(); }
     };
 
-    if ( ! declarationRef() )
-        return type::auto_;
-
     if ( const auto& x = Visitor().dispatch(*declarationRef()) )
         return *x;
 
     logger().internalError(util::fmt("unsupported declaration type %s", declaration().typename_()), *this);
 }
 
-bool expression::ResolvedID::isConstant() const {
+bool expression::Name::isConstant() const {
+    assert(false && "TODO");
     struct Visitor : hilti::visitor::PreOrder<bool, Visitor> {
         result_t operator()(const declaration::Constant& c) { return true; } // NOLINT
         result_t operator()(const declaration::Expression& e) { return e.expression().isConstant(); }
@@ -48,3 +48,4 @@ bool expression::ResolvedID::isConstant() const {
 
     logger().internalError(util::fmt("unsupported declaration type %s", declaration().typename_()), *this);
 }
+#endif

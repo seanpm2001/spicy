@@ -262,7 +262,8 @@ static hilti::UnqualifiedTypePtr viewForType(hilti::Builder* builder, hilti::Qua
 %start module;
 
 module        : MODULE local_id '{'
-                global_scope_items '}'           { auto m = builder->module($2, std::move($4.first), std::move($4.second), __loc__);
+                global_scope_items '}'           { auto uid = module::UID($2, hilti::rt::filesystem::path(*driver->currentFile()));
+                                                   auto m = builder->module(uid, {}, std::move($4.first), std::move($4.second), __loc__);
                                                    driver->setDestinationModule(std::move(m));
                                                  }
               ;
@@ -595,7 +596,7 @@ base_type     : base_type_no_attrs               { $$ = $1; }
 
 type          : base_type                        { $$ = std::move($1); }
               | function_type                    { $$ = std::move($1); }
-              | scoped_id                        { $$ = builder->typeUnresolvedID(std::move($1)); }
+              | scoped_id                        { $$ = builder->typeName(std::move($1)); }
               ;
 
 qtype         : type                             { $$ = builder->qualifiedType(std::move($1), false, __loc__); }

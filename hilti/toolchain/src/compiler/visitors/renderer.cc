@@ -1,6 +1,6 @@
 // Copyright (c) 2020-2023 by the Zeek Project. See LICENSE for details.
 
-#include <hilti/ast/expressions/id.h>
+#include <hilti/ast/expressions/name.h>
 #include <hilti/ast/expressions/unresolved-operator.h>
 #include <hilti/ast/types/unresolved-id.h>
 #include <hilti/base/logger.h>
@@ -34,7 +34,7 @@ static void render(const NodePtr& n, std::ostream* out, std::optional<logging::D
         if ( dbg )
             HILTI_DEBUG(*dbg, s);
 
-        if ( include_scopes && *i ) {
+        if ( include_scopes && *i && (*i)->scope() ) {
             std::stringstream buffer;
             (*i)->scope()->render(buffer, "    | ");
 

@@ -5,21 +5,21 @@
 #include <sstream>
 #include <utility>
 
+#include <hilti/ast/ast-context.h>
 #include <hilti/ast/ctors/reference.h>
 #include <hilti/ast/declaration.h>
 #include <hilti/ast/declarations/local-variable.h>
 #include <hilti/ast/declarations/parameter.h>
 #include <hilti/ast/detail/operator-registry.h>
 #include <hilti/ast/expressions/deferred.h>
-#include <hilti/ast/expressions/id.h>
+#include <hilti/ast/expressions/name.h>
 #include <hilti/ast/expressions/keyword.h>
 #include <hilti/ast/expressions/list-comprehension.h>
 #include <hilti/ast/expressions/type.h>
 #include <hilti/ast/expressions/typeinfo.h>
 #include <hilti/ast/node.h>
 #include <hilti/ast/operator.h>
-#include <hilti/ast/operators/struct.h>
-#include <hilti/ast/scope-lookup.h>
+//#include <hilti/ast/operators/struct.h>
 #include <hilti/ast/scope.h>
 #include <hilti/ast/type.h>
 #include <hilti/ast/types/function.h>
@@ -32,6 +32,8 @@
 #include <hilti/compiler/unit.h>
 #include <hilti/global.h>
 
+#include "base/timing.h"
+
 using namespace hilti;
 
 namespace hilti::logging::debug {
@@ -41,18 +43,14 @@ inline const hilti::logging::DebugStream Operator("operator");
 
 namespace {
 
-struct Visitor : visitor::PostOrder<void, Visitor>, type::Visitor {
-    using position_t = visitor::PostOrder<void, Visitor>::position_t;
+struct Visitor : visitor::PostOrder {
+    explicit Visitor(Builder* builder, const ASTRootPtr& root) : root(root), builder(builder) {}
 
-    Visitor(std::shared_ptr<hilti::Context> ctx, Node* module, Unit* unit)
-        : _context(std::move(ctx)), unit(unit), _module(module->as<Module>()) {}
-
-    std::shared_ptr<hilti::Context> _context;
-    Unit* unit;
-    Module& _module;
+    const ASTRootPtr& root;
+    Builder* builder;
 
     bool modified = false;
-    std::map<ID, Type> auto_params; // miapping of `auto` parameters inferred, indexed by canonical ID
+    std::map<ID, QualifiedType> auto_params; // miapping of `auto` parameters inferred, indexed by canonical ID
 
 #if 0
     std::set<const Node*> seen;
@@ -71,6 +69,7 @@ struct Visitor : visitor::PostOrder<void, Visitor>, type::Visitor {
     };
 #endif
 
+#if 0
     // Log debug message recording resolving a epxxression.
     void logChange(const Node& old, const Expression& nexpr) {
         HILTI_DEBUG(logging::debug::Resolver,
@@ -519,15 +518,17 @@ struct Visitor : visitor::PostOrder<void, Visitor>, type::Visitor {
         p.node = hilti::type::pruneWalk(std::move(t)); // alias to avoid visitor cycles
         modified = true;
     }
+#endif
 };
 
 // Visitor to resolve any auto parameters that we inferred during the main resolver pass.
-struct VisitorApplyAutoParameters : public visitor::PreOrder<void, VisitorApplyAutoParameters> {
+struct VisitorApplyAutoParameters : visitor::PreOrder {
     VisitorApplyAutoParameters(const ::Visitor& v) : visitor(v) {}
 
     const ::Visitor& visitor;
     bool modified = false;
 
+#if 0
     void operator()(const declaration::Parameter& u, position_t p) {
         if ( ! u.type().isA<type::Auto>() )
             return;
@@ -543,8 +544,10 @@ struct VisitorApplyAutoParameters : public visitor::PreOrder<void, VisitorApplyA
         p.node.as<declaration::Parameter>().setType(i->second);
         modified = true;
     }
+#endif
 };
 
+#if 0
 bool Visitor::resolveOperator(const expression::UnresolvedOperator& u, position_t p) {
     if ( ! u.areOperandsResolved() )
         return false;
@@ -1009,18 +1012,19 @@ std::vector<Node> Visitor::matchOverloads(const std::vector<Operator>& candidate
     return resolved;
 }
 
+#endif
+
 } // anonymous namespace
 
-bool hilti::detail::ast::resolve(const std::shared_ptr<hilti::Context>& ctx, Node* root, Unit* unit) {
+
+bool hilti::detail::ast::resolve(Builder* builder, const ASTRootPtr& root) {
     util::timing::Collector _("hilti/compiler/ast/resolver");
 
-    auto v1 = Visitor(ctx, root, unit);
-    for ( auto i : v1.walk(root) )
-        v1.dispatch(i);
+    auto v1 = Visitor(builder, root);
+    hilti::visitor::visit(v1, root);
 
     auto v2 = VisitorApplyAutoParameters(v1);
-    for ( auto i : v2.walk(root) )
-        v2.dispatch(i);
+    hilti::visitor::visit(v2, root);
 
     return v1.modified || v2.modified;
 }

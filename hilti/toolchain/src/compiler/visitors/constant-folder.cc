@@ -4,15 +4,15 @@
 
 #include <hilti/rt/safe-math.h>
 
-#include <hilti/ast/builder/expression.h>
 #include <hilti/ast/ctors/bool.h>
 #include <hilti/ast/ctors/integer.h>
 #include <hilti/ast/expression.h>
 #include <hilti/ast/expressions/grouping.h>
-#include <hilti/ast/operators/real.h>
-#include <hilti/ast/operators/signed-integer.h>
+// #include <hilti/ast/operators/real.h>
+// #include <hilti/ast/operators/signed-integer.h>
 #include <hilti/ast/types/integer.h>
 #include <hilti/base/logger.h>
+#include <hilti/base/result.h>
 #include <hilti/base/util.h>
 #include <hilti/compiler/detail/visitors.h>
 
@@ -20,25 +20,21 @@ using namespace hilti;
 
 namespace {
 
-// Internal version of _foldConstant() that passes expceptions through to caller.
-static Result<Ctor> _foldConstant(const Node& expr);
+// Internal version of _foldConstant() that passes exceptions through to caller.
+static Result<CtorPtr> _foldConstant(const ExpressionPtr& expr);
 
 template<typename Ctor>
-Result<Ctor> foldConstant(const Expression& expr) {
-    auto ctor = _foldConstant(expr);
-    if ( ! ctor )
-        return ctor.error();
-
-    if ( auto ctor_ = ctor->tryAs<Ctor>() )
-        return *ctor_;
-    else
-        return result::Error("unexpected type");
+Result<CtorPtr> foldConstant(const ExpressionPtr& expr) {
+    return _foldConstant(expr);
 }
 
 // For now, this is only a very basic constant folder that only covers cases we
 // need to turn type constructor expressions coming with a single argument into
 // ctor expressions.
-struct VisitorConstantFolder : public visitor::PreOrder<std::optional<Ctor>, VisitorConstantFolder> {
+struct VisitorConstantFolder : public visitor::PreOrder {
+    CtorPtr result = nullptr;
+
+#if 0
     // Helper to replace an type constructor expression that receives a
     // constant argument with a corresponding ctor expression.
     template<typename Ctor, typename Operator, typename Fn>
@@ -329,32 +325,25 @@ struct VisitorConstantFolder : public visitor::PreOrder<std::optional<Ctor>, Vis
             return ctor::UnsignedInteger(ctor.value(), 64);
         });
     }
+#endif
 };
 
-Result<Ctor> _foldConstant(const Node& expr) {
-    auto v = VisitorConstantFolder();
-
-    if ( auto ctor = v.dispatch(expr); ctor && *ctor )
-        return **ctor;
+Result<CtorPtr> _foldConstant(const NodePtr& expr) {
+    if ( auto result = hilti::visitor::dispatch(VisitorConstantFolder(), expr, [](const auto& v) { return v.result; }) )
+        return result;
     else
         return result::Error("not a foldable constant expression");
 }
 
 } // anonymous namespace
 
-Result<std::optional<Ctor>> detail::foldConstant(const Node& expr) {
-    // Don't fold away direct, top-level references to constant IDs. It's
-    // likely as least as efficient to leave them as is, and potentially more.
-    if ( expr.isA<expression::ResolvedID>() )
-        return {std::nullopt};
-
+Result<CtorPtr> detail::foldConstant(const ExpressionPtr& expr) {
     try {
-        auto v = VisitorConstantFolder();
-
-        if ( auto ctor = v.dispatch(expr) )
-            return *ctor;
+        if ( auto result =
+                 hilti::visitor::dispatch(VisitorConstantFolder(), expr, [](const auto& v) { return v.result; }) )
+            return result;
         else
-            return {std::nullopt};
+            return {nullptr};
     } catch ( const hilti::rt::RuntimeError& e ) {
         return result::Error(e.what());
     }

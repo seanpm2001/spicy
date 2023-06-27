@@ -10,6 +10,7 @@ namespace hilti {
 class Node;
 class Operator;
 
+class ASTRoot;
 class Attribute;
 class AttributeSet;
 class Ctor;
@@ -219,6 +220,7 @@ class Label;
 template<typename T>
 using NodeDerivedPtr = std::shared_ptr<T>;
 
+using ASTRootPtr = std::shared_ptr<ASTRoot>;
 using AttributePtr = std::shared_ptr<Attribute>;
 using AttributeSetPtr = std::shared_ptr<AttributeSet>;
 using CtorPtr = std::shared_ptr<Ctor>;
@@ -243,7 +245,5 @@ using UnqualifiedTypes = std::vector<UnqualifiedTypePtr>;
 class Builder;
 class ASTContext;
 class Nodes;
-class Visitor;
-
 
 } // namespace hilti

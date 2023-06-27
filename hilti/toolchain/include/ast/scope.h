@@ -28,8 +28,8 @@ public:
     Scope() = default;
     ~Scope() = default;
 
-    void insert(NodePtr&& n);
-    void insert(const ID& id, NodePtr&& n);
+    void insert(DeclarationPtr&& d);
+    void insert(const ID& id, DeclarationPtr&& d);
     void insertNotFound(const ID& id);
 
     /** Returns if there's at least one mapping for an ID.  */
@@ -37,7 +37,7 @@ public:
 
     /** Result type for the lookup methods. */
     struct Referee {
-        NodePtr node;          /**< node that ID maps to */
+        DeclarationPtr node;   /**< node that ID maps to */
         std::string qualified; /**< qualified ID with full path used to find it */
         bool external{};       /**< true if found in a different (imported) module  */
     };
@@ -73,7 +73,7 @@ public:
     Scope& operator=(Scope&& other) = delete;
 
 private:
-    using ItemMap = std::map<std::string, std::unordered_set<NodePtr>>;
+    using ItemMap = std::map<std::string, std::unordered_set<DeclarationPtr>>;
 
     std::vector<Referee> _findID(const ID& id, bool external = false) const;
     std::vector<Referee> _findID(const Scope* scope, const ID& id, bool external = false) const;

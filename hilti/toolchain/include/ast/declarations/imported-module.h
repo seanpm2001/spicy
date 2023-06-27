@@ -9,6 +9,8 @@
 
 #include <hilti/ast/declaration.h>
 
+#include "ast/module.h"
+
 namespace hilti {
 
 class Unit;
@@ -27,14 +29,13 @@ namespace declaration {
  */
 class ImportedModule : public Declaration {
 public:
-    hilti::rt::filesystem::path parseExtension() const { return _parse_extension; }
-
     const auto& path() const { return _path; }
     const auto& scope() const { return _scope; }
     const auto& searchDirectories() const { return _dirs; }
-    auto unit() const { return _unit.lock(); }
+    const auto& parseExtension() const { return _parse_extension; }
 
-    void setUnit(const std::shared_ptr<Unit>& unit) { _unit = unit; }
+    auto uid() const { return _uid; }
+    void setUID(module::UID uid) { _uid = std::move(uid); }
 
     std::string displayName() const final { return "imported module"; }
 
@@ -44,6 +45,7 @@ public:
             {"ext", _parse_extension.native()},
             {"scope", _scope ? _scope->str() : std::string("<n/a>")},
             {"dirs", util::join(_dirs)},
+            {"uid", _uid ? _uid->str() : std::string("<n/a>")},
         };
         return Declaration::properties() + p;
     }
@@ -79,7 +81,7 @@ protected:
             return false;
 
         return Declaration::isEqual(other) && _parse_extension == n->_parse_extension && _path == n->_path &&
-               _scope == n->_scope && _dirs == n->_dirs;
+               _scope == n->_scope && _dirs == n->_dirs && _uid == n->_uid;
     }
 
     HILTI_NODE(ImportedModule)
@@ -90,7 +92,7 @@ private:
     std::optional<ID> _scope;
     std::vector<hilti::rt::filesystem::path> _dirs;
 
-    std::weak_ptr<hilti::Unit> _unit;
+    std::optional<module::UID> _uid;
 };
 
 } // namespace declaration

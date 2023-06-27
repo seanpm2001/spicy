@@ -22,7 +22,7 @@ namespace hilti {
  *
  * Returns: The parsed AST, or a corresponding error if parsing failed.
  */
-Result<NodePtr> parseSource(Builder* builder, std::istream& in, const std::string& filename);
+Result<ModulePtr> parseSource(Builder* builder, std::istream& in, const std::string& filename);
 
 /**
  * Prints out a debug representation of an AST node to a debug stream. The

@@ -6,7 +6,7 @@
 #include <utility>
 #include <vector>
 
-#include <hilti/ast/expressions/id.h>
+#include <hilti/ast/expressions/name.h>
 #include <hilti/ast/operators/common.h>
 #include <hilti/ast/types/bool.h>
 #include <hilti/ast/types/string.h>

@@ -1,5 +1,7 @@
 // Copyright (c) 2020-2023 by the Zeek Project. See LICENSE for details.
 
+#include <utility>
+
 #include <hilti/ast/declaration.h>
 #include <hilti/ast/declarations/expression.h>
 #include <hilti/ast/declarations/global-variable.h>
@@ -16,49 +18,49 @@
 #include <hilti/compiler/detail/visitors.h>
 #include <hilti/compiler/unit.h>
 
+#include "ast/builder/builder.h"
+#include "ast/declarations/type.h"
+#include "base/timing.h"
+
 using namespace hilti;
 
 namespace {
 
-struct Visitor : visitor::PostOrder<void, Visitor>, type::Visitor {
-    using position_t = visitor::PostOrder<void, Visitor>::position_t;
+struct Visitor : visitor::PostOrder {
+    explicit Visitor(Builder* builder, const ASTRootPtr& root) : root(root), builder(builder) {}
 
-    explicit Visitor(std::shared_ptr<hilti::Context> ctx, Unit* unit) : context(std::move(ctx)), unit(unit) {}
+    const ASTRootPtr& root;
+    Builder* builder;
 
-    std::shared_ptr<hilti::Context> context;
-    Unit* unit;
-
-    void operator()(const Module& m, position_t p) {
-        auto scope = p.node.scope();
-
-        // Insert module name into top-level scope.
-        Declaration d = declaration::Module(NodeRef(p.node), m.meta());
-        d.setCanonicalID(m.id());
-        auto n = p.node.as<Module>().preserve(d);
-        scope->insert(std::move(n));
+    void operator()(Module* m) final {
+        // Insert module name into global scope.
+        auto d = builder->declarationModule(m->as<Module>(), m->meta());
+        d->setCanonicalID(m->id());
+        root->getOrCreateScope()->insert(std::move(d));
     }
 
-    void operator()(const declaration::GlobalVariable& d, position_t p) {
-        if ( p.parent().isA<Module>() )
-            p.parent().scope()->insert(NodeRef(p.node));
+    void operator()(declaration::GlobalVariable* d) final {
+        if ( d->parent()->isA<Module>() )
+            d->parent()->getOrCreateScope()->insert(d->as<declaration::GlobalVariable>());
     }
 
-    void operator()(const declaration::Type& d, position_t p) {
-        if ( p.parent().isA<Module>() )
-            p.parent().scope()->insert(NodeRef(p.node));
+    void operator()(declaration::Type* d) final {
+        if ( d->parent()->isA<Module>() )
+            d->parent()->getOrCreateScope()->insert(d->as<declaration::Type>());
     }
 
-    void operator()(const declaration::Constant& d, position_t p) {
-        if ( p.parent().isA<Module>() )
-            p.parent().scope()->insert(NodeRef(p.node));
+    void operator()(declaration::Constant* d) final {
+        if ( d->parent()->isA<Module>() )
+            d->parent()->getOrCreateScope()->insert(d->as<declaration::Constant>());
     }
 
-    void operator()(const declaration::Expression& d, position_t p) {
-        if ( p.parent().isA<Module>() )
-            p.parent().scope()->insert(NodeRef(p.node));
+    void operator()(declaration::Expression* d) final {
+        if ( d->parent()->isA<Module>() )
+            d->parent()->getOrCreateScope()->insert(d->as<declaration::Expression>());
     }
 
-    void operator()(const declaration::Field& f, position_t p) {
+#if 0
+    void operator()(declaration::Field* f) final {
         if ( auto func = f.inlineFunction() ) {
             for ( auto&& x : func->ftype().parameterRefs() )
                 p.node.scope()->insert(std::move(x));
@@ -73,9 +75,9 @@ struct Visitor : visitor::PostOrder<void, Visitor>, type::Visitor {
             p.parent(2).scope()->insert(NodeRef(p.node));
     }
 
-    void operator()(const declaration::Function& f, position_t p) {
-        if ( p.parent().isA<Module>() )
-            p.parent().scope()->insert(NodeRef(p.node));
+    void operator()(declaration::Function* f) final {
+        if ( d.parent()->isA<Module>() )
+            d.parent()->scope()->insert(NodeRef(p.node));
 
         for ( auto&& x : f.function().ftype().parameterRefs() )
             p.node.scope()->insert(std::move(x));
@@ -123,41 +125,41 @@ struct Visitor : visitor::PostOrder<void, Visitor>, type::Visitor {
         }
     }
 
-    void operator()(const declaration::ImportedModule& m, position_t p) {
+    void operator()(declaration::ImportedModule* m) final {
         if ( const auto& cached = context->lookupUnit(m.id(), m.scope(), unit->extension()) ) {
             auto other = cached->unit->moduleRef();
             p.node.setScope(other->scope());
             auto n = unit->module().as<Module>().preserve(p.node);
             const_cast<Node&>(*n).setScope(other->scope());
-            p.parent().scope()->insert(std::move(n));
+            d.parent()->scope()->insert(std::move(n));
         }
     }
 
-    void operator()(const expression::ListComprehension& e, position_t p) { p.node.scope()->insert(e.localRef()); }
+    void operator()(expression::ListComprehension* e) final { p.node.scope()->insert(e.localRef()); }
 
-    void operator()(const statement::Declaration& d, position_t p) { p.parent().scope()->insert(d.declarationRef()); }
+    void operator()(statement::Declaration* d) final { d.parent()->scope()->insert(d.declarationRef()); }
 
-    void operator()(const statement::For& s, position_t p) { p.node.scope()->insert(s.localRef()); }
+    void operator()(statement::For* s) final { p.node.scope()->insert(s.localRef()); }
 
-    void operator()(const statement::If& s, position_t p) {
+    void operator()(statement::If* s) final {
         if ( s.initRef() )
             p.node.scope()->insert(s.initRef());
     }
 
-    void operator()(const statement::Switch& s, position_t p) { p.node.scope()->insert(s.conditionRef()); }
+    void operator()(statement::Switch* s) final { p.node.scope()->insert(s.conditionRef()); }
 
-    void operator()(const statement::try_::Catch& s, position_t p) {
+    void operator()(statement::try_::Catch* s) final {
         if ( auto x = s.parameterRef() )
             p.node.scope()->insert(std::move(x));
     }
 
-    void operator()(const statement::While& s, position_t p) {
+    void operator()(statement::While* s) final {
         if ( auto x = s.initRef() )
             p.node.scope()->insert(std::move(x));
     }
 
-    void operator()(const type::Enum& m, type::Visitor::position_t& p) override {
-        if ( ! p.parent().isA<declaration::Type>() )
+    void operator()(type::Enum* m) final {
+        if ( ! d.parent()->isA<declaration::Type>() )
             return;
 
         if ( ! p.node.as<Type>().typeID() )
@@ -166,13 +168,10 @@ struct Visitor : visitor::PostOrder<void, Visitor>, type::Visitor {
             return;
 
         for ( auto&& d : p.node.as<type::Enum>().labelDeclarationRefs() )
-            p.parent().scope()->insert(std::move(d));
+            d.parent()->scope()->insert(std::move(d));
     }
 
-    void operator()(const type::Struct& t, position_t p) {
-        for ( auto&& x : t.parameterRefs() )
-            p.parent().scope()->insert(std::move(x));
-
+    void operator()(type::Struct* t) final {
         if ( ! p.node.as<Type>().typeID() )
             // We need to associate the type ID with the declaration we're
             // creating, so wait for that to have been set by the resolver.
@@ -180,15 +179,16 @@ struct Visitor : visitor::PostOrder<void, Visitor>, type::Visitor {
 
         if ( t.selfRef() )
             p.node.scope()->insert(t.selfRef());
+
+        for ( auto&& x : t.parameterRefs() )
+            d.parent()->scope()->insert(std::move(x));
     }
+#endif
 };
 
 } // anonymous namespace
 
-void hilti::detail::ast::buildScopes(const std::shared_ptr<hilti::Context>& ctx, Node* root, Unit* unit) {
+void hilti::detail::ast::buildScopes(Builder* builder, const ASTRootPtr& root) {
     util::timing::Collector _("hilti/compiler/ast/scope-builder");
-
-    auto v = Visitor(ctx, unit);
-    for ( auto i : v.walk(root) )
-        v.dispatch(i);
+    ::hilti::visitor::visit(Visitor(builder, root), root);
 }

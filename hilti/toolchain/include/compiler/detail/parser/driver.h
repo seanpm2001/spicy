@@ -47,7 +47,7 @@ class Scanner;
 /** Driver for flex/bison. */
 class Driver {
 public:
-    Result<NodePtr> parse(Builder* builder, std::istream& in, const std::string& filename);
+    Result<ModulePtr> parse(Builder* builder, std::istream& in, const std::string& filename);
 
     Scanner* scanner() const { return _scanner; }
     Parser* parser() const { return _parser; }
@@ -64,7 +64,7 @@ public:
     void enableDottedIDMode();
     void disableDottedIDMode();
 
-    void setDestinationModule(NodePtr m) { _module = std::move(m); }
+    void setDestinationModule(ModulePtr m) { _module = std::move(m); }
 
 private:
     Builder* _builder = nullptr;
@@ -72,7 +72,7 @@ private:
     Parser* _parser = nullptr;
     Scanner* _scanner = nullptr;
 
-    NodePtr _module;
+    ModulePtr _module;
     int _expression_mode = 0;
 };
 

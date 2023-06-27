@@ -4,7 +4,6 @@
 
 #include <string>
 #include <utility>
-#include <vector>
 
 #include <hilti/rt/3rdparty/ArticleEnumClass-v2/EnumClass.h>
 
@@ -113,7 +112,7 @@ enableEnumClassBitmask(hilti::CoercionStyle); // Must be in global scope
 namespace hilti {
 
 /** Return type for the functions doing expression coercion. */
-struct CoercedExpressionPtr {
+struct CoercedExpression {
     /** Returns true if coercion was successful. */
     operator bool() const { return coerced.hasValue(); }
 
@@ -128,7 +127,7 @@ struct CoercedExpressionPtr {
      * Coerced expression if successful and the coerced expression is not
      * identical to original one; unset otherwise.
      */
-    std::optional<ExpressionPtr> nexpr = {};
+    ExpressionPtr nexpr = {};
 
     /**
      * If coerced is set, true if type of new expression's type is to be
@@ -150,7 +149,7 @@ struct CoercedExpressionPtr {
      *
      * @param src the original source expression
      */
-    CoercedExpressionPtr(const ExpressionPtr& src) : coerced(src) {}
+    CoercedExpression(const ExpressionPtr& src) : coerced(src) {}
 
     /**
      * Represents a successful coercion that led to a new expression
@@ -159,17 +158,17 @@ struct CoercedExpressionPtr {
      * @param src the original source expression's type
      * @param coerced the resulting expression that *src* was coerced to
      */
-    CoercedExpressionPtr(const QualifiedTypePtr& src, ExpressionPtr coerced)
+    CoercedExpression(const QualifiedTypePtr& src, const ExpressionPtr& coerced)
         : coerced(coerced), nexpr(coerced), consider_type_changed(src->typename_() != coerced->type()->typename_()) {}
 
     /** Represents an unsuccessful coercion. */
-    CoercedExpressionPtr() = default;
+    CoercedExpression() = default;
 
     /**
      * Represents an unsuccessful coercion, carrying an error message along
      * explaining why it failed.
      */
-    CoercedExpressionPtr(const result::Error& error) : coerced(error) {}
+    CoercedExpression(const result::Error& error) : coerced(error) {}
 };
 
 /**
@@ -183,6 +182,7 @@ struct CoercedExpressionPtr {
  * later carry out the coercion (usually that'll be a `expression::Coerced``
  * node).
  *
+ * @param builder builder to use
  * @param e expression to coerce
  * @param dst target type
  * @param style coercion style to use, given as a bitmask of any style
@@ -190,9 +190,8 @@ struct CoercedExpressionPtr {
  * @return the *result* will evaluate to true if coercion was successful; if
  * so, the contained fields will provide more information
  */
-CoercedExpressionPtr coerceExpressionPtr(const ExpressionPtr& e, const QualifiedTypePtr& dst,
-                                         bitmask<CoercionStyle> style = CoercionStyle::TryAllForAssignment,
-                                         bool lhs = false);
+CoercedExpression coerceExpression(Builder* builder, const ExpressionPtr& e, const QualifiedTypePtr& dst,
+                                   bitmask<CoercionStyle> style = CoercionStyle::TryAllForAssignment, bool lhs = false);
 
 /**
  * Coerces an expression to a given target type. This returns a struct with
@@ -205,6 +204,7 @@ CoercedExpressionPtr coerceExpressionPtr(const ExpressionPtr& e, const Qualified
  * later carry out the coercion (usually that'll be a `expression::Coerced``
  * node).
  *
+ * @param builder builder to use
  * @param e expression to coerce
  * @param src explicitly specified source type; this can be different from
  * the type of *e* and will be used instead of that
@@ -214,16 +214,16 @@ CoercedExpressionPtr coerceExpressionPtr(const ExpressionPtr& e, const Qualified
  * @return the *result* will evaluate to true if coercion was successful; if
  * so, the contained fields will provide more information
  */
-CoercedExpressionPtr coerceExpressionPtr(const ExpressionPtr& e, const QualifiedTypePtr& src_,
-                                         const QualifiedTypePtr& dst_,
-                                         bitmask<CoercionStyle> style = CoercionStyle::TryAllForAssignment,
-                                         bool lhs = false);
+CoercedExpression coerceExpression(Builder* builder, const ExpressionPtr& e, const QualifiedTypePtr& src_,
+                                   const QualifiedTypePtr& dst_,
+                                   bitmask<CoercionStyle> style = CoercionStyle::TryAllForAssignment, bool lhs = false);
 
 /**
  * Matches a set of expressions against a set of operands, coercing them as
  * needed. This takes into account specifics of the operands, such as them
  * being optional or having defaults.
  *
+ * @param builder builder to use
  * @param exprs source expressions to match against the operands
  * @param operands operands to match against
  * @param style coercion style to use for each expression's coercion to its
@@ -236,41 +236,43 @@ CoercedExpressionPtr coerceExpressionPtr(const ExpressionPtr& e, const Qualified
  * available (missing expressions for optional operands without defaults will
  * remain left out). If unsuccessful, an error.
  */
-Result<std::pair<bool, std::vector<ExpressionPtr>>> coerceOperands(const hilti::node::Range<ExpressionPtr>& exprs,
-                                                                   const std::vector<operator_::Operand>& operands,
-                                                                   bitmask<CoercionStyle> style);
+Result<std::pair<bool, Expressions>> coerceOperands(Builder* builder, const hilti::node::Range<Expression>& exprs,
+                                                    const operator_::Operands& operands, bitmask<CoercionStyle> style);
 
 /**
  * Coerces a constructor to a given target type. This returns the coerced
  * constructor, now of the new type. If the constructor is already of the
  * right type, it will just be returned back.
  *
+ * @param builder builder to use
  * @param c ctor to coerce
  * @param dst target type
  * @param style coercion style to use
  * @return if the coercion was successful, the returned new value (which may be the same as the old)
  */
-Result<CtorPtr> coerceCtorPtr(CtorPtr c, const QualifiedTypePtr& dst,
-                              bitmask<CoercionStyle> style = CoercionStyle::TryAllForAssignment);
+Result<CtorPtr> coerceCtor(Builder* builder, CtorPtr c, const QualifiedTypePtr& dst,
+                           bitmask<CoercionStyle> style = CoercionStyle::TryAllForAssignment);
 
 /**
  * Coerces a source type to a given target type. This returns the coerced
  * type. If the type is already of the right type, it will just be returned
  *  back.
  *
+ * @param builder builder to use
  * @param c ctor to coerce
  * @param dst target type
  * @param style coercion style to use
  * @return if the coercion was successful, the returned new value (which may be the same as the old)
  */
-Result<QualifiedTypePtr> coerceType(const QualifiedTypePtr& src_, const QualifiedTypePtr& dst_,
+Result<QualifiedTypePtr> coerceType(Builder* builder, const QualifiedTypePtr& src_, const QualifiedTypePtr& dst_,
                                     bitmask<CoercionStyle> style = CoercionStyle::TryAllForAssignment);
 
 namespace detail {
 /** Implements the corresponding functionality for the default HILTI compiler plugin. */
-std::optional<CtorPtr> coerceCtorPtr(CtorPtr c, const QualifiedTypePtr& dst, bitmask<CoercionStyle> style);
+CtorPtr coerceCtor(Builder* builder, const CtorPtr& c, const QualifiedTypePtr& dst, bitmask<CoercionStyle> style);
 /** Implements the corresponding functionality for the default HILTI compiler plugin. */
-QualifiedTypePtr coerceType(QualifiedTypePtr t, const QualifiedTypePtr& dst, bitmask<CoercionStyle> style);
+QualifiedTypePtr coerceType(Builder* builder, const QualifiedTypePtr& t, const QualifiedTypePtr& dst,
+                            bitmask<CoercionStyle> style);
 } // namespace detail
 
 } // namespace hilti

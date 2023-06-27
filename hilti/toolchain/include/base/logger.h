@@ -130,49 +130,49 @@ public:
     /** Use HILTI_DEBUG(...) instead. */
     void _debug(const logging::DebugStream& dbg, const std::string& msg, const Location& l = location::None);
 
-    template<typename T, IF_DERIVED_FROM(T, Node)>
-    void log(std::string msg, const T& n) {
-        log(msg, n.location());
+    template<typename T>
+    void log(std::string msg, const NodeDerivedPtr<T>& n) {
+        log(msg, n->location());
     }
 
-    template<typename T, IF_DERIVED_FROM(T, Node)>
-    void info(std::string msg, const T& n) {
-        info(msg, n.location());
+    template<typename T>
+    void info(std::string msg, const NodeDerivedPtr<T>& n) {
+        info(msg, n->location());
     }
 
-    template<typename T, IF_DERIVED_FROM(T, Node)>
-    void warning(std::string msg, const T& n) {
-        warning(msg, n.location());
+    template<typename T>
+    void warning(std::string msg, const NodeDerivedPtr<T>& n) {
+        warning(msg, n->location());
     }
 
-    template<typename T, IF_DERIVED_FROM(T, Node)>
-    void error(std::string msg, const T& n) {
-        error(msg, n.location());
+    template<typename T>
+    void error(std::string msg, const NodeDerivedPtr<T>& n) {
+        error(msg, n->location());
     }
 
-    template<typename T, IF_DERIVED_FROM(T, Node)>
-    void error(std::string msg, std::vector<std::string> context, const T& n) {
+    template<typename T>
+    void error(std::string msg, std::vector<std::string> context, const NodeDerivedPtr<T>& n) {
         error(msg, context, n.location());
     }
 
-    template<typename R, typename T, IF_DERIVED_FROM(T, Node)>
-    void error(Result<R> r, const T& n) {
+    template<typename R, typename T>
+    void error(Result<R> r, const NodeDerivedPtr<T>& n) {
         error(r.error().description(), n.location());
     }
 
-    template<typename T, IF_DERIVED_FROM(T, Node)>
-    __attribute__((noreturn)) void fatalError(std::string msg, const T& n) {
-        fatalError(msg, n.location());
+    template<typename T>
+    __attribute__((noreturn)) void fatalError(std::string msg, const NodeDerivedPtr<T>& n) {
+        fatalError(msg, n->location());
     }
 
-    template<typename T, IF_DERIVED_FROM(T, Node)>
-    __attribute__((noreturn)) void internalError(std::string msg, const T& n) {
-        internalError(msg, n.location());
+    template<typename T>
+    __attribute__((noreturn)) void internalError(std::string msg, const NodeDerivedPtr<T>& n) {
+        internalError(msg, n->location());
     }
 
-    template<typename T, IF_DERIVED_FROM(T, Node)>
-    void debug(const logging::DebugStream& dbg, std::string msg, const T& n) {
-        debug(dbg, msg, n.location());
+    template<typename T>
+    void debug(const logging::DebugStream& dbg, std::string msg, const NodeDerivedPtr<T>& n) {
+        debug(dbg, msg, n->location());
     }
 
     void debugEnable(const logging::DebugStream& dbg);

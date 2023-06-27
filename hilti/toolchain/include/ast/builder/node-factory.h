@@ -13,12 +13,12 @@ namespace hilti::builder {
 
 class NodeFactory {
 public:
-    NodeFactory(std::shared_ptr<ASTContext> context) : _context(std::move(context)) {}
+    NodeFactory(ASTContext* context) : _context(context) {}
 
-    ASTContext* context() const { return _context.get(); }
+    ASTContext* context() const { return _context; }
 
 private:
-    const std::shared_ptr<ASTContext> _context;
+    ASTContext* _context;
 
 public:
 #include <hilti/ast/builder/node-factory.autogen.h>

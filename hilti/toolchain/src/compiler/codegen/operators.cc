@@ -1,12 +1,15 @@
 // Copyright (c) 2020-2023 by the Zeek Project. See LICENSE for details.
 
 #include <hilti/ast/expression.h>
+#include <hilti/ast/expressions/resolved-operator.h>
 #include <hilti/ast/operators/all.h>
 #include <hilti/base/logger.h>
 #include <hilti/base/util.h>
 #include <hilti/compiler/detail/codegen/codegen.h>
 #include <hilti/compiler/detail/cxx/all.h>
 #include <hilti/compiler/detail/visitors.h>
+
+#include "global.h"
 
 using namespace hilti;
 using util::fmt;
@@ -15,11 +18,15 @@ using namespace hilti::detail;
 
 namespace {
 
-struct Visitor : hilti::visitor::PreOrder<cxx::Expression, Visitor> {
+struct Visitor : hilti::visitor::PreOrder {
     Visitor(CodeGen* cg, bool lhs) : cg(cg), lhs(lhs) {}
+
     CodeGen* cg;
     bool lhs;
 
+    std::optional<cxx::Expression> result;
+
+#if 0
     // Helpers
 
     result_t op0(const expression::ResolvedOperatorBase& o, bool lhs = false) { return cg->compile(o.op0(), lhs); }
@@ -1184,14 +1191,17 @@ struct Visitor : hilti::visitor::PreOrder<cxx::Expression, Visitor> {
     result_t operator()(const operator_::value_reference::Deref& n) { return {fmt("(*%s)", op0(n)), cxx::Side::LHS}; }
     result_t operator()(const operator_::value_reference::Equal& n) { return fmt("%s == %s", op0(n), op1(n)); }
     result_t operator()(const operator_::value_reference::Unequal& n) { return fmt("%s != %s", op0(n), op1(n)); }
+
+#endif
 };
 
 } // anonymous namespace
 
-cxx::Expression CodeGen::compile(const expression::ResolvedOperator& o, bool lhs) {
-    if ( auto x = Visitor(this, lhs).dispatch(Expression(o)) )
-        return lhs ? _makeLhs(*x, o.type()) : *x;
+cxx::Expression CodeGen::compile(const NodeDerivedPtr<expression::ResolvedOperator>& o, bool lhs) {
+    auto v = Visitor(this, lhs);
+    if ( auto x = hilti::visitor::dispatch(v, o, [](const auto& v) { return v.result; }) )
+        return lhs ? _makeLhs(*x, o->type()) : *x;
 
-    hilti::render(std::cerr, Expression(o));
+    hilti::render(std::cerr, o);
     logger().internalError(fmt("operator failed to compile: %s", detail::renderOperatorPrototype(o)));
 }

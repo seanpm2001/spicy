@@ -11,7 +11,7 @@ namespace hilti {
 
 class Builder : public builder::NodeFactory {
 public:
-    Builder(std::shared_ptr<ASTContext> context) : NodeFactory(std::move(context)) {}
+    Builder(ASTContext* ctx) : NodeFactory(ctx) {}
 };
 
 using BuilderPtr = std::shared_ptr<Builder>;

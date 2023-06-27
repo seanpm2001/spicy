@@ -144,20 +144,20 @@ struct Printer : visitor::PreOrder {
         }
     }
 
-    auto const_(const QualifiedType& t) {
-        return (out.isCompact() && t.isConstant() && type::isMutable(t)) ? "const " : "";
+    auto const_(const QualifiedType* t) {
+        return (out.isCompact() && t->isConstant() && type::isMutable(*t)) ? "const " : "";
     }
 
-    void operator()(const Attribute& n) final {
-        out << n.tag();
+    void operator()(Attribute* n) final {
+        out << n->tag();
 
-        if ( n.hasValue() )
-            out << "=" << n.value();
+        if ( n->hasValue() )
+            out << "=" << n->value();
     }
 
-    void operator()(const AttributeSet& n) final {
+    void operator()(AttributeSet* n) final {
         bool first = true;
-        for ( const auto& a : n.attributes() ) {
+        for ( const auto& a : n->attributes() ) {
             if ( ! first )
                 out << ' ';
             else
@@ -167,35 +167,35 @@ struct Printer : visitor::PreOrder {
         }
     }
 
-    void operator()(const Function& n) final {
-        if ( n.callingConvention() != function::CallingConvention::Standard )
-            out << to_string(n.callingConvention()) << ' ';
+    void operator()(Function* n) final {
+        if ( n->callingConvention() != function::CallingConvention::Standard )
+            out << to_string(n->callingConvention()) << ' ';
 
-        printFunctionType(*n.ftype(), n.id());
+        printFunctionType(*n->ftype(), n->id());
 
-        if ( n.attributes() )
-            out << ' ' << std::make_pair(n.attributes()->attributes(), " ");
+        if ( n->attributes() )
+            out << ' ' << std::make_pair(n->attributes()->attributes(), " ");
 
-        if ( n.body() )
-            out << ' ' << n.body();
+        if ( n->body() )
+            out << ' ' << n->body();
         else
             out << ';' << out.newline();
     }
 
-    void operator()(const ID& n) {
-        if ( n.namespace_() == _currentScope() )
-            out << std::string(n.local());
+    void operator()(ID* n) {
+        if ( n->namespace_() == _currentScope() )
+            out << std::string(n->local());
         else
-            out << std::string(n);
+            out << std::string(*n);
     }
 
-    void operator()(const Module& n) final {
-        printDoc(n.documentation());
+    void operator()(Module* n) final {
+        printDoc(n->documentation());
         out.beginLine();
-        out << "module " << n.id() << " {" << out.newline();
+        out << "module " << n->id() << " {" << out.newline();
         out.endLine();
 
-        _pushScope(n.id());
+        _pushScope(n->id());
 
         auto printDecls = [&](const auto& decls) {
             for ( const auto& d : decls )
@@ -205,20 +205,20 @@ struct Printer : visitor::PreOrder {
                 out.emptyLine();
         };
 
-        printDecls(util::filter(n.declarations(),
+        printDecls(util::filter(n->declarations(),
                                 [](const auto& d) { return d->template isA<declaration::ImportedModule>(); }));
-        printDecls(util::filter(n.declarations(), [](const auto& d) { return d->template isA<declaration::Type>(); }));
+        printDecls(util::filter(n->declarations(), [](const auto& d) { return d->template isA<declaration::Type>(); }));
         printDecls(
-            util::filter(n.declarations(), [](const auto& d) { return d->template isA<declaration::Constant>(); }));
-        printDecls(util::filter(n.declarations(),
+            util::filter(n->declarations(), [](const auto& d) { return d->template isA<declaration::Constant>(); }));
+        printDecls(util::filter(n->declarations(),
                                 [](const auto& d) { return d->template isA<declaration::GlobalVariable>(); }));
         printDecls(
-            util::filter(n.declarations(), [](const auto& d) { return d->template isA<declaration::Function>(); }));
+            util::filter(n->declarations(), [](const auto& d) { return d->template isA<declaration::Function>(); }));
 
-        for ( const auto& s : n.statements()->statements() )
+        for ( const auto& s : n->statements()->statements() )
             out << s;
 
-        if ( ! n.statements()->statements().empty() )
+        if ( ! n->statements()->statements().empty() )
             out.emptyLine();
 
         _popScope();
@@ -230,89 +230,89 @@ struct Printer : visitor::PreOrder {
 
     ////// Ctors
 
-    void operator()(const ctor::Address& n) override { out << n.value(); }
+    void operator()(ctor::Address* n) override { out << n->value(); }
 
-    void operator()(const ctor::Bool& n) final { out << (n.value() ? "True" : "False"); }
+    void operator()(ctor::Bool* n) final { out << (n->value() ? "True" : "False"); }
 
-    void operator()(const ctor::Bytes& n) final { out << "b\"" << util::escapeUTF8(n.value(), true) << '"'; }
+    void operator()(ctor::Bytes* n) final { out << "b\"" << util::escapeUTF8(n->value(), true) << '"'; }
 
-    void operator()(const ctor::Coerced& n) final { out << n.originalCtor(); }
+    void operator()(ctor::Coerced* n) final { out << n->originalCtor(); }
 
-    void operator()(const ctor::Default& n) final {
-        out << "default<" << n.type() << ">(" << std::make_pair(n.typeArguments(), ", ") << ")";
+    void operator()(ctor::Default* n) final {
+        out << "default<" << n->type() << ">(" << std::make_pair(n->typeArguments(), ", ") << ")";
     }
 
-    void operator()(const ctor::Enum& n) final {
-        assert(n.type()->type()->typeID());
-        out << *n.type()->type()->typeID() << "::" << n.label()->id();
+    void operator()(ctor::Enum* n) final {
+        assert(n->type()->type()->typeID());
+        out << *n->type()->type()->typeID() << "::" << n->label()->id();
     }
 
-    void operator()(const ctor::Error& n) final { out << "error(\"" << n.value() << "\")"; }
+    void operator()(ctor::Error* n) final { out << "error(\"" << n->value() << "\")"; }
 
-    void operator()(const ctor::Interval& n) final { out << "interval_ns(" << n.value().nanoseconds() << ")"; }
+    void operator()(ctor::Interval* n) final { out << "interval_ns(" << n->value().nanoseconds() << ")"; }
 
-    void operator()(const ctor::List& n) final { out << '[' << std::make_pair(n.value(), ", ") << ']'; }
+    void operator()(ctor::List* n) final { out << '[' << std::make_pair(n->value(), ", ") << ']'; }
 
-    void operator()(const ctor::Map& n) final {
-        auto elems = node::transform(n.value(),
+    void operator()(ctor::Map* n) final {
+        auto elems = node::transform(n->value(),
                                      [](const auto& e) -> std::string { return fmt("%s: %s", e->key(), e->value()); });
         out << "map(" << std::make_pair(elems, ", ") << ')';
     }
 
-    void operator()(const ctor::Network& n) final { out << n.value(); }
+    void operator()(ctor::Network* n) final { out << n->value(); }
 
-    void operator()(const ctor::Null& n) final { out << "Null"; }
+    void operator()(ctor::Null* n) final { out << "Null"; }
 
-    void operator()(const ctor::Optional& n) final {
-        if ( n.value() )
-            out << n.value();
+    void operator()(ctor::Optional* n) final {
+        if ( n->value() )
+            out << n->value();
         else
             out << "Null";
     }
 
-    void operator()(const ctor::Port& n) final { out << n.value(); }
+    void operator()(ctor::Port* n) final { out << n->value(); }
 
-    void operator()(const ctor::Real& n) final {
-        // We use hexformat for lossless serialization. Older platforms like
+    void operator()(ctor::Real* n) final {
+        // We use hexformat for lossless serialization-> Older platforms like
         // centos7 have inconsistent support for that in iostreams so we use
         // C99 snprintf instead.
         constexpr size_t size = 256;
         char buf[size];
-        assert(std::snprintf(buf, size, "%a", n.value()) >= 0);
+        assert(std::snprintf(buf, size, "%a", n->value()) >= 0);
         out << buf;
     }
 
-    void operator()(const ctor::StrongReference& n) final { out << "Null"; }
+    void operator()(ctor::StrongReference* n) final { out << "Null"; }
 
-    void operator()(const ctor::RegExp& n) final {
-        out << std::make_pair(util::transform(n.value(), [](auto p) { return fmt("/%s/", p); }), " |");
+    void operator()(ctor::RegExp* n) final {
+        out << std::make_pair(util::transform(n->value(), [](auto p) { return fmt("/%s/", p); }), " |");
     }
 
-    void operator()(const ctor::Result& n) final {
-        if ( n.value() )
-            out << n.value();
+    void operator()(ctor::Result* n) final {
+        if ( n->value() )
+            out << n->value();
         else
-            out << n.error();
+            out << n->error();
     }
 
-    void operator()(const ctor::Set& n) final { out << "set(" << std::make_pair(n.value(), ", ") << ')'; }
+    void operator()(ctor::Set* n) final { out << "set(" << std::make_pair(n->value(), ", ") << ')'; }
 
-    void operator()(const ctor::SignedInteger& n) final {
-        if ( n.width() < 64 )
-            out << fmt("int%d(%" PRId64 ")", n.width(), n.value());
+    void operator()(ctor::SignedInteger* n) final {
+        if ( n->width() < 64 )
+            out << fmt("int%d(%" PRId64 ")", n->width(), n->value());
         else
-            out << n.value();
+            out << n->value();
     }
 
-    void operator()(const ctor::Stream& n) final { out << "stream(" << util::escapeUTF8(n.value(), true) << ')'; }
+    void operator()(ctor::Stream* n) final { out << "stream(" << util::escapeUTF8(n->value(), true) << ')'; }
 
-    void operator()(const ctor::String& n) final { out << '"' << util::escapeUTF8(n.value(), true) << '"'; }
+    void operator()(ctor::String* n) final { out << '"' << util::escapeUTF8(n->value(), true) << '"'; }
 
-    void operator()(const ctor::Struct& n) final {
+    void operator()(ctor::Struct* n) final {
         out << "[";
 
         bool first = true;
-        for ( const auto& f : n.fields() ) {
+        for ( const auto& f : n->fields() ) {
             if ( ! first )
                 out << ", ";
             else
@@ -324,55 +324,55 @@ struct Printer : visitor::PreOrder {
         out << "]";
     }
 
-    void operator()(const ctor::Time& n) final { out << "time_ns(" << n.value().nanoseconds() << ")"; }
+    void operator()(ctor::Time* n) final { out << "time_ns(" << n->value().nanoseconds() << ")"; }
 
-    void operator()(const ctor::Tuple& n) final { out << '(' << std::make_pair(n.value(), ", ") << ')'; }
+    void operator()(ctor::Tuple* n) final { out << '(' << std::make_pair(n->value(), ", ") << ')'; }
 
-    void operator()(const ctor::UnsignedInteger& n) final {
-        if ( n.width() < 64 )
-            out << fmt("uint%d(%" PRId64 ")", n.width(), n.value());
+    void operator()(ctor::UnsignedInteger* n) final {
+        if ( n->width() < 64 )
+            out << fmt("uint%d(%" PRId64 ")", n->width(), n->value());
         else
-            out << n.value();
+            out << n->value();
     }
 
-    void operator()(const ctor::Vector& n) final { out << "vector(" << std::make_pair(n.value(), ", ") << ')'; }
+    void operator()(ctor::Vector* n) final { out << "vector(" << std::make_pair(n->value(), ", ") << ')'; }
 
-    void operator()(const ctor::WeakReference& n) final { out << "Null"; }
+    void operator()(ctor::WeakReference* n) final { out << "Null"; }
 
-    void operator()(const ctor::ValueReference& n) final { out << "value_ref(" << n.expression() << ')'; }
+    void operator()(ctor::ValueReference* n) final { out << "value_ref(" << n->expression() << ')'; }
 
     ////// Declarations
 
-    void operator()(const declaration::Constant& n) final {
-        printDoc(n.documentation());
+    void operator()(declaration::Constant* n) final {
+        printDoc(n->documentation());
         out.beginLine();
-        out << linkage(n.linkage()) << "const ";
-        out << n.type();
-        out << ' ' << n.id() << " = " << n.value() << ';';
+        out << linkage(n->linkage()) << "const ";
+        out << n->type();
+        out << ' ' << n->id() << " = " << n->value() << ';';
         out.endLine();
     }
 
-    void operator()(const declaration::Expression& n) final { out << n.expression(); }
+    void operator()(declaration::Expression* n) final { out << n->expression(); }
 
-    void operator()(const declaration::Field& n) final {
+    void operator()(declaration::Field* n) final {
         out << "    ";
 
-        if ( auto ft = n.type()->tryAs<type::Function>() ) {
+        if ( auto ft = n->type()->tryAs<type::Function>() ) {
             out << to_string(ft->flavor()) << " ";
 
-            if ( auto cc = n.callingConvention(); cc && *cc != function::CallingConvention::Standard )
+            if ( auto cc = n->callingConvention(); cc && *cc != function::CallingConvention::Standard )
                 out << to_string(*cc) << ' ';
 
-            out << ft->result()->type() << " " << n.id() << "(" << std::make_pair(ft->parameters(), ", ") << ")";
+            out << ft->result()->type() << " " << n->id() << "(" << std::make_pair(ft->parameters(), ", ") << ")";
         }
 
         else
-            out << n.type() << ' ' << n.id();
+            out << n->type() << ' ' << n->id();
 
-        if ( n.attributes() )
-            out << ' ' << n.attributes();
+        if ( n->attributes() )
+            out << ' ' << n->attributes();
 
-        if ( auto f = n.inlineFunction(); f && f->body() ) {
+        if ( auto f = n->inlineFunction(); f && f->body() ) {
             const auto& block = f->body()->tryAs<statement::Block>();
             if ( block && block->statements().empty() ) {
                 out << " {}";
@@ -394,7 +394,7 @@ struct Printer : visitor::PreOrder {
             out << ";" << out.newline();
     }
 
-    void operator()(const declaration::Parameter& n) final {
+    void operator()(declaration::Parameter* n) final {
         auto kind = [&](auto k) {
             switch ( k ) {
                 case declaration::parameter::Kind::Copy: return "copy ";
@@ -406,94 +406,94 @@ struct Printer : visitor::PreOrder {
             util::cannot_be_reached();
         };
 
-        out << kind(n.kind()) << n.type() << ' ' << n.id();
+        out << kind(n->kind()) << n->type() << ' ' << n->id();
 
-        if ( n.default_() )
-            out << " = " << n.default_();
+        if ( n->default_() )
+            out << " = " << n->default_();
 
-        if ( const auto attrs = n.attributes(); attrs && ! attrs->attributes().empty() )
+        if ( const auto attrs = n->attributes(); attrs && ! attrs->attributes().empty() )
             out << ' ' << attrs;
     }
 
-    void operator()(const declaration::Function& n) final {
-        const auto& func = n.function();
+    void operator()(declaration::Function* n) final {
+        const auto& func = n->function();
 
         if ( ! func->body() ) {
-            printDoc(n.documentation());
+            printDoc(n->documentation());
             out.beginLine();
             out << "declare ";
         }
         else {
             out.emptyLine();
-            printDoc(n.documentation());
+            printDoc(n->documentation());
             out.beginLine();
         }
 
-        out << linkage(n.linkage());
+        out << linkage(n->linkage());
 
-        if ( n.linkage() != declaration::Linkage::Struct )
+        if ( n->linkage() != declaration::Linkage::Struct )
             out << "function ";
 
-        out << n.function();
+        out << n->function();
     }
 
-    void operator()(const declaration::ImportedModule& n) final {
+    void operator()(declaration::ImportedModule* n) final {
         out.beginLine();
-        if ( n.scope() )
-            out << "import " << n.id() << " from " << *n.scope() << ';';
+        if ( n->scope() )
+            out << "import " << n->id() << " from " << *n->scope() << ';';
         else
-            out << "import " << n.id() << ';';
+            out << "import " << n->id() << ';';
 
         out.endLine();
     }
 
-    void operator()(const declaration::Type& n) final {
-        printDoc(n.documentation());
+    void operator()(declaration::Type* n) final {
+        printDoc(n->documentation());
         out.beginLine();
-        for ( const auto& comment : n.meta().comments() )
+        for ( const auto& comment : n->meta().comments() )
             out << "# " << comment << '\n';
-        out << linkage(n.linkage()) << "type " << n.id() << " = ";
+        out << linkage(n->linkage()) << "type " << n->id() << " = ";
         out.setExpandSubsequentType(true);
-        out << n.type();
+        out << n->type();
 
-        if ( n.attributes() )
-            out << ' ' << n.attributes();
+        if ( n->attributes() )
+            out << ' ' << n->attributes();
 
         out << ';';
         out.endLine();
     }
 
-    void operator()(const declaration::LocalVariable& n) final {
+    void operator()(declaration::LocalVariable* n) final {
         // Will be printed through a statement, hence no outer formatting.
         out << "local ";
 
-        if ( n.type() )
-            out << n.type() << ' ';
+        if ( n->type() )
+            out << n->type() << ' ';
 
-        out << n.id();
+        out << n->id();
 
-        if ( n.typeArguments().size() )
-            out << '(' << std::make_pair(n.typeArguments(), ", ") << ')';
+        if ( n->typeArguments().size() )
+            out << '(' << std::make_pair(n->typeArguments(), ", ") << ')';
 
-        if ( n.init() )
-            out << " = " << n.init();
+        if ( n->init() )
+            out << " = " << n->init();
     }
 
-    void operator()(const declaration::GlobalVariable& n) final {
-        printDoc(n.documentation());
+    void operator()(declaration::GlobalVariable* n) final {
+        printDoc(n->documentation());
         out.beginLine();
-        out << linkage(n.linkage()) << "global ";
+        out << linkage(n->linkage()) << "global ";
 
-        if ( n.type() )
-            out << n.type() << ' ';
+        if ( n->type() )
+            out << n->type() << ' ';
 
-        out << n.id();
+        out << n->id();
 
-        if ( n.typeArguments().size() )
-            out << '(' << std::make_pair(n.typeArguments(), ", ") << ')';
+        if ( n->typeArguments().size() )
+            out << '(' << std::make_pair(n->typeArguments(), ", ") << ')';
 
-        if ( n.init() )
-            out << " = " << n.init();
+        if ( n->init() )
+            out << " = " << n->init();
 
         out << ';';
         out.endLine();
@@ -501,21 +501,21 @@ struct Printer : visitor::PreOrder {
 
     ////// Expressions
 
-    void operator()(const expression::Assign& n) final { out << n.target() << " = " << n.source(); }
+    void operator()(expression::Assign* n) final { out << n->target() << " = " << n->source(); }
 
-    void operator()(const expression::BuiltInFunction& n) final {
-        out << n.name() << "(" << util::join(node::transform(n.arguments(), [](auto& p) { return fmt("%s", p); }), ", ")
-            << ")";
+    void operator()(expression::BuiltInFunction* n) final {
+        out << n->name() << "("
+            << util::join(node::transform(n->arguments(), [](auto& p) { return fmt("%s", p); }), ", ") << ")";
     }
 
-    void operator()(const expression::Coerced& n) final { out << n.expression(); }
+    void operator()(expression::Coerced* n) final { out << n->expression(); }
 
-    void operator()(const expression::Ctor& n) final { out << n.ctor(); }
+    void operator()(expression::Ctor* n) final { out << n->ctor(); }
 
-    void operator()(const expression::Grouping& n) final { out << '(' << n.expression() << ')'; }
+    void operator()(expression::Grouping* n) final { out << '(' << n->expression() << ')'; }
 
-    void operator()(const expression::Keyword& n) final {
-        switch ( n.kind() ) {
+    void operator()(expression::Keyword* n) final {
+        switch ( n->kind() ) {
             case expression::keyword::Kind::Self: out << "self"; break;
             case expression::keyword::Kind::DollarDollar: out << "$$"; break;
             case expression::keyword::Kind::Captures:
@@ -525,71 +525,71 @@ struct Printer : visitor::PreOrder {
         }
     }
 
-    void operator()(const expression::ListComprehension& n) final {
-        out << '[' << n.output() << " for " << n.local() << " in " << n.input();
+    void operator()(expression::ListComprehension* n) final {
+        out << '[' << n->output() << " for " << n->local() << " in " << n->input();
 
-        if ( n.condition() )
-            out << " if " << n.condition();
+        if ( n->condition() )
+            out << " if " << n->condition();
 
         out << ']';
     }
 
-    void operator()(const expression::LogicalAnd& n) final { out << n.op0() << " && " << n.op1(); }
+    void operator()(expression::LogicalAnd* n) final { out << n->op0() << " &* " << n->op1(); }
 
-    void operator()(const expression::LogicalNot& n) final { out << "! " << n.expression(); }
+    void operator()(expression::LogicalNot* n) final { out << "! " << n->expression(); }
 
-    void operator()(const expression::LogicalOr& n) final { out << n.op0() << " || " << n.op1(); }
+    void operator()(expression::LogicalOr* n) final { out << n->op0() << " || " << n->op1(); }
 
-    void operator()(const expression::Member& n) final { out << n.id(); }
+    void operator()(expression::Member* n) final { out << n->id(); }
 
-    void operator()(const expression::Move& n) final { out << "move(" << n.expression() << ")"; }
+    void operator()(expression::Move* n) final { out << "move(" << n->expression() << ")"; }
 
-    void operator()(const expression::Name& n) final { out << n.id(); }
+    void operator()(expression::Name* n) final { out << n->id(); }
 
-    void operator()(const expression::Ternary& n) final {
-        out << n.condition() << " ? " << n.true_() << " : " << n.false_();
+    void operator()(expression::Ternary* n) final {
+        out << n->condition() << " ? " << n->true_() << " : " << n->false_();
     }
 
-    void operator()(const expression::Type_& n) final {
-        if ( auto id = n.typeValue()->type()->typeID() )
+    void operator()(expression::Type_* n) final {
+        if ( auto id = n->typeValue()->type()->typeID() )
             out << *id;
         else
-            out << n.typeValue();
+            out << n->typeValue();
     }
 
-    void operator()(const expression::TypeInfo& n) final { out << "typeinfo(" << n.expression() << ")"; }
+    void operator()(expression::TypeInfo* n) final { out << "typeinfo(" << n->expression() << ")"; }
 
-    void operator()(const expression::TypeWrapped& n) final { out << n.expression(); }
+    void operator()(expression::TypeWrapped* n) final { out << n->expression(); }
 
-    void operator()(const expression::Void& n) final {
-        out << "<void expression>"; // Shouldn't really happen.
+    void operator()(expression::Void* n) final {
+        out << "<void expression>"; // Shouldn't really happen->
     }
 
     ////// Statements
 
-    void operator()(const statement::Assert& n) final {
+    void operator()(statement::Assert* n) final {
         out.beginLine();
 
-        if ( n.expectsException() )
+        if ( n->expectsException() )
             out << "assert-exception ";
         else
             out << "assert ";
 
-        out << n.expression();
-        if ( n.message() )
-            out << " : " << n.message();
+        out << n->expression();
+        if ( n->message() )
+            out << " : " << n->message();
         out << ";";
         out.endLine();
     }
 
-    void operator()(const statement::Block& n) final {
-        if ( out.indent() == 0 || n.statements().size() > 1 )
+    void operator()(statement::Block* n) final {
+        if ( out.indent() == 0 || n->statements().size() > 1 )
             out << "{";
 
         out.endLine();
         out.incrementIndent();
 
-        const auto& stmts = n.statements();
+        const auto& stmts = n->statements();
         for ( const auto&& [i, s] : util::enumerate(stmts) ) {
             out.setPositionInBlock(i == 0, i == (stmts.size() - 1));
 
@@ -604,104 +604,104 @@ struct Printer : visitor::PreOrder {
 
         out.decrementIndent();
 
-        if ( out.indent() == 0 || n.statements().size() > 1 ) {
+        if ( out.indent() == 0 || n->statements().size() > 1 ) {
             out.beginLine();
             out << "}";
             out.endLine();
         }
     }
 
-    void operator()(const statement::Break& n) final {
+    void operator()(statement::Break* n) final {
         out.beginLine();
         out << "break;";
         out.endLine();
     }
 
-    void operator()(const statement::Continue& n) final {
+    void operator()(statement::Continue* n) final {
         out.beginLine();
         out << "continue;";
         out.endLine();
     }
 
-    void operator()(const statement::Comment& n) final {
-        if ( (n.separator() == hilti::statement::comment::Separator::Before ||
-              n.separator() == hilti::statement::comment::Separator::BeforeAndAfter) &&
+    void operator()(statement::Comment* n) final {
+        if ( (n->separator() == hilti::statement::comment::Separator::Before ||
+              n->separator() == hilti::statement::comment::Separator::BeforeAndAfter) &&
              ! out.isFirstInBlock() )
             out.emptyLine();
 
         out.beginLine();
-        out << "# " << n.comment();
+        out << "# " << n->comment();
         out.endLine();
 
-        if ( (n.separator() == hilti::statement::comment::Separator::After ||
-              n.separator() == hilti::statement::comment::Separator::BeforeAndAfter) &&
+        if ( (n->separator() == hilti::statement::comment::Separator::After ||
+              n->separator() == hilti::statement::comment::Separator::BeforeAndAfter) &&
              ! out.isLastInBlock() )
             out.emptyLine();
     }
 
-    void operator()(const statement::Declaration& n) final {
+    void operator()(statement::Declaration* n) final {
         out.beginLine();
-        out << n.declaration() << ';';
+        out << n->declaration() << ';';
         out.endLine();
     }
 
-    void operator()(const statement::Expression& n) final {
+    void operator()(statement::Expression* n) final {
         out.beginLine();
-        out << n.expression() << ';';
+        out << n->expression() << ';';
         out.endLine();
     }
 
-    void operator()(const statement::For& n) final {
+    void operator()(statement::For* n) final {
         out.emptyLine();
         out.beginLine();
-        out << "for ( " << n.local()->id() << " in " << n.sequence() << " ) " << n.body();
+        out << "for ( " << n->local()->id() << " in " << n->sequence() << " ) " << n->body();
         out.endLine();
     }
 
-    void operator()(const statement::If& n) final {
+    void operator()(statement::If* n) final {
         out.emptyLine();
         out.beginLine();
         out << "if ( ";
 
-        if ( auto e = n.init() )
+        if ( auto e = n->init() )
             out << e << "; ";
 
-        if ( auto e = n.condition() )
+        if ( auto e = n->condition() )
             out << e;
 
-        out << " ) " << n.true_();
+        out << " ) " << n->true_();
 
-        if ( n.false_() ) {
+        if ( n->false_() ) {
             out.beginLine();
-            out << "else " << n.false_();
+            out << "else " << n->false_();
         }
 
         out.endLine();
     }
 
-    void operator()(const statement::SetLocation& n) final {
+    void operator()(statement::SetLocation* n) final {
         out.beginLine();
-        out << "# " << n.expression();
+        out << "# " << n->expression();
         out.endLine();
     }
 
-    void operator()(const statement::Return& n) final {
+    void operator()(statement::Return* n) final {
         out.beginLine();
         out << "return";
 
-        if ( auto e = n.expression() )
+        if ( auto e = n->expression() )
             out << ' ' << e;
 
         out << ';';
         out.endLine();
     }
 
-    void operator()(const statement::Switch& n) final {
+    void operator()(statement::Switch* n) final {
         out.emptyLine();
         out.beginLine();
         out << "switch ( ";
 
-        if ( const auto& cond = n.condition(); cond->id().str() != "__x" )
+        if ( const auto& cond = n->condition(); cond->id().str() != "__x" )
             out << cond;
         else
             out << cond->init();
@@ -710,7 +710,7 @@ struct Printer : visitor::PreOrder {
         out.incrementIndent();
         out.endLine();
 
-        for ( const auto& c : n.cases() ) {
+        for ( const auto& c : n->cases() ) {
             out.beginLine();
 
             if ( ! c->isDefault() )
@@ -728,95 +728,95 @@ struct Printer : visitor::PreOrder {
         out.endLine();
     }
 
-    void operator()(const statement::Throw& n) final {
+    void operator()(statement::Throw* n) final {
         out.beginLine();
         out << "throw";
 
-        if ( auto e = n.expression() )
+        if ( auto e = n->expression() )
             out << fmt(" %s", *e);
 
         out << ";";
         out.endLine();
     }
 
-    void operator()(const statement::try_::Catch& n) final {
+    void operator()(statement::try_::Catch* n) final {
         out.beginLine();
         out << "catch ";
 
-        if ( auto p = n.parameter() )
+        if ( auto p = n->parameter() )
             out << "( " << p << " ) ";
 
-        out << n.body();
+        out << n->body();
     }
 
-    void operator()(const statement::Try& n) final {
+    void operator()(statement::Try* n) final {
         out.beginLine();
-        out << "try " << n.body();
+        out << "try " << n->body();
 
-        for ( const auto& c : n.catches() )
+        for ( const auto& c : n->catches() )
             out << c;
 
         out.endLine();
     }
 
-    void operator()(const statement::While& n) final {
+    void operator()(statement::While* n) final {
         out.emptyLine();
         out.beginLine();
         out << "while ( ";
 
-        if ( auto e = n.init() )
+        if ( auto e = n->init() )
             out << e << "; ";
 
-        if ( auto e = n.condition() )
+        if ( auto e = n->condition() )
             out << e;
 
-        out << " ) " << n.body();
+        out << " ) " << n->body();
 
-        if ( n.else_() ) {
+        if ( n->else_() ) {
             out.beginLine();
-            out << "else " << n.else_();
+            out << "else " << n->else_();
         }
 
         out.endLine();
     }
 
-    void operator()(const statement::Yield& n) final {
+    void operator()(statement::Yield* n) final {
         out.beginLine();
         out << "yield";
         out.endLine();
     }
 
 #if 0
-    void operator()(const expression::ResolvedOperator& n) final {
-        out << renderOperator(n.operator_().kind(), node::transform(n.operands(), [](auto o) { return fmt("%s", o); }));
+    void operator()(expression::ResolvedOperator* n) final {
+        out << renderOperator(n->operator_().kind(), node::transform(n->operands(), [](auto o) { return fmt("%s", o); }));
     }
 #endif
 
-    void operator()(const expression::UnresolvedOperator& n) final {
-        out << renderOperator(n.kind(),
-                              node::transform(n.operands(), [](auto& o) -> std::string { return fmt("%s", *o); }));
+    void operator()(expression::UnresolvedOperator* n) final {
+        out << renderOperator(n->kind(),
+                              node::transform(n->operands(), [](auto& o) -> std::string { return fmt("%s", *o); }));
     }
 
     ////// Types
 
-    void operator()(const QualifiedType& n) final { out << const_(n) << n.type(); }
+    void operator()(QualifiedType* n) final { out << const_(n) << n->type(); }
 
-    void operator()(const type::Any& n) final { out << "any"; }
+    void operator()(type::Any* n) final { out << "any"; }
 
-    void operator()(const type::Address& n) final { out << "addr"; }
+    void operator()(type::Address* n) final { out << "addr"; }
 
-    void operator()(const type::Auto& n) final { out << "auto"; }
+    void operator()(type::Auto* n) final { out << "auto"; }
 
-    void operator()(const type::Bool& n) final { out << "bool"; }
+    void operator()(type::Bool* n) final { out << "bool"; }
 
-    void operator()(const type::Bytes& n) final { out << "bytes"; }
+    void operator()(type::Bytes* n) final { out << "bytes"; }
 
-    void operator()(const type::enum_::Label& n) final { out << n.id() << " = " << n.value(); }
+    void operator()(type::enum_::Label* n) final { out << n->id() << " = " << n->value(); }
 
-    void operator()(const type::Enum& n) final {
+    void operator()(type::Enum* n) final {
         if ( ! out.isExpandSubsequentType() ) {
             out.setExpandSubsequentType(false);
-            if ( auto id = n.typeID() ) {
+            if ( auto id = n->typeID() ) {
                 out << *id;
                 return;
             }
@@ -824,18 +824,18 @@ struct Printer : visitor::PreOrder {
 
         out.setExpandSubsequentType(false);
 
-        auto x = util::transform(util::filter(n.labels(), [](const auto& l) { return l.get()->id() != ID("Undef"); }),
+        auto x = util::transform(util::filter(n->labels(), [](const auto& l) { return l.get()->id() != ID("Undef"); }),
                                  [](const auto& l) { return l.get(); });
 
         out << "enum { " << std::make_pair(std::move(x), ", ") << " }";
     }
 
-    void operator()(const type::Error& n) final { out << "error"; }
+    void operator()(type::Error* n) final { out << "error"; }
 
-    void operator()(const type::Exception& n) final {
+    void operator()(type::Exception* n) final {
         out << "exception";
 
-        if ( auto t = n.baseType() ) {
+        if ( auto t = n->baseType() ) {
             out << " : ";
             if ( auto id = t->typeID() )
                 out << *id;
@@ -844,135 +844,135 @@ struct Printer : visitor::PreOrder {
         }
     }
 
-    void operator()(const type::Function& n) final {
+    void operator()(type::Function* n) final {
         out << "function ";
-        printFunctionType(n, {});
+        printFunctionType(*n, {});
     }
 
-    void operator()(const type::Interval& n) final { out << "interval"; }
+    void operator()(type::Interval* n) final { out << "interval"; }
 
-    void operator()(const type::Member& n) final { out << n.id(); }
+    void operator()(type::Member* n) final { out << n->id(); }
 
-    void operator()(const type::Name& n) final { out << n.id(); }
+    void operator()(type::Name* n) final { out << n->id(); }
 
-    void operator()(const type::Network& n) final { out << "net"; }
+    void operator()(type::Network* n) final { out << "net"; }
 
-    void operator()(const type::Null& n) final { out << "<null type>"; }
+    void operator()(type::Null* n) final { out << "<null type>"; }
 
-    void operator()(const type::OperandList& n) final { out << "<operand list>"; }
+    void operator()(type::OperandList* n) final { out << "<operand list>"; }
 
-    void operator()(const type::Optional& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::Optional* n) final {
+        if ( n->isWildcard() )
             out << "optional<*>";
         else {
-            out << "optional<" << n.dereferencedType() << ">";
+            out << "optional<" << n->dereferencedType() << ">";
         }
     }
 
-    void operator()(const type::Port& n) final { out << "port"; }
+    void operator()(type::Port* n) final { out << "port"; }
 
-    void operator()(const type::Real& n) final { out << "real"; }
+    void operator()(type::Real* n) final { out << "real"; }
 
-    void operator()(const type::StrongReference& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::StrongReference* n) final {
+        if ( n->isWildcard() )
             out << "strong_ref<*>";
         else
-            out << "strong_ref<" << n.dereferencedType() << ">";
+            out << "strong_ref<" << n->dereferencedType() << ">";
     }
 
-    void operator()(const type::Stream& n) final { out << "stream"; }
+    void operator()(type::Stream* n) final { out << "stream"; }
 
-    void operator()(const type::bytes::Iterator& n) final { out << "iterator<bytes>"; }
+    void operator()(type::bytes::Iterator* n) final { out << "iterator<bytes>"; }
 
-    void operator()(const type::list::Iterator& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::list::Iterator* n) final {
+        if ( n->isWildcard() )
             out << "iterator<list<*>>";
         else
-            out << fmt("iterator<list<%s>>", *n.dereferencedType());
+            out << fmt("iterator<list<%s>>", *n->dereferencedType());
     }
 
-    void operator()(const type::stream::Iterator& n) final { out << "iterator<stream>"; }
+    void operator()(type::stream::Iterator* n) final { out << "iterator<stream>"; }
 
-    void operator()(const type::vector::Iterator& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::vector::Iterator* n) final {
+        if ( n->isWildcard() )
             out << "iterator<vector<*>>";
         else
-            out << fmt("iterator<vector<%s>>", *n.dereferencedType());
+            out << fmt("iterator<vector<%s>>", *n->dereferencedType());
     }
 
-    void operator()(const type::stream::View& n) final { out << "view<stream>"; }
+    void operator()(type::stream::View* n) final { out << "view<stream>"; }
 
-    void operator()(const type::Library& n) final {
-        if ( auto id = n.typeID() )
+    void operator()(type::Library* n) final {
+        if ( auto id = n->typeID() )
             out << *id;
         else
-            out << fmt("__library_type(\"%s\")", n.cxxName());
+            out << fmt("__library_type(\"%s\")", n->cxxName());
     }
 
-    void operator()(const type::List& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::List* n) final {
+        if ( n->isWildcard() )
             out << "list<*>";
         else {
-            out << "list<" << n.elementType() << ">";
+            out << "list<" << n->elementType() << ">";
         }
     }
 
-    void operator()(const type::map::Iterator& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::map::Iterator* n) final {
+        if ( n->isWildcard() )
             out << "iterator<map<*>>";
         else
-            out << fmt("iterator<map<%s>>", *n.dereferencedType());
+            out << fmt("iterator<map<%s>>", *n->dereferencedType());
     }
 
-    void operator()(const type::Map& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::Map* n) final {
+        if ( n->isWildcard() )
             out << "map<*>";
         else {
-            out << "map<" << n.keyType() << ", " << n.valueType() << ">";
+            out << "map<" << n->keyType() << ", " << n->valueType() << ">";
         }
     }
 
-    void operator()(const type::RegExp& n) final { out << "regexp"; }
+    void operator()(type::RegExp* n) final { out << "regexp"; }
 
-    void operator()(const type::Result& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::Result* n) final {
+        if ( n->isWildcard() )
             out << "result<*>";
         else {
-            out << "result<" << n.dereferencedType() << ">";
+            out << "result<" << n->dereferencedType() << ">";
         }
     }
 
-    void operator()(const type::set::Iterator& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::set::Iterator* n) final {
+        if ( n->isWildcard() )
             out << "iterator<set<*>>";
         else
-            out << fmt("iterator<set<%s>>", *n.dereferencedType());
+            out << fmt("iterator<set<%s>>", *n->dereferencedType());
     }
 
-    void operator()(const type::Set& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::Set* n) final {
+        if ( n->isWildcard() )
             out << "set<*>";
         else {
-            out << "set<" << n.elementType() << ">";
+            out << "set<" << n->elementType() << ">";
         }
     }
 
-    void operator()(const type::SignedInteger& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::SignedInteger* n) final {
+        if ( n->isWildcard() )
             out << "int<*>";
         else
-            out << fmt("int<%d>", n.width());
+            out << fmt("int<%d>", n->width());
     }
 
-    void operator()(const type::String& n) final { out << "string"; }
+    void operator()(type::String* n) final { out << "string"; }
 
-    void operator()(const type::Struct& n) final {
+    void operator()(type::Struct* n) final {
         if ( ! out.isExpandSubsequentType() ) {
-            if ( auto id = n.typeID() ) {
+            if ( auto id = n->typeID() ) {
                 out << *id;
 
-                if ( n.parameters().size() )
-                    out << '(' << std::make_pair(n.parameters(), ", ") << ')';
+                if ( n->parameters().size() )
+                    out << '(' << std::make_pair(n->parameters(), ", ") << ')';
 
                 return;
             }
@@ -982,8 +982,8 @@ struct Printer : visitor::PreOrder {
 
         out << "struct";
 
-        if ( n.parameters().size() )
-            out << " (" << std::make_pair(n.parameters(), ", ") << ')';
+        if ( n->parameters().size() )
+            out << " (" << std::make_pair(n->parameters(), ", ") << ')';
 
         auto printFields = [&](const auto& fields) {
             for ( const auto& f : fields )
@@ -992,18 +992,18 @@ struct Printer : visitor::PreOrder {
 
         out << " {" << out.newline();
         printFields(
-            util::filter(n.fields(), [](const auto& f) { return ! f->type()->template isA<type::Function>(); }));
-        printFields(util::filter(n.fields(), [](const auto& f) { return f->type()->template isA<type::Function>(); }));
+            util::filter(n->fields(), [](const auto& f) { return ! f->type()->template isA<type::Function>(); }));
+        printFields(util::filter(n->fields(), [](const auto& f) { return f->type()->template isA<type::Function>(); }));
         out << "}";
     }
 
-    void operator()(const type::Time& n) final { out << "time"; }
+    void operator()(type::Time* n) final { out << "time"; }
 
-    void operator()(const type::Type_& n) final { out << fmt("type<%s>", n.typeValue()); }
+    void operator()(type::Type_* n) final { out << fmt("type<%s>", n->typeValue()); }
 
-    void operator()(const type::Union& n) final {
+    void operator()(type::Union* n) final {
         if ( ! out.isExpandSubsequentType() ) {
-            if ( auto id = n.typeID() ) {
+            if ( auto id = n->typeID() ) {
                 out << *id;
                 return;
             }
@@ -1013,28 +1013,28 @@ struct Printer : visitor::PreOrder {
 
         out << "union {" << out.newline();
 
-        for ( const auto& f : n.fields() )
+        for ( const auto& f : n->fields() )
             out << f;
 
         out << "}";
     }
 
-    void operator()(const type::Unknown& n) final { out << "<unknown type>"; }
+    void operator()(type::Unknown* n) final { out << "<unknown type>"; }
 
-    void operator()(const type::UnsignedInteger& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::UnsignedInteger* n) final {
+        if ( n->isWildcard() )
             out << "uint<*>";
         else
-            out << fmt("uint<%d>", n.width());
+            out << fmt("uint<%d>", n->width());
     }
 
-    void operator()(const type::Tuple& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::Tuple* n) final {
+        if ( n->isWildcard() )
             out << "tuple<*>";
         else {
             out << "tuple<";
 
-            auto types = node::transform(n.elements(), [](const auto& x) -> std::string {
+            auto types = node::transform(n->elements(), [](const auto& x) -> std::string {
                 return x->id() ? fmt("%s: %s", *x->id(), *x->type()) : fmt("%s", *x->type());
             });
 
@@ -1042,28 +1042,28 @@ struct Printer : visitor::PreOrder {
         }
     }
 
-    void operator()(const type::Vector& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::Vector* n) final {
+        if ( n->isWildcard() )
             out << "vector<*>";
         else {
-            out << "vector<" << n.elementType() << ">";
+            out << "vector<" << n->elementType() << ">";
         }
     }
 
-    void operator()(const type::Void& n) final { out << "void"; }
+    void operator()(type::Void* n) final { out << "void"; }
 
-    void operator()(const type::WeakReference& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::WeakReference* n) final {
+        if ( n->isWildcard() )
             out << "weak_ref<*>";
         else
-            out << "weak_ref<" << n.dereferencedType() << ">";
+            out << "weak_ref<" << n->dereferencedType() << ">";
     }
 
-    void operator()(const type::ValueReference& n) final {
-        if ( n.isWildcard() )
+    void operator()(type::ValueReference* n) final {
+        if ( n->isWildcard() )
             out << "value_ref<*>";
         else
-            out << "value_ref<" << n.dereferencedType() << ">";
+            out << "value_ref<" << n->dereferencedType() << ">";
     }
 
 private:
@@ -1109,17 +1109,16 @@ void hilti::detail::printAST(const NodePtr& root, printer::Stream& stream) {
     Printer(stream).dispatch(root);
 }
 
-#if 0
-std::string hilti::detail::renderOperatorPrototype(const expression::ResolvedOperator& o) {
-    const auto& op = o.operator_();
-    const auto& exprs = o.operands();
+std::string hilti::detail::renderOperatorPrototype(const NodeDerivedPtr<expression::ResolvedOperator>& o) {
+    const auto& op = o->operator_();
+    const auto& exprs = o->operands();
 
     switch ( op.kind() ) {
         case operator_::Kind::Call: {
             assert(exprs.size() == 2);
             auto id = exprs[0];
             auto ops =
-                operator_::type(o.operator_().operands()[1].type, exprs, exprs)->as<type::OperandList>().operands();
+                operator_::type(o->operator_().operands()[1].type, exprs, exprs)->as<type::OperandList>()->operands();
             auto args =
                 util::join(util::transform(ops, [&](auto x) { return fmt("<%s>", renderOperand(x, exprs)); }), ", ");
             return fmt("%s(%s)", id, args);
@@ -1130,7 +1129,7 @@ std::string hilti::detail::renderOperatorPrototype(const expression::ResolvedOpe
             auto self = exprs[0];
             auto id = exprs[1];
             auto ops =
-                operator_::type(o.operator_().operands()[2].type, exprs, exprs)->as<type::OperandList>().operands();
+                operator_::type(o->operator_().operands()[2].type, exprs, exprs)->as<type::OperandList>()->operands();
             auto args =
                 util::join(util::transform(ops, [&](auto x) { return fmt("<%s>", renderOperand(x, exprs)); }), ", ");
             return fmt("<%s>.%s(%s)", renderExpressionType(self), id, args);
@@ -1148,7 +1147,7 @@ static std::string _renderOperatorInstance(operator_::Kind kind, const node::Ran
         case operator_::Kind::Call: {
             assert(exprs.size() == 2);
             const auto& id = exprs[0];
-            auto ops = exprs[1].as<expression::Ctor>().ctor().as<ctor::Tuple>().value();
+            auto ops = exprs[1]->as<expression::Ctor>()->ctor()->as<ctor::Tuple>()->value();
             auto args =
                 util::join(node::transform(ops, [&](auto x) { return fmt("<%s>", renderExpressionType(x)); }), ", ");
             return fmt("%s(%s)", id, args);
@@ -1158,7 +1157,7 @@ static std::string _renderOperatorInstance(operator_::Kind kind, const node::Ran
             assert(exprs.size() == 3);
             const auto& self = exprs[0];
             const auto& id = exprs[1];
-            auto ops = exprs[2].as<expression::Ctor>().ctor().as<ctor::Tuple>().value();
+            auto ops = exprs[2]->as<expression::Ctor>()->ctor()->as<ctor::Tuple>()->value();
             auto args =
                 util::join(node::transform(ops, [&](auto x) { return fmt("<%s>", renderExpressionType(x)); }), ", ");
             return fmt("<%s>.%s(%s)", renderExpressionType(self), id, args);
@@ -1170,12 +1169,10 @@ static std::string _renderOperatorInstance(operator_::Kind kind, const node::Ran
     }
 }
 
-std::string hilti::detail::renderOperatorInstance(const expression::ResolvedOperator& o) {
-    return _renderOperatorInstance(o.operator_().kind(), o.operands());
+std::string hilti::detail::renderOperatorInstance(const NodeDerivedPtr<expression::ResolvedOperator>& o) {
+    return _renderOperatorInstance(o->operator_().kind(), o->operands());
 }
 
-std::string hilti::detail::renderOperatorInstance(const expression::UnresolvedOperator& o) {
-    return _renderOperatorInstance(o.kind(), o.operands());
+std::string hilti::detail::renderOperatorInstance(const NodeDerivedPtr<expression::UnresolvedOperator>& o) {
+    return _renderOperatorInstance(o->kind(), o->operands());
 }
-
-#endif

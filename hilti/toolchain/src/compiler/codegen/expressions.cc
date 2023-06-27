@@ -15,11 +15,15 @@ using namespace hilti::detail;
 
 namespace {
 
-struct Visitor : hilti::visitor::PreOrder<cxx::Expression, Visitor> {
+struct Visitor : hilti::visitor::PreOrder {
     Visitor(CodeGen* cg, bool lhs) : cg(cg), lhs(lhs) {}
+
     CodeGen* cg;
     bool lhs;
 
+    std::optional<cxx::Expression> result;
+
+#if 0
     result_t operator()(const expression::Assign& n) {
         return {fmt("%s = %s", cg->compile(n.target(), true), cg->compile(n.source())), cxx::Side::LHS};
     }
@@ -209,13 +213,15 @@ struct Visitor : hilti::visitor::PreOrder<cxx::Expression, Visitor> {
     }
 
     result_t operator()(const expression::Void& n) { return "<void-expression>"; }
+#endif
 };
 
 } // anonymous namespace
 
-cxx::Expression CodeGen::compile(const hilti::Expression& e, bool lhs) {
-    if ( auto x = Visitor(this, lhs).dispatch(e) )
-        return lhs ? _makeLhs(*x, e.type()) : *x;
+cxx::Expression CodeGen::compile(const ExpressionPtr& e, bool lhs) {
+    auto v = Visitor(this, lhs);
+    if ( auto x = hilti::visitor::dispatch(v, e, [](const auto& v) { return v.result; }) )
+        return lhs ? _makeLhs(*x, e->type()) : *x;
 
-    logger().internalError(fmt("expression failed to compile ('%s' / %s)", e, e.typename_()), e);
+    logger().internalError(fmt("expression failed to compile ('%s' / %s)", e, e->typename_()), e);
 }

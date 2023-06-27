@@ -16,10 +16,14 @@ using hilti::rt::fmt;
 
 namespace {
 
-struct Visitor : hilti::visitor::PreOrder<cxx::Expression, Visitor> {
+struct Visitor : hilti::visitor::PreOrder {
     explicit Visitor(CodeGen* cg) : cg(cg) {}
+
     CodeGen* cg;
 
+    std::optional<cxx::Expression> result;
+
+#if 0
     result_t operator()(const ctor::Address& n) { return fmt("::hilti::rt::Address(\"%s\")", n.value()); }
 
     result_t operator()(const ctor::Bool& n) { return fmt("::hilti::rt::Bool(%s)", n.value() ? "true" : "false"); }
@@ -224,13 +228,15 @@ struct Visitor : hilti::visitor::PreOrder<cxx::Expression, Visitor> {
     result_t operator()(const ctor::WeakReference& n) {
         return fmt("::hilti::rt::WeakReference<%s>()", cg->compile(*n.dereferencedType(), codegen::TypeUsage::Ctor));
     }
+#endif
 };
 
 } // anonymous namespace
 
-cxx::Expression CodeGen::compile(const hilti::Ctor& c, bool lhs) {
-    if ( auto x = Visitor(this).dispatch(c) )
-        return lhs ? _makeLhs(*x, c.type()) : *x;
+cxx::Expression CodeGen::compile(const CtorPtr& c, bool lhs) {
+    auto v = Visitor(this);
+    if ( auto x = hilti::visitor::dispatch(v, c, [](const auto& v) { return v.result; }) )
+        return lhs ? _makeLhs(*x, c->type()) : *x;
 
-    logger().internalError(fmt("ctor %s failed to compile", to_node(c).typename_()), c);
+    logger().internalError(fmt("ctor %s failed to compile", c->typename_()), c);
 }

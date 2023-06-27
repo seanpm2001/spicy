@@ -10,6 +10,8 @@
 #include <hilti/compiler/detail/cxx/all.h>
 #include <hilti/compiler/unit.h>
 
+#include "global.h"
+
 using namespace hilti;
 using namespace hilti::detail;
 using namespace hilti::detail::codegen;
@@ -18,15 +20,16 @@ using util::fmt;
 
 namespace {
 
-struct VisitorDeclaration : hilti::visitor::PreOrder<void, VisitorDeclaration>, type::Visitor {
+struct VisitorDeclaration : hilti::visitor::PreOrder {
     VisitorDeclaration(CodeGen* cg, util::Cache<cxx::ID, cxx::declaration::Type>* cache) : cg(cg), cache(cache) {}
 
     CodeGen* cg;
     util::Cache<cxx::ID, cxx::declaration::Type>* cache;
     std::list<cxx::declaration::Type> dependencies;
 
-    std::optional<cxx::declaration::Type> _result;
+    std::optional<cxx::declaration::Type> result;
 
+#if 0
     void addDependency(const TypePtr& t) {
         for ( auto&& t : cg->typeDependencies(t) )
             dependencies.push_back(std::move(t));
@@ -361,9 +364,10 @@ struct VisitorDeclaration : hilti::visitor::PreOrder<void, VisitorDeclaration>, 
         _result = cxx::declaration::Type(id, fmt("HILTI_EXCEPTION_NS(%s, %s, %s)", id.local(), base_ns, base_cls), {},
                                       false, false, true);
     }
+#endif
 };
 
-struct VisitorStorage : hilti::visitor::PreOrder<void, VisitorStorage>, type::Visitor {
+struct VisitorStorage : hilti::visitor::PreOrder {
     VisitorStorage(CodeGen* cg, util::Cache<cxx::ID, CxxTypes>* cache, codegen::TypeUsage usage)
         : cg(cg), cache(cache), usage(usage) {}
 
@@ -371,9 +375,9 @@ struct VisitorStorage : hilti::visitor::PreOrder<void, VisitorStorage>, type::Vi
     util::Cache<cxx::ID, CxxTypes>* cache;
     codegen::TypeUsage usage;
 
-    std::optional<CxxTypes> _result;
+    std::optional<CxxTypes> result;
 
-
+#if 0
     auto typeID(const Node& n) { return n.as<Type>().typeID(); }
     auto cxxID(const Node& n) { return n.as<Type>().cxxID(); }
 
@@ -808,16 +812,18 @@ struct VisitorStorage : hilti::visitor::PreOrder<void, VisitorStorage>, type::Vi
         else
             _result = CxxTypes{.base_type = "*"};
     }
+#endif
 };
 
 // Visitor returning the ID of static, predefined type information instances for types that provide it.
-struct VisitorTypeInfoPredefined : hilti::visitor::PreOrder<void, VisitorTypeInfoPredefined>, type::Visitor {
+struct VisitorTypeInfoPredefined : hilti::visitor::PreOrder {
     VisitorTypeInfoPredefined(CodeGen* cg) : cg(cg) {}
 
     CodeGen* cg;
 
-    std::optional<cxx::Expression> _result;
+    std::optional<cxx::Expression> result;
 
+#if 0
     result_t operator()(const type::Address& n, type::Visitor::position_t&) override {
         _result = "::hilti::rt::type_info::address";
     }
@@ -883,15 +889,18 @@ struct VisitorTypeInfoPredefined : hilti::visitor::PreOrder<void, VisitorTypeInf
     result_t operator()(const type::Auto& n, type::Visitor::position_t&) override {
         logger().internalError("codegen: automatic type has not been replaced");
     }
+#endif
 };
 
 // Visitor creaating dynamic type information instances for types that do not provide predefined static ones.
-struct VisitorTypeInfoDynamic : hilti::visitor::PreOrder<void, VisitorTypeInfoDynamic>, type::Visitor {
+struct VisitorTypeInfoDynamic : hilti::visitor::PreOrder {
     VisitorTypeInfoDynamic(CodeGen* cg) : cg(cg) {}
+
     CodeGen* cg;
 
-    std::optional<cxx::Expression> _result;
+    std::optional<cxx::Expression> result;
 
+#if 0
     auto typeID(const Node& n) { return n.as<Type>().typeID(); }
     auto cxxID(const Node& n) { return n.as<Type>().cxxID(); }
 
@@ -1061,18 +1070,17 @@ struct VisitorTypeInfoDynamic : hilti::visitor::PreOrder<void, VisitorTypeInfoDy
     result_t operator()(const type::UnresolvedID& n, type::Visitor::position_t&) override {
         logger().internalError(fmt("codegen: unresolved type ID %s", n.id()), n);
     }
+#endif
 };
 
 } // anonymous namespace
 
-cxx::Type CodeGen::compile(const hilti::TypePtrPtr& t, codegen::TypeUsage usage) {
+cxx::Type CodeGen::compile(const QualifiedTypePtr& t, codegen::TypeUsage usage) {
     auto v = VisitorStorage(this, &_cache_types_storage, usage);
-    v.dispatch(t);
-    auto& x = v._result;
-
+    auto x = hilti::visitor::dispatch(v, t, [](const auto& v) { return v.result; });
     if ( ! x ) {
         hilti::render(std::cerr, t);
-        logger().internalError(fmt("codegen: type %s does not have a visitor", t), t);
+        logger().internalError(fmt("codegen: type %s does not have a visitor", *t), t);
     }
 
     std::optional<cxx::Type> base_type;
@@ -1087,7 +1095,7 @@ cxx::Type CodeGen::compile(const hilti::TypePtrPtr& t, codegen::TypeUsage usage)
             if ( base_type )
                 return std::move(*base_type);
 
-            logger().internalError(fmt("codegen: type %s does not support use as storage", to_node(t).render()), t);
+            logger().internalError(fmt("codegen: type %s does not support use as storage", t->render()), t);
             break;
 
         case codegen::TypeUsage::CopyParameter:
@@ -1097,8 +1105,7 @@ cxx::Type CodeGen::compile(const hilti::TypePtrPtr& t, codegen::TypeUsage usage)
             if ( base_type )
                 return fmt("%s", *base_type);
 
-            logger().internalError(fmt("codegen: type %s does not support use as copy-parameter ", to_node(t).render()),
-                                   t);
+            logger().internalError(fmt("codegen: type %s does not support use as copy-parameter ", t->render()), t);
             break;
 
         case codegen::TypeUsage::InParameter:
@@ -1108,8 +1115,7 @@ cxx::Type CodeGen::compile(const hilti::TypePtrPtr& t, codegen::TypeUsage usage)
             if ( base_type )
                 return fmt("const %s&", *base_type);
 
-            logger().internalError(fmt("codegen: type %s does not support use as in-parameter ", to_node(t).render()),
-                                   t);
+            logger().internalError(fmt("codegen: type %s does not support use as in-parameter ", t->render()), t);
             break;
 
         case codegen::TypeUsage::InOutParameter:
@@ -1119,9 +1125,7 @@ cxx::Type CodeGen::compile(const hilti::TypePtrPtr& t, codegen::TypeUsage usage)
             if ( base_type )
                 return fmt("%s&", *base_type);
 
-            logger().internalError(fmt("codegen: type %s does not support use as inout-parameter ",
-                                       to_node(t).render()),
-                                   t);
+            logger().internalError(fmt("codegen: type %s does not support use as inout-parameter ", t->render()), t);
             break;
 
         case codegen::TypeUsage::FunctionResult:
@@ -1131,8 +1135,7 @@ cxx::Type CodeGen::compile(const hilti::TypePtrPtr& t, codegen::TypeUsage usage)
             if ( base_type )
                 return std::move(*base_type);
 
-            logger().internalError(fmt("codegen: type %s does not support use as function result", to_node(t).render()),
-                                   t);
+            logger().internalError(fmt("codegen: type %s does not support use as function result", t->render()), t);
             break;
 
         case codegen::TypeUsage::Ctor:
@@ -1142,54 +1145,50 @@ cxx::Type CodeGen::compile(const hilti::TypePtrPtr& t, codegen::TypeUsage usage)
             if ( x->base_type )
                 return std::move(*x->base_type);
 
-            logger().internalError(fmt("codegen: type %s does not support use as storage", to_node(t).render()), t);
+            logger().internalError(fmt("codegen: type %s does not support use as storage", t->render()), t);
             break;
 
         case codegen::TypeUsage::None:
-            logger().internalError(fmt("codegen: type compilation with 'None' usage", to_node(t).render()), t);
+            logger().internalError(fmt("codegen: type compilation with 'None' usage", t->render()), t);
             break;
         default: util::cannot_be_reached();
     }
 }
 
-std::optional<cxx::Expression> CodeGen::typeDefaultValue(const hilti::TypePtrPtr& t) {
+std::optional<cxx::Expression> CodeGen::typeDefaultValue(const hilti::QualifiedTypePtr& t) {
     auto v = VisitorStorage(this, &_cache_types_storage, codegen::TypeUsage::None);
-    v.dispatch(t);
-    auto& x = v._result;
-
+    auto x = hilti::visitor::dispatch(v, t, [](const auto& v) { return v.result; });
     if ( ! x ) {
         hilti::render(std::cerr, t);
-        logger().internalError(fmt("codegen: type %s does not have a visitor", t), t);
+        logger().internalError(fmt("codegen: type %s does not have a visitor", *t), t);
     }
 
-
     return std::move(x->default_);
-};
+}
 
-std::list<cxx::declaration::Type> CodeGen::typeDependencies(const hilti::TypePtrPtr& t) {
+std::list<cxx::declaration::Type> CodeGen::typeDependencies(const QualifiedTypePtr& t) {
     VisitorDeclaration v(this, &_cache_types_declarations);
     v.dispatch(t);
     return v.dependencies;
 };
 
-std::optional<cxx::declaration::Type> CodeGen::typeDeclaration(const hilti::TypePtrPtr& t) {
+std::optional<cxx::declaration::Type> CodeGen::typeDeclaration(const QualifiedTypePtr& t) {
     auto v = VisitorDeclaration(this, &_cache_types_declarations);
-    v.dispatch(t);
-    return v._result;
+    return hilti::visitor::dispatch(v, t, [](const auto& v) { return v.result; });
 };
 
-const CxxTypeInfo& CodeGen::_getOrCreateTypeInfo(const hilti::TypePtrPtr& t) {
+const CxxTypeInfo& CodeGen::_getOrCreateTypeInfo(const QualifiedTypePtr& t) {
     std::stringstream display;
 
-    if ( t.typeID() )
+    if ( t->type()->typeID() )
         // Prefer the bare type name as the display value.
-        display << *t.typeID();
+        display << *t->type()->typeID();
     else
         hilti::print(display, t);
 
     if ( display.str().empty() )
         logger().internalError(fmt("codegen: type %s does not have a display rendering for type information",
-                                   t.typename_()),
+                                   t->type()->typename_()),
                                t);
 
     // Each module contains all the type information it needs. We put the
@@ -1201,8 +1200,8 @@ const CxxTypeInfo& CodeGen::_getOrCreateTypeInfo(const hilti::TypePtrPtr& t) {
         tid,
         [&]() {
             auto v = VisitorTypeInfoPredefined(this);
-            v.dispatch(t);
-            if ( auto x = v._result; x && *x )
+
+            if ( auto x = hilti::visitor::dispatch(v, t, [](const auto& v) { return v.result; }); x && *x )
                 return CxxTypeInfo{.predefined = true, .reference = fmt("&%s", *x)};
 
             auto forward = cxx::declaration::Constant{.id = tid,
@@ -1219,13 +1218,11 @@ const CxxTypeInfo& CodeGen::_getOrCreateTypeInfo(const hilti::TypePtrPtr& t) {
                 return ti;
 
             auto v = VisitorTypeInfoDynamic(this);
-            v.dispatch(t);
-            auto& x = v._result;
-
+            auto x = hilti::visitor::dispatch(v, t, [](const auto& v) { return v.result; });
             if ( ! x )
-                logger().internalError(fmt("codegen: type %s does not have a dynamic type info visitor", t), t);
+                logger().internalError(fmt("codegen: type %s does not have a dynamic type info visitor", *t), t);
 
-            auto id_init = (t.typeID() ? fmt("\"%s\"", *t.typeID()) : std::string("{}"));
+            auto id_init = (t->type()->typeID() ? fmt("\"%s\"", *t->type()->typeID()) : std::string("{}"));
             auto init = fmt("{ %s, \"%s\", new %s }", id_init, display.str(), *x);
 
             ti.declaration =
@@ -1237,25 +1234,25 @@ const CxxTypeInfo& CodeGen::_getOrCreateTypeInfo(const hilti::TypePtrPtr& t) {
         });
 }
 
-cxx::Expression CodeGen::_makeLhs(cxx::Expression expr, const TypePtr& type) {
+cxx::Expression CodeGen::_makeLhs(cxx::Expression expr, const QualifiedTypePtr& type) {
     if ( expr.isLhs() )
         return expr;
 
     auto tmp = addTmp("lhs", compile(type, TypeUsage::Storage));
     cxx::Expression result;
 
-    if ( type.isA<type::ValueReference>() )
+    if ( type->isA<type::ValueReference>() )
         result = cxx::Expression{fmt("(%s=(%s).asSharedPtr())", tmp, expr), cxx::Side::LHS}; // avoid copy
     else
         result = cxx::Expression{fmt("(%s=(%s))", tmp, expr), cxx::Side::LHS};
 
     // This can help show where LHS conversions happen unexpectedly; they
     // should be very rare.
-    HILTI_DEBUG(logging::debug::CodeGen, fmt("RHS -> LHS: %s -> %s [%s]", expr, result, type.typename_()));
+    HILTI_DEBUG(logging::debug::CodeGen, fmt("RHS -> LHS: %s -> %s [%s]", expr, result, type->typename_()));
 
     return result;
 }
 
-cxx::Expression CodeGen::typeInfo(const hilti::TypePtrPtr& t) { return _getOrCreateTypeInfo(t).reference; };
+cxx::Expression CodeGen::typeInfo(const QualifiedTypePtr& t) { return _getOrCreateTypeInfo(t).reference; };
 
-void CodeGen::addTypeInfoDefinition(const hilti::TypePtrPtr& t) { _getOrCreateTypeInfo(t); }
+void CodeGen::addTypeInfoDefinition(const QualifiedTypePtr& t) { _getOrCreateTypeInfo(t); }

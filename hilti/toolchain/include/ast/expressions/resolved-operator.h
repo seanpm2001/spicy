@@ -16,7 +16,7 @@ namespace hilti::expression {
  *
  * @note Typically, one derives from this only by using the `__BEGIN_OPERATOR` macro.
  */
-class ResolvedOperatorBase : public Expression {
+class ResolvedOperator : public Expression {
 public:
     const auto& operator_() const { return *_operator; }
     auto kind() const { return _operator->kind(); }
@@ -47,14 +47,14 @@ public:
     }
 
 protected:
-    ResolvedOperatorBase(Nodes children, OperatorPtr op, Meta meta)
+    ResolvedOperator(Nodes children, OperatorPtr op, Meta meta)
         : Expression(std::move(children), std::move(meta)), _operator(std::move(op)) {
         setChild(0, _operator->result(Node::children<Expression>(1, -1))); // TODO: Right?
         type::pruneWalk(child(0)->as<QualifiedType>());
     }
 
     bool isEqual(const Node& other) const override {
-        auto n = other.tryAs<ResolvedOperatorBase>();
+        auto n = other.tryAs<ResolvedOperator>();
         if ( ! n )
             return false;
 

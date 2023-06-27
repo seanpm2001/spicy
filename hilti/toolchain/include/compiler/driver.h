@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -118,18 +119,20 @@ public:
      */
     Result<Nothing> parseOptions(int argc, char** argv);
 
-    /**
-     * Schedules a unit for compilation. The driver will compile the unit once
-     * `compile()` is called. If a module of the same ID or path has been added
-     * previously, this will have no further effect.
-     *
-     * The `hookAddInput()` and `hookNewASTPreCompilation()` hooks will be
-     * called immediately for the new module.
-     *
-     * @param u unit to schedule for compilation
-     * @return set if successful; otherwise the result provides an error message
+    /*
+     * #<{(|*
+     *  * Schedules a unit for compilation. The driver will compile the unit once
+     *  * `compile()` is called. If a module of the same ID or path has been added
+     *  * previously, this will have no further effect.
+     *  *
+     *  * The `hookAddInput()` and `hookNewASTPreCompilation()` hooks will be
+     *  * called immediately for the new module.
+     *  *
+     *  * @param u unit to schedule for compilation
+     *  * @return set if successful; otherwise the result provides an error message
+     *  |)}>#
+     * Result<Nothing> addInput(const std::shared_ptr<Unit>& u);
      */
-    Result<Nothing> addInput(const std::shared_ptr<Unit>& u);
 
     /**
      * Schedules a source file for compilation. The file will be parsed
@@ -146,10 +149,7 @@ public:
     Result<Nothing> addInput(const hilti::rt::filesystem::path& path);
 
     /** Returns true if at least one input file has been added. */
-    bool hasInputs() const {
-        return ! (_pending_units.empty() && _processed_units.empty() && _processed_paths.empty() &&
-                  _libraries.empty() && _external_cxxs.empty());
-    }
+    bool hasInputs() const { return ! (_units.empty() && _libraries.empty() && _external_cxxs.empty()); }
 
     /** Returns the driver options currently in effect. */
     const auto& driverOptions() const { return _driver_options; }
@@ -478,19 +478,17 @@ private:
     driver::Options _driver_options;
     hilti::Options _compiler_options;
 
-    std::vector<std::shared_ptr<Unit>> _pending_units;
-    std::set<ID> _processed_units;
-    std::set<hilti::rt::filesystem::path> _processed_paths;
-
     std::shared_ptr<Context> _ctx;                      // driver's compiler context
     std::unique_ptr<hilti::JIT> _jit;                   // driver's JIT instance
     std::shared_ptr<const hilti::rt::Library> _library; // Compiled code
 
+    std::unordered_map<module::UID, std::shared_ptr<Unit>> _units;
     std::vector<CxxCode> _generated_cxxs;
     std::unordered_map<std::string, Library> _libraries;
     std::vector<hilti::rt::filesystem::path> _external_cxxs;
     std::vector<linker::MetaData> _mds;
-    std::vector<std::shared_ptr<Unit>> _hlts;
+
+    std::unordered_set<std::string> _processed_paths;
 
     bool _runtime_initialized = false; // true once initRuntime() has succeeded
     std::set<std::string> _tmp_files;  // all tmp files created, so that we can clean them up.

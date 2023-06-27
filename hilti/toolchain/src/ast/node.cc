@@ -3,11 +3,20 @@
 #include <iomanip>
 #include <sstream>
 
+#include <hilti/ast/ctors/enum.h>
+#include <hilti/ast/declarations/imported-module.h>
+#include <hilti/ast/declarations/module.h>
+#include <hilti/ast/declarations/type.h>
+#include <hilti/ast/expressions/ctor.h>
+#include <hilti/ast/module.h>
 #include <hilti/ast/node.h>
 #include <hilti/ast/type.h>
 #include <hilti/ast/visitor.h>
 #include <hilti/base/util.h>
 #include <hilti/compiler/detail/visitors.h>
+
+#include "ast/declarations/constant.h"
+#include "ast/expressions/ctor.h"
 
 using namespace hilti;
 
@@ -29,7 +38,7 @@ std::string Node::render(bool include_location) const {
         sprops = util::fmt(" <%s>", util::join(props, " "));
 
     // Prettify the name a bit.
-    auto name = typename_();
+    auto name = util::demangle(typename_());
     name = util::replace(name, "hilti::", "");
 
     if ( util::startsWith(name, "detail::") )
@@ -37,7 +46,7 @@ std::string Node::render(bool include_location) const {
 
     auto location = (include_location && meta().location()) ? util::fmt(" (%s)", meta().location().render(true)) : "";
     auto prune = (pruneWalk() ? " (prune)" : "");
-    auto no_inherit_scope = (inheritScope() ? " (no-inherit-scope)" : "");
+    auto no_inherit_scope = (inheritScope() ? "" : " (no-inherit-scope)");
 
 #if 0
     // TODO: Move into the corresponding sub-classes.
@@ -100,7 +109,6 @@ void Node::destroyChildren() { _destroyChildrenRecursively(this); }
 
 NodePtr node::clone(ASTContext* ctx, const NodePtr& n) {
     auto clone = n->_clone(ctx);
-    clone->clearParent();
     return clone;
 }
 
@@ -113,4 +121,76 @@ NodePtr node::deepClone(ASTContext* ctx, const NodePtr& n) {
         clone_->addChild(deepClone(ctx, c));
 
     return clone_;
+}
+
+// Helper looking up an ID inside a node's direct scope, applying visibility rules.
+static std::pair<bool, Result<std::pair<DeclarationPtr, ID>>> _lookupID(const ID& id, const Node* n) {
+    assert(n->scope());
+    auto resolved = n->scope()->lookupAll(id);
+
+    if ( resolved.empty() ) {
+        auto err = result::Error(util::fmt("unknown ID '%s'", id));
+        return std::make_pair(false, std::move(err));
+    }
+
+    if ( resolved.size() > 1 ) {
+        auto err = result::Error(util::fmt("ID '%s' is ambiguous", id));
+        return std::make_pair(true, std::move(err));
+    }
+
+    const auto& r = resolved.front();
+    assert(r.node);
+    const auto& d = r.node;
+
+    if ( d->isA<declaration::Module>() || d->isA<declaration::ImportedModule>() ) {
+        auto err = result::Error(util::fmt("cannot refer to module '%s' through an ID in this context", id));
+        return std::make_pair(true, std::move(err));
+    }
+
+    if ( r.external && d->linkage() != declaration::Linkage::Public ) {
+        bool ok = false;
+
+        // We allow access to types (and type-derived constants) to
+        // make it less cumbersome to define external hooks.
+
+        if ( d->isA<declaration::Type>() )
+            ok = true;
+
+        if ( auto c = d->tryAs<declaration::Constant>() ) {
+            if ( auto ctor = c->value()->tryAs<expression::Ctor>(); ctor && ctor->ctor()->isA<ctor::Enum>() )
+                ok = true;
+        }
+
+        if ( ! ok ) {
+            auto err = result::Error(util::fmt("'%s' has not been declared public", id));
+            return std::make_pair(true, std::move(err));
+        }
+    }
+
+    auto x = std::make_pair(resolved.front().node, ID(resolved.front().qualified));
+    return std::make_pair(true, std::move(x));
+}
+
+Result<std::pair<DeclarationPtr, ID>> Node::lookupID(const ID& id, const std::string_view& what) const {
+    for ( const auto* n = this; n; n = n->parent() ) {
+        if ( ! n->scope() )
+            continue;
+
+        auto [stop, resolved] = _lookupID(id, n);
+        if ( resolved )
+            // Found it.
+            return resolved;
+
+        if ( stop )
+            // Pass back error.
+            return std::move(resolved);
+
+        if ( ! n->inheritScope() ) {
+            // Advance to module scope directly.
+            while ( n->parent() && (! n->parent()->isA<Module>()) )
+                n = n->parent();
+        }
+    }
+
+    return result::Error(util::fmt("unknown ID '%s'", id));
 }

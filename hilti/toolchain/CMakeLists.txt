@@ -35,6 +35,7 @@ autogen_dispatchers(
     ${CMAKE_CURRENT_SOURCE_DIR}/include/hilti/ast/nodes.decl ${AUTOGEN_H}/operators.decl)
 
 set(SOURCES
+    src/ast/ast-context.cc
     src/ast/attribute.cc
     src/ast/builder/builder.cc
     # src/ast/builder/type.cc
@@ -47,16 +48,14 @@ set(SOURCES
     src/ast/expression.cc
     src/ast/function.cc
     # src/ast/expressions
-    # src/ast/expressions/id.cc
+    src/ast/expressions/name.cc
     src/ast/location.cc
     src/ast/meta.cc
     src/ast/module.cc
     src/ast/node.cc
     src/ast/statement.cc
     src/ast/type.cc
-    # src/ast/node_ref.cc
     src/ast/scope.cc
-    # src/ast/scope-lookup.cc
     src/ast/statements/switch.cc
     src/ast/statements/try.cc
     # src/ast/type.cc
@@ -71,16 +70,15 @@ set(SOURCES
     src/base/preprocessor.cc
     src/base/timing.cc
     src/base/util.cc
-    # src/compiler/codegen/codegen.cc
-    # src/compiler/codegen/coercions.cc
-    # src/compiler/codegen/ctors.cc
-    # src/compiler/codegen/expressions.cc
-    # src/compiler/codegen/expressions.cc
-    # src/compiler/codegen/operators.cc
-    # src/compiler/codegen/statements.cc
-    # src/compiler/codegen/types.cc
-    # src/compiler/codegen/unpack.cc
-    # src/compiler/coercion.cc
+    src/compiler/codegen/codegen.cc
+    src/compiler/codegen/coercions.cc
+    src/compiler/codegen/ctors.cc
+    src/compiler/codegen/expressions.cc
+    src/compiler/codegen/operators.cc
+    src/compiler/codegen/statements.cc
+    src/compiler/codegen/types.cc
+    src/compiler/codegen/unpack.cc
+    src/compiler/coercion.cc
     src/compiler/context.cc
     src/compiler/cxx/elements.cc
     src/compiler/cxx/formatter.cc
@@ -93,14 +91,14 @@ set(SOURCES
     src/compiler/parser/driver.cc
     src/compiler/plugin.cc
     src/compiler/unit.cc
-    # src/compiler/visitors/coercer.cc
-    # src/compiler/visitors/constant-folder.cc
-    # src/compiler/visitors/normalizer.cc
+    src/compiler/visitors/coercer.cc
+    src/compiler/visitors/constant-folder.cc
+    src/compiler/visitors/normalizer.cc
     src/compiler/visitors/printer.cc
     src/compiler/visitors/renderer.cc
-    # src/compiler/visitors/resolver.cc
-    # src/compiler/visitors/scope-builder.cc
-    # src/compiler/visitors/validator.cc
+    src/compiler/visitors/resolver.cc
+    src/compiler/visitors/scope-builder.cc
+    src/compiler/visitors/validator.cc
     src/global.cc
     # # Already included in hilti-rt, which we pull in.
     # # src/3rdparty/utf8proc/utf8proc.c

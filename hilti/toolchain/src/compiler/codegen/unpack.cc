@@ -17,16 +17,20 @@ using namespace hilti::detail;
 
 namespace {
 
-struct Visitor : hilti::visitor::PreOrder<std::string, Visitor> {
+struct Visitor : hilti::visitor::PreOrder {
     enum class Kind { Pack, Unpack };
 
     Visitor(CodeGen* cg, Kind kind, cxx::Expression data, const std::vector<cxx::Expression>& args)
         : cg(cg), kind(kind), data(std::move(data)), args(args) {}
+
     CodeGen* cg;
     Kind kind;
     cxx::Expression data;
     const std::vector<cxx::Expression>& args;
 
+    std::optional<std::string> result;
+
+#if 0
     auto kindToString() const {
         switch ( kind ) {
             case Kind::Pack: return "pack";
@@ -56,46 +60,51 @@ struct Visitor : hilti::visitor::PreOrder<std::string, Visitor> {
     result_t operator()(const type::Real& n) {
         return fmt("::hilti::rt::real::%s(%s, %s, %s)", kindToString(), data, args[0], args[1]);
     }
+#endif
 };
 
 } // anonymous namespace
 
-cxx::Expression CodeGen::pack(const Expression& data, const std::vector<Expression>& args) {
+cxx::Expression CodeGen::pack(const ExpressionPtr& data, const Expressions& args) {
     auto cxx_args = util::transform(args, [&](const auto& e) { return compile(e, false); });
-    if ( auto x = Visitor(this, Visitor::Kind::Pack, compile(data), cxx_args).dispatch(data.type()) )
-        return cxx::Expression(*x);
+    auto v = Visitor(this, Visitor::Kind::Pack, compile(data), cxx_args);
+    if ( auto result = hilti::visitor::dispatch(v, data->type(), [](const auto& v) { return v.result; }) )
+        return cxx::Expression(*result);
 
-    logger().internalError("pack failed to compile", data.type());
+    logger().internalError("pack failed to compile", data->type());
 }
 
-cxx::Expression CodeGen::pack(const hilti::TypePtrPtr& t, const cxx::Expression& data,
+cxx::Expression CodeGen::pack(const QualifiedTypePtr& t, const cxx::Expression& data,
                               const std::vector<cxx::Expression>& args) {
-    if ( auto x = Visitor(this, Visitor::Kind::Pack, data, args).dispatch(t) )
-        return cxx::Expression(*x);
+    auto v = Visitor(this, Visitor::Kind::Pack, data, args);
+    if ( auto result = hilti::visitor::dispatch(v, t, [](const auto& v) { return v.result; }) )
+        return cxx::Expression(*result);
 
     logger().internalError("pack failed to compile", t);
 }
 
-cxx::Expression CodeGen::unpack(const hilti::TypePtrPtr& t, const Expression& data, const std::vector<Expression>& args,
+cxx::Expression CodeGen::unpack(const QualifiedTypePtr& t, const ExpressionPtr& data, const Expressions& args,
                                 bool throw_on_error) {
     auto cxx_args = util::transform(args, [&](const auto& e) { return compile(e, false); });
-    if ( auto x = Visitor(this, Visitor::Kind::Unpack, compile(data), cxx_args).dispatch(t) ) {
+    auto v = Visitor(this, Visitor::Kind::Unpack, compile(data), cxx_args);
+    if ( auto result = hilti::visitor::dispatch(v, t, [](const auto& v) { return v.result; }) ) {
         if ( throw_on_error )
-            return cxx::Expression(util::fmt("%s.valueOrThrow()", *x));
+            return cxx::Expression(util::fmt("%s.valueOrThrow()", *result));
         else
-            return cxx::Expression(*x);
+            return cxx::Expression(*result);
     }
 
     logger().internalError("unpack failed to compile", t);
 }
 
-cxx::Expression CodeGen::unpack(const hilti::TypePtrPtr& t, const cxx::Expression& data,
+cxx::Expression CodeGen::unpack(const QualifiedTypePtr& t, const cxx::Expression& data,
                                 const std::vector<cxx::Expression>& args, bool throw_on_error) {
-    if ( auto x = Visitor(this, Visitor::Kind::Unpack, data, args).dispatch(t) ) {
+    auto v = Visitor(this, Visitor::Kind::Unpack, data, args);
+    if ( auto result = hilti::visitor::dispatch(v, t, [](const auto& v) { return v.result; }) ) {
         if ( throw_on_error )
-            return cxx::Expression(util::fmt("%s.valueOrThrow<::hilti::rt::InvalidValue>()", *x));
+            return cxx::Expression(util::fmt("%s.valueOrThrow<::hilti::rt::InvalidValue>()", *result));
         else
-            return cxx::Expression(*x);
+            return cxx::Expression(*result);
     }
 
     logger().internalError("unpack failed to compile", t);

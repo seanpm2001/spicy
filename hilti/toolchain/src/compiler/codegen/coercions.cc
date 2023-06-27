@@ -4,6 +4,9 @@
 
 #include <hilti/ast/declarations/global-variable.h>
 #include <hilti/ast/expressions/all.h>
+#include <hilti/ast/types/optional.h>
+#include <hilti/ast/types/result.h>
+#include <hilti/ast/types/reference.h>
 #include <hilti/base/logger.h>
 #include <hilti/compiler/detail/codegen/codegen.h>
 #include <hilti/compiler/detail/cxx/all.h>
@@ -15,13 +18,15 @@ using namespace hilti::detail;
 
 namespace {
 
-struct Visitor : public hilti::visitor::PreOrder<void, Visitor>, type::Visitor {
-    Visitor(CodeGen* cg, const cxx::Expression& expr, const TypePtr& dst) : cg(cg), expr(expr), dst(dst) {}
+struct Visitor : public hilti::visitor::PreOrder {
+    Visitor(CodeGen* cg, const cxx::Expression& expr, const QualifiedTypePtr& dst) : cg(cg), expr(expr), dst(dst) {}
+
     CodeGen* cg;
     const cxx::Expression& expr;
-    const TypePtr& dst;
+    const QualifiedTypePtr& dst;
 
-    std::optional<cxx::Expression> _result;
+    std::optional<cxx::Expression> result;
+#if 0
 
     result_t operator()(const type::Bytes& src, type::Visitor::position_t&) override {
         if ( auto t = dst.tryAs<type::Stream>() )
@@ -246,28 +251,28 @@ struct Visitor : public hilti::visitor::PreOrder<void, Visitor>, type::Visitor {
             logger().internalError(
                 fmt("codegen: unexpected type coercion from value reference to %s", dst.typename_()));
     }
+#endif
 };
 
 } // anonymous namespace
 
-cxx::Expression CodeGen::coerce(const cxx::Expression& e, const TypePtr& src, const TypePtr& dst) {
-    if ( type::sameExceptForConstness(src, dst) )
+cxx::Expression CodeGen::coerce(const cxx::Expression& e, const QualifiedTypePtr& src, const QualifiedTypePtr& dst) {
+    if ( src->type() == dst->type() )
         // If only difference is constness, nothing to do.
         return e;
 
-    if ( auto t = dst.tryAs<type::Optional>(); t && ! src.isA<type::Optional>() )
+    if ( auto t = dst->tryAs<type::Optional>(); t && ! src->isA<type::Optional>() )
         return fmt("%s(%s)", compile(dst, codegen::TypeUsage::Storage), e);
 
-    if ( auto t = dst.tryAs<type::Result>() )
+    if ( auto t = dst->tryAs<type::Result>() )
         return fmt("%s(%s)", compile(dst, codegen::TypeUsage::Storage), e);
 
-    if ( dst.tryAs<type::ValueReference>() && ! type::isReferenceType(src) )
+    if ( dst->tryAs<type::ValueReference>() && ! type::isReferenceType(src) )
         return e;
 
     auto v = Visitor(this, e, dst);
-    v.dispatch(src);
-    if ( auto nt = v._result )
+    if ( auto nt = hilti::visitor::dispatch(v, src, [](const auto& v) { return v.result; }) )
         return *nt;
 
-    logger().internalError(fmt("codegen: type %s unhandled for coercion", src.typename_()));
+    logger().internalError(fmt("codegen: type %s unhandled for coercion", src->typename_()));
 }

@@ -13,16 +13,10 @@
 #include <hilti/ast/type.h>
 
 
-
 using namespace hilti;
 
-void Scope::insert(const ID& id, NodePtr&& n) { _items[id].insert(std::move(n)); }
-
-void Scope::insert(NodePtr&& n) {
-    assert(n && n->isA<Declaration>());
-    const auto& d = n->as<Declaration>();
-    insert(d->id(), std::move(n));
-}
+void Scope::insert(const ID& id, DeclarationPtr&& d) { _items[id].insert(std::move(d)); }
+void Scope::insert(DeclarationPtr&& d) { _items[d->id()].insert(d); }
 
 void Scope::insertNotFound(const ID& id) { _items[std::string(id)] = {}; }
 
@@ -44,9 +38,8 @@ static auto createRefs(const NodeSet& refs, const std::string& id, bool external
     std::vector<Scope::Referee> result;
     result.reserve(refs.size());
 
-    std::transform(refs.begin(), refs.end(), std::back_inserter(result), [&](const auto& n) {
-        return Scope::Referee{.node = n, .qualified = id, .external = external};
-    });
+    std::transform(refs.begin(), refs.end(), std::back_inserter(result),
+                   [&](const auto& n) { return Scope::Referee{.node = n, .qualified = id, .external = external}; });
 
     return result;
 }
@@ -70,10 +63,10 @@ std::vector<Scope::Referee> Scope::_findID(const Scope* scope, const ID& id, boo
                 return createRefs(i->second, h, external);
 
             for ( const auto& v : (*i).second ) {
-                Scope* scope_ = v->scope().get();
+                Scope* scope_ = v->scope();
 
                 if ( auto m = v->tryAs<declaration::Module>() )
-                    scope_ = m->module_()->scope().get();
+                    scope_ = m->module_()->scope();
 
                 auto e = v->isA<declaration::ImportedModule>();
 

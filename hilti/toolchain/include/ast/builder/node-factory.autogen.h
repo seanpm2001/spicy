@@ -6,7 +6,7 @@ auto attribute(std::string tag, const NodePtr& v, Meta m = Meta()) {
 } // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/attribute.h:73:5
 auto attributeSet(Attributes attrs, Meta m = Meta()) {
     return hilti::AttributeSet::create(context(), attrs, m);
-} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/attribute.h:151:5
+} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/attribute.h:154:5
 auto ctorAddress(hilti::rt::Address v, const Meta& meta = {}) {
     return hilti::ctor::Address::create(context(), v, meta);
 } // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/ctors/address.h:29:5
@@ -122,6 +122,9 @@ auto ctorUnion(const QualifiedTypePtr& type, const ExpressionPtr& value, const M
 auto ctorUnsignedInteger(uint64_t value, int width, const Meta& meta = {}) {
     return hilti::ctor::UnsignedInteger::create(context(), value, width, meta);
 } // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/ctors/integer.h:70:5
+auto ctorUnsignedInteger(uint64_t value, int width, const UnqualifiedTypePtr& t, const Meta& meta = {}) {
+    return hilti::ctor::UnsignedInteger::create(context(), value, width, t, meta);
+} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/ctors/integer.h:76:5
 auto ctorValueReference(const ExpressionPtr& expr, const Meta& meta = {}) {
     return hilti::ctor::ValueReference::create(context(), expr, meta);
 } // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/ctors/reference.h:64:5
@@ -319,15 +322,16 @@ auto function(const ID& id, const type::FunctionPtr& ftype, const StatementPtr& 
               const AttributeSetPtr& attrs = nullptr, const Meta& meta = {}) {
     return hilti::Function::create(context(), id, ftype, body, cc, attrs, meta);
 } // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/function.h:66:5
-auto module(ID id = {}, const Meta& meta = {}) {
-    return hilti::Module::create(context(), id, meta);
-} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/module.h:89:5
-auto module(ID id, const Declarations& decls, Statements stmts, const Meta& meta = {}) {
-    return hilti::Module::create(context(), id, decls, stmts, meta);
-} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/module.h:81:5
-auto module(ID id, const Declarations& decls, const Meta& meta = {}) {
-    return hilti::Module::create(context(), id, decls, meta);
-} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/module.h:93:5
+auto module(const module::UID& uid, const ID& scope = {}, const Meta& meta = {}) {
+    return hilti::Module::create(context(), uid, scope, meta);
+} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/module.h:142:5
+auto module(const module::UID& uid, const ID& scope, const Declarations& decls, Statements stmts,
+            const Meta& meta = {}) {
+    return hilti::Module::create(context(), uid, scope, decls, stmts, meta);
+} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/module.h:133:5
+auto module(const module::UID& uid, const ID& scope, const Declarations& decls, const Meta& meta = {}) {
+    return hilti::Module::create(context(), uid, scope, decls, meta);
+} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/module.h:146:5
 auto qualifiedType(const UnqualifiedTypePtr& t, bool is_constant, Meta m = Meta()) {
     return hilti::QualifiedType::create(context(), t, is_constant, m);
 } // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/type.h:160:5
@@ -434,10 +438,10 @@ auto typeBool(Meta meta = {}) {
 } // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/bool.h:15:5
 auto typeBytes(const Meta& meta = {}) {
     return hilti::type::Bytes::create(context(), meta);
-} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/bytes.h:48:5
+} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/bytes.h:46:5
 auto typeBytesIterator(Meta meta = {}) {
     return hilti::type::bytes::Iterator::create(context(), meta);
-} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/bytes.h:23:5
+} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/bytes.h:21:5
 auto typeDocOnly(std::string description, Meta meta = {}) {
     return hilti::type::DocOnly::create(context(), description, meta);
 } // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/doc-only.h:22:5
@@ -508,6 +512,9 @@ auto typeMember(const ID& id, Meta meta = {}) {
 auto typeMember(type::Wildcard _, Meta m = Meta()) {
     return hilti::type::Member::create(context(), _, m);
 } // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/member.h:27:5
+auto typeName(ID id, Meta meta = {}) {
+    return hilti::type::Name::create(context(), id, meta);
+} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/unresolved-id.h:16:5
 auto typeNetwork(Meta meta = {}) {
     return hilti::type::Network::create(context(), meta);
 } // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/network.h:14:5
@@ -553,12 +560,12 @@ auto typeSetIterator(const QualifiedTypePtr& etype, Meta meta = {}) {
 auto typeSetIterator(type::Wildcard _, Meta m = Meta()) {
     return hilti::type::set::Iterator::create(context(), _, m);
 } // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/set.h:25:5
-auto typeSignedInteger(int width, Meta m = Meta()) {
+auto typeSignedInteger(int width, const Meta& m = Meta()) {
     return hilti::type::SignedInteger::create(context(), width, m);
-} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/integer.h:43:5
+} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/integer.h:46:5
 auto typeSignedInteger(type::Wildcard _, Meta m = Meta()) {
     return hilti::type::SignedInteger::create(context(), _, m);
-} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/integer.h:47:5
+} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/integer.h:48:5
 auto typeStream(const Meta& meta = {}) {
     return hilti::type::Stream::create(context(), meta);
 } // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/stream.h:72:5
@@ -628,15 +635,12 @@ auto typeUnion(type::Wildcard _, const Meta& meta = {}) {
 auto typeUnknown(Meta meta = {}) {
     return hilti::type::Unknown::create(context(), meta);
 } // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/unknown.h:14:5
-auto typeUnresolvedID(ID id, Meta meta = {}) {
-    return hilti::type::Name::create(context(), id, meta);
-} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/unresolved-id.h:16:5
-auto typeUnsignedInteger(int width, Meta m = Meta()) {
+auto typeUnsignedInteger(int width, const Meta& m = Meta()) {
     return hilti::type::UnsignedInteger::create(context(), width, m);
-} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/integer.h:67:5
+} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/integer.h:68:5
 auto typeUnsignedInteger(type::Wildcard _, Meta m = Meta()) {
     return hilti::type::UnsignedInteger::create(context(), _, m);
-} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/integer.h:71:5
+} // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/integer.h:70:5
 auto typeValueReference(const QualifiedTypePtr& type, Meta meta = {}) {
     return hilti::type::ValueReference::create(context(), type, meta);
 } // /Users/robin/work/spicy/node-rewrite/hilti/toolchain/include/hilti/ast/types/reference.h:85:5

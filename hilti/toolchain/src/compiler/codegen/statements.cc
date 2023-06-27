@@ -11,26 +11,28 @@ using util::fmt;
 
 using namespace hilti::detail;
 
-inline auto traceStatement(CodeGen* cg, cxx::Block* b, const Statement& s, bool skip_location = false) {
-    if ( s.isA<statement::Block>() )
+inline auto traceStatement(CodeGen* cg, cxx::Block* b, const StatementPtr& s) {
+    if ( s->isA<statement::Block>() )
         return;
 
-    if ( cg->options().track_location && s.meta().location() && ! skip_location )
-        b->addStatement(fmt("  __location__(\"%s\")", s.meta().location()));
+    if ( cg->options().track_location && s->meta().location() )
+        b->addStatement(fmt("  __location__(\"%s\")", s->meta().location()));
 
     if ( cg->options().debug_trace )
-        b->addStatement(fmt(R"(HILTI_RT_DEBUG("hilti-trace", "%s: %s"))", s.meta().location(),
+        b->addStatement(fmt(R"(HILTI_RT_DEBUG("hilti-trace", "%s: %s"))", s->meta().location(),
                             util::escapeUTF8(fmt("%s", s), true)));
 }
 
 namespace {
 
-struct Visitor : hilti::visitor::PreOrder<void, Visitor> {
+struct Visitor : hilti::visitor::PreOrder {
     Visitor(CodeGen* cg, cxx::Block* b) : cg(cg), block(b) {}
-    CodeGen* cg;
 
-    int level = 0;
+    CodeGen* cg;
     cxx::Block* block;
+
+#if 0
+    int level = 0;
 
     void operator()(const statement::Assert& n) {
         std::string throw_;
@@ -378,11 +380,12 @@ struct Visitor : hilti::visitor::PreOrder<void, Visitor> {
 
         block->addStatement("::hilti::rt::detail::yield()");
     }
+#endif
 };
 
 } // anonymous namespace
 
-cxx::Block CodeGen::compile(const hilti::Statement& s, cxx::Block* b) {
+cxx::Block CodeGen::compile(const StatementPtr& s, cxx::Block* b) {
     if ( b ) {
         pushCxxBlock(b);
         traceStatement(this, b, s);

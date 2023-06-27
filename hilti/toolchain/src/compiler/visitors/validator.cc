@@ -4,6 +4,7 @@
 #include <unordered_set>
 #include <utility>
 
+#include <hilti/ast/ast-context.h>
 #include <hilti/ast/declarations/expression.h>
 #include <hilti/ast/module.h>
 #include <hilti/ast/node.h>
@@ -13,6 +14,8 @@
 #include <hilti/compiler/detail/visitors.h>
 #include <hilti/global.h>
 
+#include "base/timing.h"
+
 using namespace hilti;
 using util::fmt;
 
@@ -20,34 +23,32 @@ namespace {
 
 struct VisitorBase {
     // Record error at location of current node.
-    void error(std::string msg, const visitor::Position<Node&>& p,
-               node::ErrorPriority priority = node::ErrorPriority::Normal) {
-        p.node.addError(std::move(msg), p.node.location(), priority);
+    void error(std::string msg, const NodePtr& n, node::ErrorPriority priority = node::ErrorPriority::Normal) {
+        n->addError(std::move(msg), n->location(), priority);
         ++errors;
     }
 
     // Record error with current node, but report with another node's location.
-    void error(std::string msg, const visitor::Position<Node&>& p, const Node& n,
+    void error(std::string msg, const NodePtr& n, const NodePtr& other,
                node::ErrorPriority priority = node::ErrorPriority::Normal) {
-        p.node.addError(std::move(msg), n.location(), priority);
+        n->addError(std::move(msg), other->location(), priority);
         ++errors;
     }
 
     // Record error with current node, but report with a custom location.
-    void error(std::string msg, const visitor::Position<Node&>& p, Location l,
+    void error(std::string msg, const NodePtr& n, Location l,
                node::ErrorPriority priority = node::ErrorPriority::Normal) {
-        p.node.addError(std::move(msg), std::move(l), priority);
+        n->addError(std::move(msg), std::move(l), priority);
         ++errors;
     }
 
     int errors = 0;
 };
 
-struct VisitorPre : public hilti::visitor::PreOrder<void, VisitorPre>, public VisitorBase {};
+struct VisitorPre : visitor::PreOrder, VisitorBase {};
 
-struct VisitorPost : public hilti::visitor::PreOrder<void, VisitorPost>, public VisitorBase, type::Visitor {
-    using position_t = hilti::visitor::PreOrder<void, VisitorPost>::position_t;
-
+struct VisitorPost : visitor::PreOrder, VisitorBase {
+#if 0
     void preDispatch(const Node& n, int level) override {
         // Validate that identifier names are not reused.
         for ( const auto& [id, nodes] : n.scope()->items() ) {
@@ -618,22 +619,17 @@ struct VisitorPost : public hilti::visitor::PreOrder<void, VisitorPost>, public 
                 error(fmt("type parameter %u is missing (%s)", i + 1, want[i].id()), p);
         }
     }
+#endif
 };
 
 } // anonymous namespace
 
-void hilti::detail::ast::validate_pre(Node* root) {
+void hilti::detail::ast::validate_pre(ASTContext* ctx, const ASTRootPtr& root) {
     util::timing::Collector _("hilti/compiler/ast/validator");
-
-    auto v = VisitorPre();
-    for ( auto i : v.walk(root) )
-        v.dispatch(i);
+    ::hilti::visitor::visit(VisitorPre(), root);
 }
 
-void hilti::detail::ast::validate_post(Node* root) {
+void hilti::detail::ast::validate_post(ASTContext* ctx, const ASTRootPtr& root) {
     util::timing::Collector _("hilti/compiler/ast/validator");
-
-    auto v = VisitorPost();
-    for ( auto i : v.walk(root) )
-        v.dispatch(i);
+    ::hilti::visitor::visit(VisitorPost(), root);
 }

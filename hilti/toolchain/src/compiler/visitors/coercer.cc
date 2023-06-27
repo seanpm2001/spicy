@@ -3,16 +3,15 @@
 #include <optional>
 
 #include <hilti/ast/all.h>
-#include <hilti/ast/builder/expression.h>
-#include <hilti/ast/operators/tuple.h>
 #include <hilti/base/logger.h>
 #include <hilti/base/util.h>
 #include <hilti/compiler/detail/visitors.h>
 #include <hilti/compiler/unit.h>
 #include <hilti/global.h>
 
+#include "base/timing.h"
+
 using namespace hilti;
-using util::fmt;
 
 namespace hilti::logging::debug {
 inline const hilti::logging::DebugStream Coercer("coercer");
@@ -20,11 +19,13 @@ inline const hilti::logging::DebugStream Coercer("coercer");
 
 namespace {
 
-struct Visitor : public visitor::PreOrder<void, Visitor> {
-    Visitor(Unit* unit) : unit(unit) {}
-    Unit* unit;
+struct Visitor : visitor::PreOrder {
+    explicit Visitor(Builder* builder) : builder(builder) {}
+
+    Builder* builder;
     bool modified = false;
 
+#if 0
     // Log debug message recording updating attributes.
     void logChange(const Node& old, const Node& new_, const char* desc) {
         HILTI_DEBUG(logging::debug::Coercer,
@@ -607,16 +608,14 @@ struct Visitor : public visitor::PreOrder<void, Visitor> {
             modified = true;
         }
     }
+#endif
 };
 
 } // anonymous namespace
 
-bool hilti::detail::ast::coerce(Node* root, Unit* unit) {
+bool hilti::detail::ast::coerce(Builder* builder, const ASTRootPtr& root) {
     util::timing::Collector _("hilti/compiler/ast/coerce");
 
-    auto v = Visitor(unit);
-    for ( auto i : v.walk(root) )
-        v.dispatch(i);
-
-    return v.modified;
+    auto v = Visitor(builder);
+    return hilti::visitor::visit(std::move(v), root, [](const auto& v) { return v.modified; });
 }
