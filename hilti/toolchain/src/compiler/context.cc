@@ -62,9 +62,6 @@ void Options::print(std::ostream& out) const {
 }
 
 Context::Context(Options options)
-    : _options(std::move(std::move(options))), _ast_context(std::make_shared<ASTContext>(this)) {
-    operator_::Registry::singleton().printDebug();
-}
+    : _options(std::move(std::move(options))), _ast_context(std::make_shared<ASTContext>(this)) {}
 
-Context::~Context() {
-}
+Context::~Context() {}

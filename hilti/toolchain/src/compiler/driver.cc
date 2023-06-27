@@ -19,6 +19,8 @@
 #include <hilti/compiler/plugin.h>
 #include <hilti/global.h>
 
+#include "ast/detail/operator-registry.h"
+
 using namespace hilti;
 using util::fmt;
 
@@ -448,6 +450,9 @@ Result<Nothing> Driver::initialize() {
         _compiler_options.print(std::cerr);
 
     _ctx = std::make_shared<Context>(_compiler_options);
+
+    operator_::registry().init(_ctx->astContext().get());
+
     return Nothing();
 }
 
@@ -516,13 +521,13 @@ Result<Nothing> Driver::addInput(const hilti::rt::filesystem::path& path) {
         logger().internalError("no further inputs can be added after compilation has finished already");
 
     if ( plugin::registry().supportsExtension(path.extension()) ) {
-            HILTI_DEBUG(logging::debug::Driver, fmt("parsing input file %s", path));
+        HILTI_DEBUG(logging::debug::Driver, fmt("parsing input file %s", path));
         auto unit = Unit::fromSource(context(), path);
-            if ( ! unit )
-                return augmentError(unit.error());
+        if ( ! unit )
+            return augmentError(unit.error());
 
-            (*unit)->setRequiresCompilation();
-            _addUnit(*unit);
+        (*unit)->setRequiresCompilation();
+        _addUnit(*unit);
 
         return Nothing();
     }
@@ -643,8 +648,8 @@ Result<Nothing> Driver::compileUnits() {
         }
     }
     else {
-    if ( auto rc = _codegenUnits(); ! rc )
-        return error(rc.error());
+        if ( auto rc = _codegenUnits(); ! rc )
+            return error(rc.error());
     }
 
     return Nothing();

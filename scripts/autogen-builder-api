@@ -35,7 +35,6 @@ headers="\
     ${root}/expressions \
     ${root}/function.h \
     ${root}/function.h \
-    ${root}/module.h \
     ${root}/operator.h \
     ${root}/statements \
     ${root}/type.h \

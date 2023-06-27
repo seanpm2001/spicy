@@ -9,8 +9,8 @@
 #include <utility>
 #include <vector>
 
+#include <hilti/ast/declarations/module.h>
 #include <hilti/ast/forward.h>
-#include <hilti/ast/module.h>
 #include <hilti/ast/node.h>
 #include <hilti/base/logger.h>
 
@@ -91,8 +91,9 @@ private:
     module::UID _addModuleToAST(ModulePtr module);
     Result<Nothing> _buildScopes(const Plugin& plugin);
     Result<Nothing> _resolve(const Plugin& plugin);
-    Result<Nothing> _validate(const Plugin& plugin, bool pre_resolver);
     Result<Nothing> _optimize(const Plugin& plugin);
+    Result<Nothing> _validate(const Plugin& plugin, bool pre_resolver);
+    Result<Nothing> _collectErrors();
 
     void _saveIterationAST(const Plugin& plugin, const std::string& prefix, int round = 0);
     void _saveIterationAST(const Plugin& plugin, const std::string& prefix, const std::string& tag);
@@ -101,11 +102,6 @@ private:
                   int round);
     void _dumpAST(std::ostream& stream, const Plugin& plugin, const std::string& prefix, int round);
     void _dumpDeclarations(const Plugin& plugin);
-
-    // Reports any errors recorded in the AST to stderr.
-    //
-    // @returns false if there were errors, true if the AST is all good
-    bool _reportErrors();
 
     Context* _context;
     NodeDerivedPtr<ASTRoot> _root;

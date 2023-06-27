@@ -49,7 +49,7 @@ struct VisitorConstantFolder : public visitor::PreOrder {
     }
 
     // Helper to extract the 1st argument of a call expression.
-    Expression callArgument(const expression::ResolvedOperatorBase& o, int i) {
+    Expression callArgument(const expression::ResolvedOperator& o, int i) {
         auto ctor = o.op1().as<expression::Ctor>().ctor();
 
         if ( auto x = ctor.tryAs<ctor::Coerced>() )

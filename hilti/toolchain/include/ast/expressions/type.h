@@ -17,8 +17,6 @@ public:
     auto typeValue() const { return type()->type()->as<type::Type_>()->typeValue(); }
 
     QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
-    bool isLhs() const final { return false; }
-    bool isTemporary() const final { return true; }
 
     static auto create(ASTContext* ctx, const QualifiedTypePtr& type, const Meta& meta = {}) {
         return NodeDerivedPtr<Type_>(new Type_({type::Type_::create(ctx, type, meta)}, meta));

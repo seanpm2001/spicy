@@ -13,6 +13,7 @@
 #include <hilti/compiler/unit.h>
 
 #include "base/timing.h"
+#include "global.h"
 
 using namespace hilti;
 
@@ -31,7 +32,7 @@ struct VisitorConstants : visitor::PreOrder {
                     util::fmt("[%s] %s -> constant %s (%s)", old.typename_(), old, ctor, old.location()));
     }
 
-    void operator()(const Expression& d, position_t p) {
+    void operator()(Expression* d) final {
         if ( ! expression::isResolved(d) )
             return;
 
@@ -88,7 +89,7 @@ struct VisitorNormalizer : visitor::PreOrder {
         HILTI_DEBUG(logging::debug::Normalizer, util::fmt("%s -> %s (%s)", old, nattr, old.location()));
     }
 
-    auto callArgument(const expression::ResolvedOperatorBase& o, int i) {
+    auto callArgument(const expression::ResolvedOperator& o, int i) {
         auto ctor = o.op1().as<expression::Ctor>().ctor();
 
         if ( auto x = ctor.tryAs<ctor::Coerced>() )
@@ -116,7 +117,7 @@ struct VisitorNormalizer : visitor::PreOrder {
         return static_cast<uint64_t>(x);
     }
 
-    void operator()(const declaration::Function& u, position_t p) {
+    void operator()(declaration::Function* u) final {
         if ( u.linkage() == declaration::Linkage::Struct ) {
             // Link method implementations to their parent type.
             auto ns = u.id().namespace_();
@@ -139,7 +140,7 @@ struct VisitorNormalizer : visitor::PreOrder {
         }
     }
 
-    void operator()(const expression::Assign& assign, position_t p) {
+    void operator()(expression::Assign* assign) final {
         // Rewrite assignments to map elements to use the `index_assign` operator.
         auto& lhs = assign.children().front();
         if ( auto index_non_const = lhs.tryAs<operator_::map::IndexNonConst>() ) {
@@ -197,7 +198,7 @@ struct VisitorNormalizer : visitor::PreOrder {
         }
     }
 
-    void operator()(const statement::If& n, position_t p) {
+    void operator()(statement::If* n) final {
         if ( n.init() && ! n.condition() ) {
             auto cond = expression::UnresolvedID(n.init()->id());
             logChange(p.node, cond);
@@ -206,9 +207,9 @@ struct VisitorNormalizer : visitor::PreOrder {
         }
     }
 
-    void operator()(const statement::Switch& s, position_t p) { p.node.as<statement::Switch>().preprocessCases(); }
+    void operator()(statement::Switch* s) final; }
 
-    void operator()(const type::Library& t, type::Visitor::position_t& p) override {
+    void operator()(type::Library& t, type::Visitor::position_t* p) final override {
         auto& type = p.node.as<Type>();
 
         if ( ! type.cxxID() )
@@ -216,12 +217,12 @@ struct VisitorNormalizer : visitor::PreOrder {
             type.setCxxID(ID(t.cxxName()));
     }
 
-    void operator()(const type::Struct& t, type::Visitor::position_t& p) override {
+    void operator()(type::Struct& t, type::Visitor::position_t* p) final override {
         if ( ! t.selfRef() )
             type::Struct::setSelf(&p.node);
     }
 
-    void operator()(const Attribute& n, position_t p) {
+    void operator()(Attribute* n) final {
         // Normalize values passed as `&cxxname` so they always are interpreted as FQNs by enforcing leading `::`.
         if ( const auto& tag = n.tag(); tag == "&cxxname" && n.hasValue() ) {
             if ( const auto& value = n.valueAsString(); value && ! util::startsWith(*value, "::") ) {
@@ -238,36 +239,55 @@ struct VisitorNormalizer : visitor::PreOrder {
 // Visitor to unset all canonical IDs in preparation for their recalculation.
 struct VisitorClearCanonicalIDs : visitor::PreOrder {
 #if 0
-    result_t operator()(const Declaration& d, position_t p) { p.node.as<Declaration>().setCanonicalID(ID()); };
+    void operator()(Declaration* d) final; };
 #endif
 };
 
 // Visitor computing canonical IDs.
 struct VisitorComputeCanonicalIDs : visitor::PreOrder {
     // This visitor runs twice, with slightly different behaviour by pass.
-    VisitorComputeCanonicalIDs(int pass) : pass(pass) { assert(pass == 1 || pass == 2); }
+    // VisitorComputeCanonicalIDs(int pass) : pass(pass) { assert(pass == 1 || pass == 2); }
 
-    int pass;
-    ID result;
 
-    ID parent_id;
-    ID module_id;
-    int ctor_struct_count = 0;
-    Scope* module_scope = nullptr;
+    std::vector<ID> path;
 
 #if 0
-    result_t operator()(const Module& m, position_t p) {
-        module_id = m.id();
-        module_scope = p.node.scope().get();
-        return m.id();
+    ID parent_id;
+    int ctor_struct_count = 0;
+    Scope* module_scope = nullptr;
+#endif
+
+    auto current() const {
+        ID id;
+        for ( const auto& i : path )
+            id = ID(id, i);
+
+        return id;
     }
 
-    result_t operator()(const Declaration& d, position_t p) {
-        if ( const auto& id = d.canonicalID() )
-            return id;
+    void operator()(Declaration* d) final {
+        // TODO: Eventually we'll bail out if already set, but for now ensure consistency by recomputing and comparing.
+        // if ( d->canonicalID() )
+        //    return;
+        auto old = d->canonicalID();
 
-        ID id;
+        if ( auto m = d->tryAs<declaration::Module>() ) {
+            auto id = util::fmt("%s_%x", m->id(), util::hash(m->uid()) % 0xffff);
+            path.emplace_back(std::move(id));
+        }
+        else
+            path.emplace_back(d->id());
 
+        d->setCanonicalID(current());
+
+        // Double-check we always get the same ID.
+        if ( old ) {
+            if ( old != d->canonicalID() )
+                logger().internalError(
+                    util::fmt("canonical ID mismatch for %s: %s (old) vs %s (new)", d->id(), old, d->canonicalID()));
+        }
+
+#if 0
         // A couple of special-cases for top-level declarations.
         if ( parent_id.length() == 1 ) {
             // 1. If the ID is qualified with the current module, the ID is
@@ -299,9 +319,11 @@ struct VisitorComputeCanonicalIDs : visitor::PreOrder {
             p.node.as<Declaration>().setCanonicalID(id);
 
         return d.canonicalID();
+#endif
     }
 
-    result_t operator()(const expression::Ctor& d, position_t p) {
+#if 0
+    void operator()(expression::Ctor* d) final {
         // Special-case: Struct ctors are creating temporary struct types,
         // inside which our standard scheme wouldn't assign any canonical IDs
         // because we don't descend down into expressions. So we do this
@@ -321,15 +343,15 @@ struct VisitorComputeCanonicalIDs : visitor::PreOrder {
 
 // Visitor double-checking that all declarations have their canonical IDs set.
 struct VisitorCheckCanonicalIDs : visitor::PreOrder {
-#if 0
-    result_t operator()(const Declaration& d, position_t p) {
-        if ( ! d.canonicalID() )
-            hilti::render(std::cerr, p.node);
-        assert(d.canonicalID());
+    void operator()(Declaration* d) final {
+        if ( ! d->canonicalID() )
+            hilti::render(std::cerr, d->as<Node>());
+
+        assert(d->canonicalID());
     };
-#endif
 };
 
+#if 0
 void _computeCanonicalIDs(VisitorComputeCanonicalIDs* v, const NodePtr& node, ID current) {
     v->parent_id = current;
 
@@ -349,6 +371,7 @@ void _computeCanonicalIDs(VisitorComputeCanonicalIDs* v, const NodePtr& node, ID
     for ( auto& c : node->children() )
         _computeCanonicalIDs(v, c, current);
 }
+#endif
 
 } // namespace
 
@@ -364,11 +387,16 @@ bool hilti::detail::ast::normalize(Builder* builder, const ASTRootPtr& root) {
     auto v1 = VisitorNormalizer();
     ::hilti::visitor::visit(v1, root);
 
+    auto v2 = VisitorComputeCanonicalIDs();
+    ::hilti::visitor::visit(v2, root);
+
+#if 0
     auto v2 = VisitorComputeCanonicalIDs(1);
     _computeCanonicalIDs(&v2, root, ID());
 
     auto v3 = VisitorComputeCanonicalIDs(2);
     _computeCanonicalIDs(&v3, root, ID());
+#endif
 
 #ifndef NDEBUG
     auto v4 = VisitorCheckCanonicalIDs();

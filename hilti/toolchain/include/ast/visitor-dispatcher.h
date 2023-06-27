@@ -15,7 +15,6 @@ public:
     virtual void operator()(hilti::Declaration*) {}
     virtual void operator()(hilti::Expression*) {}
     virtual void operator()(hilti::Function*) {}
-    virtual void operator()(hilti::Module*) {}
     virtual void operator()(hilti::QualifiedType*) {}
     virtual void operator()(hilti::Statement*) {}
     virtual void operator()(hilti::UnqualifiedType*) {}

@@ -18,8 +18,6 @@ public:
     const auto& id() const { return _id; }
 
     QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
-    bool isLhs() const final { return true; }
-    bool isTemporary() const final { return false; }
 
     node::Properties properties() const final {
         auto p = node::Properties{{"id", _id}};

@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include <hilti/ast/builder/builder.h>
 #include <hilti/ast/expressions/resolved-operator.h>
 #include <hilti/ast/function.h>
 #include <hilti/base/cache.h>
@@ -60,7 +61,7 @@ struct CxxTypeInfo {
  */
 class CodeGen {
 public:
-    CodeGen(const std::shared_ptr<Context>& context) : _context(context) {}
+    CodeGen(const std::shared_ptr<Context>& context);
 
     /** Entry point for code generation. */
     Result<cxx::Unit> compileModule(const ModulePtr& root, hilti::Unit* hilti_unit,
@@ -71,6 +72,7 @@ public:
 
     std::shared_ptr<Context> context() const { return _context.lock(); }
     const Options& options() const { return context()->options(); }
+    auto* builder() const { return _builder.get(); }
 
     // These must be called only while a module is being compiled.
     std::optional<cxx::declaration::Type> typeDeclaration(const QualifiedTypePtr& t);
@@ -119,7 +121,7 @@ public:
      * @param n node to generate the ID for
      *
      */
-    cxx::ID uniqueID(const std::string& prefix, const Node& n);
+    cxx::ID uniqueID(const std::string& prefix, const NodePtr& n);
 
     cxx::Expression self() const { return _self.back(); }
     cxx::Expression dollardollar() const {
@@ -147,9 +149,11 @@ private:
     // temporary, which is then returned.
     cxx::Expression _makeLhs(cxx::Expression expr, const QualifiedTypePtr& type);
 
+    std::weak_ptr<Context> _context;
+    std::unique_ptr<Builder> _builder;
+
     std::unique_ptr<cxx::Unit> _cxx_unit;
     hilti::Unit* _hilti_unit = nullptr;
-    std::weak_ptr<Context> _context;
     std::vector<detail::cxx::Expression> _self = {{"__self", cxx::Side::LHS}};
     std::vector<detail::cxx::Block*> _cxx_blocks;
     std::vector<detail::cxx::declaration::Local> _tmps;

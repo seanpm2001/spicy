@@ -9,26 +9,21 @@
 #include <hilti/ast/expression.h>
 #include <hilti/ast/type.h>
 
+#include "ast/forward.h"
+
 namespace hilti::ctor {
 
 /** AST node for a `exception` ctor. */
 class Exception : public Ctor {
 public:
+    auto value() const { return child<Expression>(1); }
+
     QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
-    auto typeArguments() const { return children<Expression>(1, -1); }
 
     /** Constructs a exception value of a given type. */
-    static auto create(ASTContext* ctx, const UnqualifiedTypePtr& type, const Meta& meta = {}) {
-        return NodeDerivedPtr<Exception>(new Exception({QualifiedType::create(ctx, type, true, meta)}, meta));
-    }
-
-    /**
-     * Constructs a exception value of a given type, passing specified arguments to
-     * types with parameters.
-     */
-    static auto create(ASTContext* ctx, const UnqualifiedTypePtr& type, Expressions type_args, const Meta& meta = {}) {
-        return CtorPtr(
-            new Exception(node::flatten(QualifiedType::create(ctx, type, true, meta), std::move(type_args)), meta));
+    static auto create(ASTContext* ctx, const UnqualifiedTypePtr& type, const ExpressionPtr& value,
+                       const Meta& meta = {}) {
+        return NodeDerivedPtr<Exception>(new Exception({QualifiedType::create(ctx, type, true, meta), value}, meta));
     }
 
 protected:

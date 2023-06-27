@@ -23,8 +23,6 @@ public:
         return true_()->type();
     }
 
-    bool isLhs() const final { return false; }
-    bool isTemporary() const final { return true_()->isTemporary() || false_()->isTemporary(); }
 
     static auto create(ASTContext* ctx, const ExpressionPtr& cond, const ExpressionPtr& true_,
                        const ExpressionPtr& false_, const Meta& meta = {}) {

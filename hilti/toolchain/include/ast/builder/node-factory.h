@@ -29,6 +29,8 @@ public:
         return expressionUnresolvedOperator(operator_::Kind::Call,
                                             {expressionMember(ID(name)), expressionCtor(ctorTuple(args))}, m);
     }
+
+    ExpressionPtr expressionByName(const std::string& id, const Meta& m = Meta()) { return expressionName(ID(id, m)); }
 };
 
 } // namespace hilti::builder

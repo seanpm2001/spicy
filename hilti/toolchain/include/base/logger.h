@@ -127,6 +127,15 @@ public:
     void fatalError(const std::string& msg, const Location& l = location::None) __attribute__((noreturn));
     void internalError(const std::string& msg, const Location& l = location::None) __attribute__((noreturn));
 
+    void info(const std::string& msg, const Node* n) { info(msg, n->location()); }
+    void warning(const std::string& msg, const Node* n) { warning(msg, n->location()); }
+    void deprecated(const std::string& msg, const Node* n) { deprecated(msg, n->location()); }
+    void error(const std::string& msg, const Node* n) { error(msg, n->location()); }
+    void fatalError(const std::string& msg, const Node* n) __attribute__((noreturn)) { fatalError(msg, n->location()); }
+    void internalError(const std::string& msg, const Node* n) __attribute__((noreturn)) {
+        internalError(msg, n->location());
+    }
+
     /** Use HILTI_DEBUG(...) instead. */
     void _debug(const logging::DebugStream& dbg, const std::string& msg, const Location& l = location::None);
 

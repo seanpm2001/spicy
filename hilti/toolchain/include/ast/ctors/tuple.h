@@ -18,15 +18,6 @@ public:
 
     auto value() const { return children<Expression>(1, -1); }
 
-    bool isLhs() const final {
-        const auto& v = value();
-
-        if ( v.empty() )
-            return false;
-
-        return std::all_of(v.begin(), v.end(), [](const auto& e) { return e->isLhs(); });
-    }
-
     static auto create(ASTContext* ctx, const Expressions& exprs, const Meta& meta = {}) {
         auto type = _inferType(ctx, exprs, meta);
         return NodeDerivedPtr<Tuple>(new Tuple(node::flatten(type, exprs), meta));

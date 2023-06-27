@@ -18,8 +18,6 @@ public:
     auto op1() const { return child<Expression>(1); }
 
     QualifiedTypePtr type() const final { return child<QualifiedType>(2); }
-    bool isLhs() const final { return false; }
-    bool isTemporary() const final { return true; }
 
     static auto create(ASTContext* ctx, const ExpressionPtr& op0, const ExpressionPtr& op1, const Meta& meta = {}) {
         return NodeDerivedPtr<LogicalOr>(new LogicalOr({op0, op1, type::Bool::create(ctx, meta)}, meta));

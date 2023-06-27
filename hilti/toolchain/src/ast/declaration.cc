@@ -8,7 +8,7 @@ using namespace hilti;
 Declaration::~Declaration() = default;
 
 std::string Declaration::_render() const {
-    auto s = util::fmt("[canon-id: %s]", canonicalID() ? canonicalID().str() : "not set");
+    std::string s;
 
     if ( auto doc = documentation() )
         s += doc->render();

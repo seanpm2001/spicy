@@ -66,7 +66,7 @@ std::vector<Scope::Referee> Scope::_findID(const Scope* scope, const ID& id, boo
                 Scope* scope_ = v->scope();
 
                 if ( auto m = v->tryAs<declaration::Module>() )
-                    scope_ = m->module_()->scope();
+                    scope_ = m->scope();
 
                 auto e = v->isA<declaration::ImportedModule>();
 

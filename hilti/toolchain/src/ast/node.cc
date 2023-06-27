@@ -8,7 +8,7 @@
 #include <hilti/ast/declarations/module.h>
 #include <hilti/ast/declarations/type.h>
 #include <hilti/ast/expressions/ctor.h>
-#include <hilti/ast/module.h>
+#include <hilti/ast/declarations/module.h>
 #include <hilti/ast/node.h>
 #include <hilti/ast/type.h>
 #include <hilti/ast/visitor.h>
@@ -88,6 +88,13 @@ std::string Node::render(bool include_location) const {
 void Node::print(std::ostream& out, bool compact) const {
     detail::printAST(const_cast<Node*>(this)->shared_from_this(), out, compact);
 }
+
+std::string Node::print() const {
+    std::stringstream out;
+    detail::printAST(const_cast<Node*>(this)->shared_from_this(), out, true);
+    return out.str();
+}
+
 
 void Node::replaceChildren(Nodes children) {
     clearChildren();
@@ -187,7 +194,7 @@ Result<std::pair<DeclarationPtr, ID>> Node::lookupID(const ID& id, const std::st
 
         if ( ! n->inheritScope() ) {
             // Advance to module scope directly.
-            while ( n->parent() && (! n->parent()->isA<Module>()) )
+            while ( n->parent() && (! n->parent()->isA<declaration::Module>()) )
                 n = n->parent();
         }
     }

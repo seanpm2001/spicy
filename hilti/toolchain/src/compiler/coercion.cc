@@ -772,8 +772,7 @@ Result<std::pair<bool, Expressions>> hilti::coerceOperands(Builder* builder, con
             continue;
         }
 
-        auto oat = operator_::type(op.type, exprs, node::Range<Expression>(transformed.begin(), transformed.end()));
-
+        auto oat = op.type;
         if ( ! oat ) {
             HILTI_DEBUG(logging::debug::Operator,
                         util::fmt("  [param %d] could not look up operand type -> failure", i));

@@ -16,30 +16,22 @@ bison_source(src/compiler/parser/driver.cc ${AUTOGEN_CC})
 bison_source(${AUTOGEN_CC}/__scanner.cc ${AUTOGEN_CC})
 bison_source(${AUTOGEN_CC}/__parser.cc ${AUTOGEN_CC})
 
-include(TypeErase)
-autogen_type_erased(SOURCES_TYPE_ERASED include/hilti/ast/node.api NO)
-autogen_type_erased(SOURCES_TYPE_ERASED include/hilti/ast/ctor.api YES)
-autogen_type_erased(SOURCES_TYPE_ERASED include/hilti/ast/declaration.api YES)
-autogen_type_erased(SOURCES_TYPE_ERASED include/hilti/ast/expression.api YES)
-autogen_type_erased(SOURCES_TYPE_ERASED include/hilti/ast/expressions/resolved-operator.api YES)
-autogen_type_erased(SOURCES_TYPE_ERASED include/hilti/ast/operator.api YES)
-autogen_type_erased(SOURCES_TYPE_ERASED include/hilti/ast/statement.api YES)
-autogen_type_erased(SOURCES_TYPE_ERASED include/hilti/ast/type.api YES)
-
 include(ASTOperators)
-autogen_operators(SOURCES_OPERATORS hilti include/hilti/ast/operators ${AUTOGEN_H}/operators.decl
-                  ${AUTOGEN_CC}/operators-implementations.cc)
 
-autogen_dispatchers(
-    SOURCES_TYPE_ERASED ${AUTOGEN_H}/__dispatchers.h "hilti/ast/all.h"
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/hilti/ast/nodes.decl ${AUTOGEN_H}/operators.decl)
+# TODO: Reactivate
+# autogen_operators(SOURCES_OPERATORS hilti include/hilti/ast/operators
+#                  ${AUTOGEN_CC}/operators-implementations.cc)
+
+autogen_operators(SOURCES_OPERATORS hilti include/hilti/ast/operators/function.h
+                  ${AUTOGEN_CC}/operators-implementations.cc)
 
 set(SOURCES
     src/ast/ast-context.cc
     src/ast/attribute.cc
     src/ast/builder/builder.cc
     # src/ast/builder/type.cc
-    # src/ast/declarations/imported-module.cc
+    src/ast/declarations/module.cc
+    src/ast/declarations/function.cc
     src/ast/doc-string.cc
     src/ast/ctor.cc
     src/ast/ctors/map.cc
@@ -51,8 +43,10 @@ set(SOURCES
     src/ast/expressions/name.cc
     src/ast/location.cc
     src/ast/meta.cc
-    src/ast/module.cc
     src/ast/node.cc
+    src/ast/operator.cc
+    src/ast/operators/string.cc
+    src/ast/operator-registry.cc
     src/ast/statement.cc
     src/ast/type.cc
     src/ast/scope.cc
@@ -103,7 +97,7 @@ set(SOURCES
     # # Already included in hilti-rt, which we pull in.
     # # src/3rdparty/utf8proc/utf8proc.c
     # ${SOURCES_TYPE_ERASED}
-    # ${SOURCES_OPERATORS}
+    ${SOURCES_OPERATORS}
     ${AUTOGEN_CC}/config.cc
     ${BISON_parser_hilti_OUTPUTS}
     ${FLEX_scanner_hilti_OUTPUTS})

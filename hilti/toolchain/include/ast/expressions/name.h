@@ -15,14 +15,11 @@ namespace hilti::expression {
 class Name : public Expression {
 public:
     const auto& id() const { return _id; }
+    auto declaration() const { return _declaration; }
 
-    QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
-    bool isLhs() const final {
-        // TODO
-        assert(false);
-        return false;
-    }
-    bool isTemporary() const final { return false; }
+    QualifiedTypePtr type() const final;
+
+    void setDeclaration(DeclarationPtr d) { _declaration = std::move(d); }
 
     node::Properties properties() const final {
         auto p = node::Properties{{"id", _id}};
@@ -49,6 +46,7 @@ protected:
 
 private:
     hilti::ID _id;
+    DeclarationPtr _declaration = nullptr;
 };
 
 } // namespace hilti::expression

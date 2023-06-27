@@ -8,7 +8,7 @@
 // #include <hilti/ast/operators/enum.h>
 // #include <hilti/ast/operators/error.h>
 // #include <hilti/ast/operators/exception.h>
-// #include <hilti/ast/operators/function.h>
+#include <hilti/ast/operators/function.h>
 // #include <hilti/ast/operators/generic.h>
 // #include <hilti/ast/operators/interval.h>
 // #include <hilti/ast/operators/list.h>
@@ -23,7 +23,7 @@
 // #include <hilti/ast/operators/set.h>
 // #include <hilti/ast/operators/signed-integer.h>
 // #include <hilti/ast/operators/stream.h>
-// #include <hilti/ast/operators/string.h>
+#include <hilti/ast/operators/string.h>
 // #include <hilti/ast/operators/struct.h>
 // #include <hilti/ast/operators/time.h>
 // #include <hilti/ast/operators/tuple.h>

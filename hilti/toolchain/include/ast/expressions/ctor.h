@@ -17,8 +17,6 @@ public:
     auto ctor() const { return child<hilti::Ctor>(0); }
 
     QualifiedTypePtr type() const final { return ctor()->type(); }
-    bool isLhs() const final { return ctor()->isLhs(); }
-    bool isTemporary() const final { return ctor()->isTemporary(); }
 
     static auto create(ASTContext* ctx, const CtorPtr& ctor, const Meta& meta = {}) {
         return NodeDerivedPtr<Ctor>(new Ctor({ctor}, meta));

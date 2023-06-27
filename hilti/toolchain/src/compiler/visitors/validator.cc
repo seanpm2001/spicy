@@ -6,15 +6,14 @@
 
 #include <hilti/ast/ast-context.h>
 #include <hilti/ast/declarations/expression.h>
-#include <hilti/ast/module.h>
+#include <hilti/ast/declarations/module.h>
 #include <hilti/ast/node.h>
 #include <hilti/ast/type.h>
 #include <hilti/ast/types/function.h>
 #include <hilti/base/logger.h>
+#include <hilti/base/timing.h>
 #include <hilti/compiler/detail/visitors.h>
 #include <hilti/global.h>
-
-#include "base/timing.h"
 
 using namespace hilti;
 using util::fmt;
@@ -23,21 +22,20 @@ namespace {
 
 struct VisitorBase {
     // Record error at location of current node.
-    void error(std::string msg, const NodePtr& n, node::ErrorPriority priority = node::ErrorPriority::Normal) {
+    void error(std::string msg, Node* n, node::ErrorPriority priority = node::ErrorPriority::Normal) {
         n->addError(std::move(msg), n->location(), priority);
         ++errors;
     }
 
     // Record error with current node, but report with another node's location.
-    void error(std::string msg, const NodePtr& n, const NodePtr& other,
+    void error(std::string msg, Node* n, const Node* other,
                node::ErrorPriority priority = node::ErrorPriority::Normal) {
         n->addError(std::move(msg), other->location(), priority);
         ++errors;
     }
 
     // Record error with current node, but report with a custom location.
-    void error(std::string msg, const NodePtr& n, Location l,
-               node::ErrorPriority priority = node::ErrorPriority::Normal) {
+    void error(std::string msg, Node* n, Location l, node::ErrorPriority priority = node::ErrorPriority::Normal) {
         n->addError(std::move(msg), std::move(l), priority);
         ++errors;
     }
@@ -48,6 +46,12 @@ struct VisitorBase {
 struct VisitorPre : visitor::PreOrder, VisitorBase {};
 
 struct VisitorPost : visitor::PreOrder, VisitorBase {
+    void operator()(QualifiedType* t) final {
+        if ( ! t->unified() )
+            error(fmt("internal error: type not unified (%s)", *t), t);
+    }
+
+    void operator()(type::Auto* t) final { error("automatic type has not been resolved", t, node::ErrorPriority::Low); }
 #if 0
     void preDispatch(const Node& n, int level) override {
         // Validate that identifier names are not reused.

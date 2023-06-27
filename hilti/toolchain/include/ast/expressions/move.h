@@ -17,8 +17,6 @@ public:
     auto expression() const { return child<Expression>(0); }
 
     QualifiedTypePtr type() const final { return child<QualifiedType>(1); }
-    bool isLhs() const final { return false; }
-    bool isTemporary() const final { return true; }
 
     static auto create(ASTContext* ctx, const ExpressionPtr& expression, const Meta& meta = {}) {
         return NodeDerivedPtr<Move>(new Move({expression, type::Bool::create(ctx, meta)}, meta));

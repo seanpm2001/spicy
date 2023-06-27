@@ -6,9 +6,9 @@
 #include <string>
 
 #include <hilti/ast/ctor.h>
+#include <hilti/ast/declarations/module.h>
 #include <hilti/ast/expression.h>
 #include <hilti/ast/id.h>
-#include <hilti/ast/module.h>
 #include <hilti/ast/type.h>
 #include <hilti/base/logger.h>
 

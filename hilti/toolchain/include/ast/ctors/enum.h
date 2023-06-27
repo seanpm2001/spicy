@@ -15,7 +15,7 @@ namespace hilti::ctor {
 /** AST node for a enum constructor. */
 class Enum : public Ctor {
 public:
-    auto label() const { return child<type::enum_::Label>(0); }
+    auto value() const { return child<type::enum_::Label>(0); }
 
     QualifiedTypePtr type() const final { return child<QualifiedType>(1); }
 

@@ -1,0 +1,26 @@
+#!/bin/sh
+
+# Copyright (c) 2020-2023 by the Zeek Project. See LICENSE for details.
+
+if [ $# != 2 ]; then
+    echo "usage: $(basename $0) <namespace> /path/to/hilti/include/ast/operators"
+    exit 1
+fi
+
+echo "#include <$1/ast/all.h>"
+echo ""
+echo "#include <hilti/ast/detail/operator-registry.h>"
+echo ""
+
+find $2 -type f | grep -v common.h | while read i; do
+    cat $i | \
+        grep -v '#define' | \
+        awk '/(BEGIN_|STANDARD).*\($/ { getline x; printf "%s %s", $0, x; next} {print}' | \
+        egrep 'BEGIN_|STANDARD' | \
+        grep -v ns::op | \
+        sort | \
+        awk -v ns=$1 -F '[(), ]+' '{
+            printf("namespace %s::operator_::%s { static hilti::operator_::Register _operator_%s{%s::Operator::kind(), %s::Operator()}; }\n", ns, $2, $3, $3, $3);
+            # printf("ExpressionPtr %s::operator_::%s::%s::Operator::instantiate(ASTContext* ctx, const Expressions& operands, const Meta& meta) const { return hilti::expression::ResolvedOperator::create(ctx, %s::create(ctx, *this, operands, meta)); }\n", ns, $2, $3, $3);
+        }';
+done

@@ -3,31 +3,60 @@
 #pragma once
 
 #include <string>
+#include <utility>
 #include <vector>
 
-#include <hilti/ast/expression.h>
-#include <hilti/ast/expressions/member.h>
 #include <hilti/ast/expressions/resolved-operator.h>
-#include <hilti/ast/expressions/unresolved-operator.h>
-#include <hilti/ast/operator.h>
-#include <hilti/ast/statements/expression.h>
-#include <hilti/ast/types/doc-only.h>
-#include <hilti/ast/types/operand-list.h>
+#include <hilti/ast/forward.h>
+
+#define HILTI_OPERATOR(ns, cls)                                                                                        \
+    namespace ns {                                                                                                     \
+    class cls : public hilti::expression::ResolvedOperator {                                                           \
+    public:                                                                                                            \
+        static NodeDerivedPtr<cls> create(ASTContext* ctx, const Operator* op, const QualifiedTypePtr& result,         \
+                                          const Expressions& operands, const hilti::Meta& meta) {                      \
+            return NodeDerivedPtr<cls>(new cls(op, result, operands, meta));                                           \
+        }                                                                                                              \
+                                                                                                                       \
+        HILTI_NODE(cls)                                                                                                \
+                                                                                                                       \
+    private:                                                                                                           \
+        using hilti::expression::ResolvedOperator::ResolvedOperator;                                                   \
+                                                                                                                       \
+        bool isEqual(const Node& other) const override { return ResolvedOperator::isEqual(other); }                    \
+    };                                                                                                                 \
+    } // namespace ns
+
+#if 0
 
 /** Internal helper macro. */
 #define __BEGIN_OPERATOR_CUSTOM(ns, op, cls)                                                                           \
     namespace ns {                                                                                                     \
-    /** AST node for a the operator expression. */                                                                     \
-    class cls : public hilti::expression::ResolvedOperatorBase {                                                       \
+    /** AST node for an operator expression. */                                                                        \
+    class cls : public hilti::expression::ResolvedOperator {                                                           \
     public:                                                                                                            \
-        using hilti::expression::ResolvedOperatorBase::ResolvedOperatorBase;                                           \
+        static auto create(ASTContext* ctx, OperatorPtr op, Expressions operands, const Meta& meta) {                  \
+            return NodeDerivedPtr<cls>(new cls(std::move(operands), std::move(op), meta));                             \
+        }                                                                                                              \
                                                                                                                        \
+        HILTI_NODE(cls)                                                                                                \
+    private:                                                                                                           \
+        using hilti::expression::ResolvedOperator::ResolvedOperator;                                                   \
+        bool isEqual(const Node& other) const override { return ResolvedOperator::isEqual(other); }                    \
+                                                                                                                       \
+    public:                                                                                                            \
         /** Class implementing operator interface. */                                                                  \
-        struct Operator : public hilti::trait::isOperator {                                                            \
-            static ::hilti::operator_::Kind kind() { return ::hilti::operator_::Kind::op; }                            \
+        struct Operator : public hilti::Operator {                                                                     \
+            ~Operator() final {}                                                                                       \
                                                                                                                        \
-            hilti::Expression instantiate(const std::vector<hilti::Expression>& operands, const Meta& meta) const;     \
-            std::string docNamespace() const { return #ns; }
+            ::hilti::operator_::Kind kind() const final { return ::hilti::operator_::Kind::op; }                       \
+            std::string docNamespace() const final { return #ns; }                                                     \
+                                                                                                                       \
+            static ExpressionPtr instantiate(ASTContext* ctx, Expressions operands,                                    \
+                                             const Meta& meta = {}) const final {                                      \
+                return cls::create(ctx, op, std::move(operands), meta);                                                \
+            }
+
 
 /** Internal helper macro. */
 #define __END_OPERATOR_CUSTOM                                                                                          \
@@ -50,18 +79,18 @@ private:                                                                        
 
 /** Ends definition of a method call operator. */
 #define END_OPERATOR                                                                                                   \
-    const std::vector<hilti::operator_::Operand>& operands() const { return signature().args; }                        \
+    const operator_::Operands operands() const final { return signature().args; }                                      \
                                                                                                                        \
-    std::string doc() const { return signature().doc; }                                                                \
+    std::string doc() const final { return signature().doc; }                                                          \
                                                                                                                        \
-    hilti::TypePtr result(const hilti::node::Range<hilti::Expression>& ops) const {                                    \
+    QualifiedTypePtr result(const hilti::node::Range<hilti::Expression>& ops) const final {                            \
         return *hilti::operator_::type(signature().result, ops, ops);                                                  \
     }                                                                                                                  \
                                                                                                                        \
-    bool isLhs() const { return signature().lhs; }                                                                     \
-    hilti::operator_::Priority priority() const { return signature().priority; }                                       \
+    bool isLhs() const final { return signature().lhs; }                                                               \
+    hilti::operator_::Priority priority() const final { return signature().priority; }                                 \
                                                                                                                        \
-    void validate(const hilti::expression::ResolvedOperator& /* i */, hilti::operator_::position_t /* p */) const {}   \
+    void validate(const hilti::expression::ResolvedOperator& /* i */) const final {}                                   \
                                                                                                                        \
     __END_OPERATOR_CUSTOM
 
@@ -103,7 +132,7 @@ private:                                                                        
  */
 #define STANDARD_OPERATOR_1(ns, op, result_, ty_op1, doc_)                                                             \
     BEGIN_OPERATOR(ns, op)                                                                                             \
-        const auto& signature() const {                                                                                \
+        const auto& signature() const final {                                                                          \
             static hilti::operator_::Signature _signature = {.result = result_,                                        \
                                                              .args =                                                   \
                                                                  {                                                     \
@@ -119,7 +148,7 @@ private:                                                                        
  */
 #define STANDARD_OPERATOR_1x(ns, cls, op, result_, ty_op1, doc_)                                                       \
     __BEGIN_OPERATOR_CUSTOM(ns, op, cls)                                                                               \
-    const auto& signature() const {                                                                                    \
+    const auto& signature() const final {                                                                              \
         static hilti::operator_::Signature _signature = {.result = result_,                                            \
                                                          .args =                                                       \
                                                              {                                                         \
@@ -135,7 +164,7 @@ private:                                                                        
  */
 #define STANDARD_OPERATOR_2(ns, op, result_, ty_op1, ty_op2, doc_)                                                     \
     BEGIN_OPERATOR(ns, op)                                                                                             \
-        const auto& signature() const {                                                                                \
+        const auto& signature() const final {                                                                          \
             static hilti::operator_::Signature _signature = {.result = result_,                                        \
                                                              .args = {{"op0", ty_op1}, {"op1", ty_op2}},               \
                                                              .doc = doc_};                                             \
@@ -148,7 +177,7 @@ private:                                                                        
  */
 #define STANDARD_OPERATOR_2x(ns, cls, op, result_, ty_op1, ty_op2, doc_)                                               \
     __BEGIN_OPERATOR_CUSTOM(ns, op, cls)                                                                               \
-    const auto& signature() const {                                                                                    \
+    const auto& signature() const final {                                                                              \
         static hilti::operator_::Signature _signature = {.result = result_,                                            \
                                                          .args = {{"op0", ty_op1}, {"op1", ty_op2}},                   \
                                                          .doc = doc_};                                                 \
@@ -161,7 +190,7 @@ private:                                                                        
  */
 #define STANDARD_OPERATOR_2x_low_prio(ns, cls, op, result_, ty_op1, ty_op2, doc_)                                      \
     __BEGIN_OPERATOR_CUSTOM(ns, op, cls)                                                                               \
-    const auto& signature() const {                                                                                    \
+    const auto& signature() const final {                                                                              \
         static hilti::operator_::Signature _signature = {.priority = operator_::Priority::Low,                         \
                                                          .result = result_,                                            \
                                                          .args = {{"op0", ty_op1}, {"op1", ty_op2}},                   \
@@ -175,7 +204,7 @@ private:                                                                        
  */
 #define STANDARD_OPERATOR_2x_lhs(ns, cls, op, result_, ty_op1, ty_op2, doc_)                                           \
     __BEGIN_OPERATOR_CUSTOM(ns, op, cls)                                                                               \
-    const auto& signature() const {                                                                                    \
+    const auto& signature() const final {                                                                              \
         static hilti::operator_::Signature _signature = {.lhs = true,                                                  \
                                                          .result = result_,                                            \
                                                          .args = {{"op0", ty_op1}, {"op1", ty_op2}},                   \
@@ -189,7 +218,7 @@ private:                                                                        
  */
 #define STANDARD_OPERATOR_3(ns, op, result_, ty_op1, ty_op2, ty_op3, doc_)                                             \
     BEGIN_OPERATOR(ns, op)                                                                                             \
-        const auto& signature() const {                                                                                \
+        const auto& signature() const final {                                                                          \
             static hilti::operator_::Signature _signature =                                                            \
                 {.result = result_, .args = {{"op0", ty_op1}, {"op1", ty_op2}, {"op2", ty_op3}}, .doc = doc_};         \
             return _signature;                                                                                         \
@@ -216,27 +245,27 @@ private:                                                                        
 
 /** Internal helper macro. */
 #define __END_METHOD                                                                                                   \
-    const std::vector<hilti::operator_::Operand>& operands() const {                                                   \
+    const std::vector<hilti::operator_::Operand>& operands() const final {                                             \
         static std::vector<hilti::operator_::Operand> _operands = {{{}, signature().self},                             \
                                                                    {{}, hilti::type::Member(signature().id)},          \
                                                                    {{}, hilti::type::OperandList(signature().args)}};  \
         return _operands;                                                                                              \
     }                                                                                                                  \
                                                                                                                        \
-    std::string doc() const { return signature().doc; }
+    std::string doc() const final { return signature().doc; }
 
 /** Ends definition of a method call operator. */
 #define END_METHOD                                                                                                     \
     __END_METHOD                                                                                                       \
                                                                                                                        \
-    hilti::TypePtr result(const hilti::node::Range<hilti::Expression>& ops) const {                                    \
+    QualifiedTypePtr result(const hilti::node::Range<hilti::Expression>& ops) const final {                            \
         return *hilti::operator_::type(signature().result, hilti::node::Range(ops), ops);                              \
     }                                                                                                                  \
                                                                                                                        \
-    bool isLhs() const { return false; }                                                                               \
-    hilti::operator_::Priority priority() const { return signature().priority; }                                       \
+    bool isLhs() const final { return false; }                                                                         \
+    hilti::operator_::Priority priority() const final { return signature().priority; }                                 \
                                                                                                                        \
-    void validate(const hilti::expression::ResolvedOperator& /* i */, hilti::operator_::position_t /* p */) const {}   \
+    void validate(const hilti::expression::ResolvedOperator& /* i */) const final {}                                   \
                                                                                                                        \
     __END_OPERATOR_CUSTOM
 
@@ -257,25 +286,26 @@ private:                                                                        
 #define BEGIN_CTOR(ns, cls) __BEGIN_OPERATOR_CUSTOM(ns, Call, cls)
 
 #define END_CTOR                                                                                                       \
-    const std::vector<hilti::operator_::Operand>& operands() const {                                                   \
+    const std::vector<hilti::operator_::Operand>& operands() const final {                                             \
         static std::vector<hilti::operator_::Operand> _operands = {{{}, hilti::type::Type_(ctorType())},               \
                                                                    {{}, hilti::type::OperandList(signature().args)}};  \
         return _operands;                                                                                              \
     }                                                                                                                  \
                                                                                                                        \
-    std::string doc() const { return signature().doc; }                                                                \
+    std::string doc() const final { return signature().doc; }                                                          \
                                                                                                                        \
-    hilti::TypePtr result(const hilti::node::Range<hilti::Expression>& ops) const {                                    \
+    QualifiedTypePtr result(const hilti::node::Range<hilti::Expression>& ops) const final {                            \
         if ( ops.size() )                                                                                              \
             return ops[0].type().as<hilti::type::Type_>().typeValue();                                                 \
                                                                                                                        \
         return ctorType();                                                                                             \
     }                                                                                                                  \
                                                                                                                        \
-    bool isLhs() const { return false; }                                                                               \
-    hilti::operator_::Priority priority() const { return signature().priority; }                                       \
+    bool isLhs() const final { return false; }                                                                         \
+    hilti::operator_::Priority priority() const final { return signature().priority; }                                 \
                                                                                                                        \
-    void validate(const hilti::expression::ResolvedOperator& /* i */, hilti::operator_::position_t /* p */) const {}   \
+    void validate(const hilti::expression::ResolvedOperator& /* i */, hilti::operator_::position_t /* p */)            \
+        const final {}                                                                                                 \
                                                                                                                        \
     __END_OPERATOR_CUSTOM
 
@@ -283,27 +313,28 @@ private:                                                                        
 #define BEGIN_KEYWORD_CTOR(ns, cls, kw, result_, doc_)                                                                 \
     __BEGIN_OPERATOR_CUSTOM(ns, Call, cls)                                                                             \
                                                                                                                        \
-    const auto& signature() const {                                                                                    \
+    const auto& signature() const final {                                                                              \
         static hilti::operator_::Signature _signature = {.result = result_, .args = parameters(), .doc = doc_};        \
         return _signature;                                                                                             \
     }                                                                                                                  \
                                                                                                                        \
-    const std::vector<hilti::operator_::Operand>& operands() const {                                                   \
+    const std::vector<hilti::operator_::Operand>& operands() const final {                                             \
         static std::vector<hilti::operator_::Operand> _operands = {{{}, hilti::type::Member(kw)},                      \
                                                                    {{}, hilti::type::OperandList(signature().args)}};  \
         return _operands;                                                                                              \
     }                                                                                                                  \
                                                                                                                        \
-    std::string doc() const { return signature().doc; }                                                                \
+    std::string doc() const final { return signature().doc; }                                                          \
                                                                                                                        \
-    hilti::TypePtr result(const hilti::node::Range<hilti::Expression>& ops) const {                                    \
+    QualifiedTypePtr result(const hilti::node::Range<hilti::Expression>& ops) const final {                            \
         return *hilti::operator_::type(signature().result, ops, ops);                                                  \
     }                                                                                                                  \
                                                                                                                        \
-    bool isLhs() const { return signature().lhs; }                                                                     \
-    hilti::operator_::Priority priority() const { return signature().priority; }                                       \
+    bool isLhs() const final { return signature().lhs; }                                                               \
+    hilti::operator_::Priority priority() const final { return signature().priority; }                                 \
                                                                                                                        \
-    void validate(const hilti::expression::ResolvedOperator& /* i */, hilti::operator_::position_t /* p */) const {}
+    void validate(const hilti::expression::ResolvedOperator& /* i */, hilti::operator_::position_t /* p */)            \
+        const final {}
 
 
 #define END_KEYWORD_CTOR __END_OPERATOR_CUSTOM
@@ -312,7 +343,7 @@ private:                                                                        
 #define STANDARD_KEYWORD_CTOR(ns, cls, kw, result_, ty_op, doc_)                                                       \
     BEGIN_KEYWORD_CTOR(ns, cls, kw, result_, doc_)                                                                     \
                                                                                                                        \
-        std::vector<Operand> parameters() const { return {{"op", ty_op}}; }                                            \
+        std::vector<Operand> parameters() const final { return {{"op", ty_op}}; }                                      \
                                                                                                                        \
     END_KEYWORD_CTOR
 
@@ -321,3 +352,4 @@ private:                                                                        
  * fully defined separately.
  */
 #define OPERATOR_DECLARE_ONLY(ns, cls)
+#endif

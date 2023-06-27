@@ -32,30 +32,28 @@ struct Visitor : visitor::PostOrder {
     const ASTRootPtr& root;
     Builder* builder;
 
-    void operator()(Module* m) final {
+    void operator()(declaration::Module* m) final {
         // Insert module name into global scope.
-        auto d = builder->declarationModule(m->as<Module>(), m->meta());
-        d->setCanonicalID(m->id());
-        root->getOrCreateScope()->insert(std::move(d));
+        root->getOrCreateScope()->insert(m->as<declaration::Module>());
     }
 
     void operator()(declaration::GlobalVariable* d) final {
-        if ( d->parent()->isA<Module>() )
+        if ( d->parent()->isA<declaration::Module>() )
             d->parent()->getOrCreateScope()->insert(d->as<declaration::GlobalVariable>());
     }
 
     void operator()(declaration::Type* d) final {
-        if ( d->parent()->isA<Module>() )
+        if ( d->parent()->isA<declaration::Module>() )
             d->parent()->getOrCreateScope()->insert(d->as<declaration::Type>());
     }
 
     void operator()(declaration::Constant* d) final {
-        if ( d->parent()->isA<Module>() )
+        if ( d->parent()->isA<declaration::Module>() )
             d->parent()->getOrCreateScope()->insert(d->as<declaration::Constant>());
     }
 
     void operator()(declaration::Expression* d) final {
-        if ( d->parent()->isA<Module>() )
+        if ( d->parent()->isA<declaration::Module>() )
             d->parent()->getOrCreateScope()->insert(d->as<declaration::Expression>());
     }
 

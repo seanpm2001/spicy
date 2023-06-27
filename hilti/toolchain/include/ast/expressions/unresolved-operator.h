@@ -17,13 +17,16 @@ public:
     auto kind() const { return _kind; }
     bool areOperandsResolved() const { return expression::isResolved(children<Expression>(1, -1)); }
 
+    // Accelerated accessors for the first three operands, returning raw pointers.
+    const Expression* op0() const { return dynamic_cast<Expression*>(children()[1].get()); }
+    const Expression* op1() const { return dynamic_cast<Expression*>(children()[2].get()); }
+    const Expression* op2() const { return dynamic_cast<Expression*>(children()[3].get()); }
+
     /** Implements interface for use with `OverloadRegistry`. */
     hilti::node::Range<Expression> operands() const { return children<Expression>(1, -1); }
 
     // Dummy implementations as the node will be rejected in validation anyway.
     QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
-    bool isLhs() const final { return false; }
-    bool isTemporary() const final { return true; }
 
     node::Properties properties() const final {
         auto p = node::Properties{{"kind", to_string(_kind)}};

@@ -16,8 +16,6 @@ public:
     auto coercedCtor() const { return child<Ctor>(1); }
 
     QualifiedTypePtr type() const final { return coercedCtor()->type(); }
-    bool isLhs() const final { return coercedCtor()->isLhs(); }
-    bool isTemporary() const final { return coercedCtor()->isTemporary(); }
 
     static auto create(ASTContext* ctx, const CtorPtr& orig, const CtorPtr& new_, const Meta& meta = {}) {
         return NodeDerivedPtr<Coerced>(new Coerced({orig, new_}, meta));

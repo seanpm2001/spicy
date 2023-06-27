@@ -24,14 +24,14 @@
 
 #define HILTI_NODE(CLASS)                                                                                              \
     NodePtr _clone(ASTContext* ctx) const final { return NodeDerivedPtr<CLASS>(new CLASS(*this)); }                    \
-    void dispatch(visitor::Dispatcher& v) final;                                                                       \
+    void dispatch(::hilti::visitor::Dispatcher& v) final;                                                              \
     friend class hilti::builder::NodeBuilder;
 
 #define HILTI_NODE_IMPLEMENTATION_0(CLASS)                                                                             \
-    void ::hilti::CLASS::dispatch(visitor::Dispatcher& v) { v(this); }
+    void ::hilti::CLASS::dispatch(::hilti::visitor::Dispatcher& v) { v(this); }
 
 #define HILTI_NODE_IMPLEMENTATION_1(CLASS, BASE)                                                                       \
-    void ::hilti::CLASS::dispatch(visitor::Dispatcher& v) {                                                            \
+    void ::hilti::CLASS::dispatch(::hilti::visitor::Dispatcher& v) {                                                   \
         v(static_cast<BASE*>(this));                                                                                   \
         v(this);                                                                                                       \
     }
@@ -129,6 +129,18 @@ public:
 
     const auto& children() const { return _children; }
     Node* parent() const { return _parent; }
+
+    template<typename T>
+    T* parent() const {
+        if ( ! _parent )
+            return nullptr;
+        else if ( auto p = dynamic_cast<T*>(_parent) )
+            return p;
+        else if ( p )
+            return _parent->parent<T>();
+        else
+            return nullptr;
+    }
 
     const auto& meta() const { return _meta; }
     void setMeta(Meta m) { _meta = std::move(m); }

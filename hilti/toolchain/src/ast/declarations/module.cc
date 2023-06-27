@@ -1,17 +1,15 @@
 // Copyright (c) 2020-2023 by the Zeek Project. See LICENSE for details.
 
 #include <hilti/ast/declarations/property.h>
-#include <hilti/ast/module.h>
+#include <hilti/ast/declarations/module.h>
 #include <hilti/ast/statements/block.h>
 #include <hilti/ast/visitor.h>
 
 using namespace hilti;
 
-Module::~Module() = default;
+std::string declaration::Module::_render() const { return ""; }
 
-std::string Module::_render() const { return ""; }
-
-void Module::clear() {
+void declaration::Module::clear() {
     assert(false && "Do we need this?? Need reimplementation");
 #if 0
     auto v = visitor::PostOrder();
@@ -29,7 +27,7 @@ void Module::clear() {
 #endif
 }
 
-std::shared_ptr<declaration::Property> Module::moduleProperty(const ID& id) const {
+std::shared_ptr<declaration::Property> declaration::Module::moduleProperty(const ID& id) const {
     for ( const auto& d : declarations() ) {
         if ( ! d->isA<declaration::Property>() )
             return {};
@@ -42,7 +40,7 @@ std::shared_ptr<declaration::Property> Module::moduleProperty(const ID& id) cons
     return {};
 }
 
-node::Set<declaration::Property> Module::moduleProperties(const std::optional<ID>& id) const {
+node::Set<declaration::Property> declaration::Module::moduleProperties(const std::optional<ID>& id) const {
     node::Set<declaration::Property> props;
 
     for ( const auto& d : declarations() ) {

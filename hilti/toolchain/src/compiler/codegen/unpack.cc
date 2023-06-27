@@ -9,6 +9,7 @@
 #include <hilti/base/logger.h>
 #include <hilti/compiler/detail/codegen/codegen.h>
 #include <hilti/compiler/detail/cxx/all.h>
+#include "ast/types/integer.h"
 
 using namespace hilti;
 using util::fmt;
@@ -30,7 +31,6 @@ struct Visitor : hilti::visitor::PreOrder {
 
     std::optional<std::string> result;
 
-#if 0
     auto kindToString() const {
         switch ( kind ) {
             case Kind::Pack: return "pack";
@@ -40,27 +40,26 @@ struct Visitor : hilti::visitor::PreOrder {
         util::cannot_be_reached();
     }
 
-    result_t operator()(const type::Address& n) {
+    void operator()(type::Address* n) final {
         switch ( kind ) {
-            case Kind::Pack: return fmt("::hilti::rt::address::pack(%s, %s)", data, args[0]);
-            case Kind::Unpack: return fmt("::hilti::rt::address::unpack(%s, %s, %s)", data, args[0], args[1]);
+            case Kind::Pack: result = fmt("::hilti::rt::address::pack(%s, %s)", data, args[0]); break;
+            case Kind::Unpack: result = fmt("::hilti::rt::address::unpack(%s, %s, %s)", data, args[0], args[1]); break;
         }
 
         util::cannot_be_reached();
     }
 
-    result_t operator()(const type::UnsignedInteger& n) {
-        return fmt("::hilti::rt::integer::%s<uint%d_t>(%s, %s)", kindToString(), n.width(), data, args[0]);
+    void operator()(type::UnsignedInteger* n) final {
+        result = fmt("::hilti::rt::integer::%s<uint%d_t>(%s, %s)", kindToString(), n->width(), data, args[0]);
     }
 
-    result_t operator()(const type::SignedInteger& n) {
-        return fmt("::hilti::rt::integer::%s<int%d_t>(%s, %s)", kindToString(), n.width(), data, args[0]);
+    void operator()(type::SignedInteger* n) final {
+        result = fmt("::hilti::rt::integer::%s<int%d_t>(%s, %s)", kindToString(), n->width(), data, args[0]);
     }
 
-    result_t operator()(const type::Real& n) {
-        return fmt("::hilti::rt::real::%s(%s, %s, %s)", kindToString(), data, args[0], args[1]);
+    void operator()(type::Real* n) final {
+        result = fmt("::hilti::rt::real::%s(%s, %s, %s)", kindToString(), data, args[0], args[1]);
     }
-#endif
 };
 
 } // anonymous namespace

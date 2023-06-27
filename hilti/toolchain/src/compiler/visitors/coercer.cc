@@ -33,7 +33,7 @@ struct Visitor : visitor::PreOrder {
     }
 
     /** Returns a method call's i-th argument. */
-    const Expression& methodArgument(const expression::ResolvedOperatorBase& o, size_t i) {
+    const Expression& methodArgument(const expression::ResolvedOperator& o, size_t i) {
         auto ops = o.op2();
 
         // If the argument list was the result of a coercion unpack its result.
@@ -136,7 +136,7 @@ struct Visitor : visitor::PreOrder {
      * Coerces a specific call argument to a given type returning the coerced
      * expression (only) if its type has changed.
      */
-    Result<std::optional<Expression>> coerceMethodArgument(const expression::ResolvedOperatorBase& o, size_t i,
+    Result<std::optional<Expression>> coerceMethodArgument(const expression::ResolvedOperator& o, size_t i,
                                                            const TypePtr& t) {
         auto ops = o.op2();
 

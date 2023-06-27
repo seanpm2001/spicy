@@ -17,8 +17,6 @@ public:
     auto source() const { return child<Expression>(1); }
 
     QualifiedTypePtr type() const final { return target()->type(); }
-    bool isLhs() const final { return target()->isLhs(); }
-    bool isTemporary() const final { return isLhs(); }
 
     static auto create(ASTContext* ctx, const ExpressionPtr& target, const ExpressionPtr& src, const Meta& meta = {}) {
         return NodeDerivedPtr<Assign>(new Assign({target, src}, meta));

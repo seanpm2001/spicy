@@ -44,6 +44,10 @@ Main changes:
       variants now for pre-order and post-order walking (and those two
       are still implemented through a joined template).
 
+    - Unresolved types: Use `Auto` if the type is presumably still
+      going to be resolved, and `Unknown` if the type has been
+      determined to be finally unresolvable.
+
 Node/AST semantics:
 
     - `Node::clone()` -> shallow copy

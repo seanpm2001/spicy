@@ -5,7 +5,7 @@
 
 #include <hilti/ast/ast-context.h>
 #include <hilti/ast/declarations/function.h>
-#include <hilti/ast/module.h>
+#include <hilti/ast/declarations/module.h>
 #include <hilti/ast/node.h>
 #include <hilti/base/timing.h>
 #include <hilti/compiler/detail/codegen/codegen.h>

@@ -16,8 +16,6 @@ public:
     auto expression() const { return child<Expression>(0); }
 
     QualifiedTypePtr type() const final { return expression()->type(); }
-    bool isLhs() const final { return false; }
-    bool isTemporary() const final { return true; }
 
     static auto create(ASTContext* ctx, const ExpressionPtr& expr, const Meta& meta = {}) {
         return NodeDerivedPtr<TypeInfo>(new TypeInfo({expr}, meta));

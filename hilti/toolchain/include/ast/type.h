@@ -148,25 +148,55 @@ private:
     std::optional<ID> _resolved_id;
 };
 
+namespace type {
+struct Unified {
+    ID serial = {};
+    bool is_constant = false;
+
+    std::string str() const {
+        return serial ? util::fmt("%c::%s", serial.str(), (is_constant ? 'C' : 'M')) : "<not set>";
+    }
+    operator std::string() const { return str(); }
+    operator bool() const { return ! serial.empty(); }
+};
+} // namespace type
+
 // Type with associated constness.
 class QualifiedType : public Node {
 public:
-    hilti::node::Properties properties() const override { return {{"const", _is_constant}, {"auto", _is_auto}}; }
+    enum class Side { LHS, RHS };
 
     UnqualifiedTypePtr type() const { return child<UnqualifiedType>(0); }
+    const auto& unified() const { return _unified; }
     bool isConstant() const { return _is_constant; }
     bool isAuto() const { return _is_auto; }
+    bool isWildcard() const { return type()->isWildcard(); }
+    bool isLhs() const { return _side == Side::LHS; }
+
+    void unify(ASTContext* ctx, const NodePtr& scope_root = nullptr);
+
+    hilti::node::Properties properties() const override {
+        auto side = (_side == Side::LHS ? "lhs" : "rhs");
+        return {{"const", _is_constant}, {"side", side}, {"auto", _is_auto}, {"unified", _unified.str()}};
+    }
 
     static auto create(ASTContext* ctx, const UnqualifiedTypePtr& t, bool is_constant, Meta m = Meta()) {
         // Note: We allow (i.e., must support) `ctx` being null.
-        return NodeDerivedPtr<QualifiedType>(new QualifiedType(Nodes{t}, is_constant, false, std::move(m)));
+        return NodeDerivedPtr<QualifiedType>(new QualifiedType(Nodes{t}, is_constant, false, Side::RHS, std::move(m)));
+    }
+
+    static auto create(ASTContext* ctx, const UnqualifiedTypePtr& t, bool is_constant, Side side, Meta m = Meta()) {
+        // Note: We allow (i.e., must support) `ctx` being null.
+        return NodeDerivedPtr<QualifiedType>(new QualifiedType(Nodes{t}, is_constant, false, side, std::move(m)));
     }
 
     static QualifiedTypePtr createAuto(ASTContext* ctx, const Meta& m = Meta());
 
 protected:
-    QualifiedType(Nodes children, bool is_constant, bool is_auto, Meta meta)
-        : Node(std::move(children), std::move(meta)), _is_constant(is_constant), _is_auto(is_auto) {}
+    friend class ASTContext;
+
+    QualifiedType(Nodes children, bool is_constant, bool is_auto, QualifiedType::Side side, Meta meta)
+        : Node(std::move(children), std::move(meta)), _is_constant(is_constant), _is_auto(is_auto), _side(side) {}
 
     std::string _render() const final;
     bool isEqual(const Node& other) const override {
@@ -180,8 +210,10 @@ protected:
     HILTI_NODE(QualifiedType);
 
 private:
+    type::Unified _unified;
     bool _is_constant = false;
     bool _is_auto = false;
+    Side _side = Side::RHS;
 };
 
 namespace type {

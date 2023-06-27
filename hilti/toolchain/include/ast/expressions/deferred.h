@@ -22,8 +22,6 @@ public:
     bool catchException() const { return _catch_exception; }
 
     QualifiedTypePtr type() const final { return child<QualifiedType>(1); }
-    bool isLhs() const final { return false; }
-    bool isTemporary() const final { return true; }
 
     node::Properties properties() const final {
         auto p = node::Properties{{"catch_exception", _catch_exception}};

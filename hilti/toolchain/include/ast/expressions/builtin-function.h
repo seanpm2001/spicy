@@ -22,8 +22,6 @@ public:
     const auto& name() const { return _name; }
 
     QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
-    bool isLhs() const final { return false; }
-    bool isTemporary() const final { return true; }
 
     node::Properties properties() const final {
         auto p = node::Properties{{"name", _name}, {"cxxname", _cxxname}};

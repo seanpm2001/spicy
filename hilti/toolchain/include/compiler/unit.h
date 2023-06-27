@@ -14,8 +14,8 @@
 
 #include <hilti/rt/filesystem.h>
 
+#include <hilti/ast/declarations/module.h>
 #include <hilti/ast/id.h>
-#include <hilti/ast/module.h>
 #include <hilti/base/logger.h>
 #include <hilti/base/result.h>
 #include <hilti/base/util.h>

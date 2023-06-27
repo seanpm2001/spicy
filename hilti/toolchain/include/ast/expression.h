@@ -27,15 +27,6 @@ public:
     /** Returns the expression's HILTI type when evaluated. */
     virtual QualifiedTypePtr type() const = 0;
 
-    /** Returns true if the expression can be the target of an assignment. */
-    virtual bool isLhs() const = 0;
-
-    /**
-     * Returns true if, when evaluated as RHS, the expression will yield a
-     * temporary value.
-     */
-    virtual bool isTemporary() const = 0;
-
 protected:
     Expression(Nodes children, Meta meta) : Node::Node(std::move(children), std::move(meta)) {}
 

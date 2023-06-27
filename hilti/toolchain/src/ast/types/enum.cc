@@ -49,7 +49,7 @@ type::enum_::Labels type::Enum::labels() const {
     enum_::Labels labels;
 
     for ( const auto& c : children() ) {
-        auto label = c->as<declaration::Constant>()->value()->as<expression::Ctor>()->ctor()->as<ctor::Enum>()->label();
+        auto label = c->as<declaration::Constant>()->value()->as<expression::Ctor>()->ctor()->as<ctor::Enum>()->value();
         labels.emplace_back(label);
     }
 

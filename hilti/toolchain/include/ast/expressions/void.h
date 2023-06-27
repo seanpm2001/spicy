@@ -15,8 +15,6 @@ namespace hilti::expression {
 class Void : public Expression {
 public:
     QualifiedTypePtr type() const final { return child<QualifiedType>(0); }
-    bool isLhs() const final { return false; }
-    bool isTemporary() const final { return true; }
 
     static auto create(ASTContext* ctx, const Meta& meta = {}) {
         return NodeDerivedPtr<Void>(new Void({type::Void::create(ctx, meta)}, meta));

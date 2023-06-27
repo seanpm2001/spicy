@@ -12,7 +12,6 @@ HILTI_NODE_IMPLEMENTATION_0(Ctor);
 HILTI_NODE_IMPLEMENTATION_0(Declaration);
 HILTI_NODE_IMPLEMENTATION_0(Expression);
 HILTI_NODE_IMPLEMENTATION_0(Function);
-HILTI_NODE_IMPLEMENTATION_0(Module);
 HILTI_NODE_IMPLEMENTATION_0(QualifiedType);
 HILTI_NODE_IMPLEMENTATION_0(Statement);
 HILTI_NODE_IMPLEMENTATION_0(UnqualifiedType);
@@ -86,6 +85,9 @@ HILTI_NODE_IMPLEMENTATION_1(expression::TypeWrapped, Expression)
 HILTI_NODE_IMPLEMENTATION_1(expression::Type_, Expression)
 HILTI_NODE_IMPLEMENTATION_1(expression::UnresolvedOperator, Expression)
 HILTI_NODE_IMPLEMENTATION_1(expression::Void, Expression)
+HILTI_NODE_IMPLEMENTATION_1(operator_::function::Call, ResolvedOperator)
+HILTI_NODE_IMPLEMENTATION_1(operator_::string::Encode, ResolvedOperator)
+HILTI_NODE_IMPLEMENTATION_1(operator_::string::Equal, ResolvedOperator)
 HILTI_NODE_IMPLEMENTATION_1(statement::Assert, Statement)
 HILTI_NODE_IMPLEMENTATION_1(statement::Block, Statement)
 HILTI_NODE_IMPLEMENTATION_1(statement::Break, Statement)

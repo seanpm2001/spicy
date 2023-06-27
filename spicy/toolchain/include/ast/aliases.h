@@ -5,12 +5,12 @@
 #include <hilti/ast/attribute.h>
 #include <hilti/ast/ctor.h>
 #include <hilti/ast/declaration.h>
+#include <hilti/ast/declarations/module.h>
 #include <hilti/ast/expression.h>
 #include <hilti/ast/function.h>
 #include <hilti/ast/id.h>
 #include <hilti/ast/location.h>
 #include <hilti/ast/meta.h>
-#include <hilti/ast/module.h>
 #include <hilti/ast/node-ref.h>
 #include <hilti/ast/node.h>
 #include <hilti/ast/operator.h>

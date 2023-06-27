@@ -15,7 +15,7 @@ namespace hilti::declaration {
 /** AST node for a type declaration. */
 class Type : public Declaration {
 public:
-    auto type() const { return child<UnqualifiedType>(0); }
+    auto type() const { return child<QualifiedType>(0); }
     auto attributes() const { return child<AttributeSet>(1); }
 
     bool isOnHeap() const {
@@ -26,24 +26,24 @@ public:
     }
 
     /** Shortcut to `type::typeID()` for the declared type. */
-    auto typeID() const { return child(0)->as<hilti::UnqualifiedType>()->typeID(); }
+    auto typeID() const { return child<QualifiedType>(0)->type()->typeID(); }
 
     /** Shortcut to `type::cxxID()` for the declared type. */
-    auto cxxID() const { return child(0)->as<hilti::UnqualifiedType>()->cxxID(); }
+    auto cxxID() const { return child<QualifiedType>(0)->type()->cxxID(); }
 
     /** Shortcut to `type::resolvedID()` for the declared type. */
-    auto resolvedID() const { return child(0)->as<hilti::UnqualifiedType>()->resolvedID(); }
+    auto resolvedID() const { return child<QualifiedType>(0)->type()->resolvedID(); }
 
     void setType(const QualifiedTypePtr& t) { setChild(0, t); }
 
     std::string displayName() const final { return "type"; }
 
-    static auto create(ASTContext* ctx, ID id, const UnqualifiedTypePtr& type, const AttributeSetPtr& attrs,
+    static auto create(ASTContext* ctx, ID id, const QualifiedTypePtr& type, const AttributeSetPtr& attrs,
                        declaration::Linkage linkage = Linkage::Private, Meta meta = {}) {
         return NodeDerivedPtr<Type>(new Type({type, attrs}, std::move(id), linkage, std::move(meta)));
     }
 
-    static auto create(ASTContext* ctx, ID id, const UnqualifiedTypePtr& type,
+    static auto create(ASTContext* ctx, ID id, const QualifiedTypePtr& type,
                        declaration::Linkage linkage = Linkage::Private, Meta meta = {}) {
         return create(ctx, std::move(id), type, nullptr, linkage, std::move(meta));
     }

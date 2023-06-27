@@ -47,7 +47,7 @@ public:
     RangeIterator& operator=(const RangeIterator& other) = default;
     RangeIterator& operator=(RangeIterator&& other) noexcept = default;
     std::shared_ptr<T> operator*() const { return value(); }
-    std::shared_ptr<T> operator->() const { return &value(); }
+    // T operator->() const { return &value(); }
     bool operator==(const RangeIterator& other) const { return _iter == other._iter; }
     bool operator!=(const RangeIterator& other) const { return ! (*this == other); }
 
@@ -126,7 +126,15 @@ public:
     std::vector<std::shared_ptr<T>> copy() const {
         std::vector<std::shared_ptr<T>> x;
         for ( auto i = _begin; i != _end; i++ )
-            x.push_back(i->clone());
+            x.push_back((*i)->clone());
+
+        return x;
+    }
+
+    operator std::vector<std::shared_ptr<T>>() const {
+        std::vector<std::shared_ptr<T>> x;
+        for ( auto i = _begin; i != _end; i++ )
+            x.push_back(*i);
 
         return x;
     }

@@ -195,9 +195,9 @@ OPERATOR_DECLARE_ONLY(struct_, MemberCall)
 
 namespace struct_ {
 
-class MemberCall : public hilti::expression::ResolvedOperatorBase {
+class MemberCall : public hilti::expression::ResolvedOperator {
 public:
-    using hilti::expression::ResolvedOperatorBase::ResolvedOperatorBase;
+    using hilti::expression::ResolvedOperator::ResolvedOperator;
 
     struct Operator : public hilti::trait::isOperator {
         Operator(const type::Struct& stype, const declaration::Field& f) {

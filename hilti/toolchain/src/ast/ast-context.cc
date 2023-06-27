@@ -163,21 +163,17 @@ Result<Nothing> ASTContext::processAST() {
         if ( auto rc = _validate(plugin, true); ! rc )
             return rc;
 
-        if ( auto rc = _resolve(plugin) )
+        if ( auto rc = _resolve(plugin); ! rc )
             return rc;
 
-        if ( ! _context->options().skip_validation ) {
-            if ( auto rc = _validate(plugin, false); ! rc )
-                return rc;
-        }
+        if ( auto rc = _validate(plugin, false); ! rc )
+            return rc;
 
         if ( auto rc = _optimize(plugin); ! rc )
             return rc;
 
-        if ( ! _context->options().skip_validation ) {
-            if ( auto rc = _validate(plugin, false); ! rc )
-                return rc;
-        }
+        if ( auto rc = _validate(plugin, false); ! rc )
+            return rc;
 
         // TODO: Transform
     }
@@ -262,7 +258,19 @@ Result<Nothing> ASTContext::_resolve(const Plugin& plugin) {
 
 Result<Nothing> ASTContext::_optimize(const Plugin& plugin) { return Nothing(); }
 
-Result<Nothing> ASTContext::_validate(const Plugin& plugin, bool pre_resolve) { return Nothing(); }
+Result<Nothing> ASTContext::_validate(const Plugin& plugin, bool pre_resolve) {
+    if ( _context->options().skip_validation )
+        return Nothing();
+
+    bool modified = false; // not used
+
+    if ( pre_resolve )
+        _runHook(&modified, plugin, &Plugin::ast_validate_pre, "validating (pre)", _context->astContext().get(), _root);
+    else
+        _runHook(&modified, plugin, &Plugin::ast_validate_post, "validating (post)", _context->astContext().get(), _root);
+
+    return _collectErrors();
+}
 
 void ASTContext::_dumpAST(const logging::DebugStream& stream, const Plugin& plugin, const std::string& prefix,
                           int round) {
@@ -333,13 +341,11 @@ void ASTContext::_saveIterationAST(const Plugin& plugin, const std::string& pref
 
 std::vector<module::UID> ASTContext::dependencies(const module::UID& uid, bool recursive) const {
     // TODO
-    assert(false && "not implemented yet");
+    HILTI_DEBUG(logging::debug::Compiler, fmt("Warning: AST dependencies not implemented yet"));
     return {};
 }
 
 #if 0
-
-
 Result<Nothing> Unit::transformAST(const Plugin& plugin) {
     if ( ! _module )
         return Nothing();
@@ -350,6 +356,8 @@ Result<Nothing> Unit::transformAST(const Plugin& plugin) {
 
     return Nothing();
 }
+
+#endif
 
 static node::ErrorPriority _recursiveValidateAST(const NodePtr& n, Location closest_location, node::ErrorPriority prio,
                                                  int level, std::vector<node::Error>* errors) {
@@ -401,17 +409,19 @@ static void _reportErrors(const std::vector<node::Error>& errors) {
     }
 }
 
-bool Unit::_collectErrors() {
+Result<Nothing> ASTContext::_collectErrors() {
     std::vector<node::Error> errors;
-    _recursiveValidateAST(_module, Location(), node::ErrorPriority::NoError, 0, &errors);
+    _recursiveValidateAST(_root, Location(), node::ErrorPriority::NoError, 0, &errors);
 
     if ( errors.size() ) {
         _reportErrors(errors);
-        return false;
+        return result::Error("validation failed");
     }
 
-    return true;
+    return Nothing();
 }
+
+#if 0
 
 void Unit::_destroyModule() {
     if ( ! _module )

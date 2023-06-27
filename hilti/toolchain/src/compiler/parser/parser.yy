@@ -34,7 +34,7 @@ namespace hilti { namespace detail { class Parser; } }
 %verbose
 
 %glr-parser
-%expect 111
+%expect 113
 %expect-rr 207
 
 %{
@@ -255,7 +255,7 @@ static hilti::UnqualifiedTypePtr viewForType(hilti::Builder* builder, hilti::Qua
 %type <hilti::statement::try_::CatchPtr>        try_catch
 %type <hilti::statement::try_::Catches>         try_catches
 
-%type <std::pair<std::vector<hilti::DeclarationPtr>, std::vector<hilti::StatementPtr>>> global_scope_items
+%type <std::pair<Declarations, Statements>>     global_scope_items
 
 %%
 
@@ -263,7 +263,7 @@ static hilti::UnqualifiedTypePtr viewForType(hilti::Builder* builder, hilti::Qua
 
 module        : MODULE local_id '{'
                 global_scope_items '}'           { auto uid = module::UID($2, hilti::rt::filesystem::path(*driver->currentFile()));
-                                                   auto m = builder->module(uid, {}, std::move($4.first), std::move($4.second), __loc__);
+                                                   auto m = builder->declarationModule(uid, {}, std::move($4.first), std::move($4.second), __loc__);
                                                    driver->setDestinationModule(std::move(m));
                                                  }
               ;
@@ -305,7 +305,7 @@ global_scope_decl
               | import_decl                      { $$ = std::move($1); }
               | property_decl                    { $$ = std::move($1); }
 
-type_decl     : opt_linkage TYPE scoped_id '=' type opt_attributes ';'
+type_decl     : opt_linkage TYPE scoped_id '=' qtype opt_attributes ';'
                                                  { $$ = builder->declarationType(std::move($3), std::move($5), std::move($6), std::move($1), __loc__); }
 
 constant_decl : opt_linkage CONST scoped_id '=' expr ';'
@@ -876,7 +876,7 @@ struct_elems  : struct_elems ',' struct_elem     { $$ = std::move($1); $$.push_b
 
 struct_elem   : '$' local_id  '=' expr           { $$ = builder->ctorStructField(std::move($2), std::move($4)); }
 
-regexp        : re_patterns                      { $$ = builder->ctorRegExp(std::move($1), __loc__); }
+regexp        : re_patterns opt_attributes      { $$ = builder->ctorRegExp(std::move($1), std::move($2), __loc__); }
 
 re_patterns   : re_patterns '|' re_pattern_constant
                                                  { $$ = $1; $$.push_back(std::move($3)); }

@@ -277,9 +277,9 @@ OPERATOR_DECLARE_ONLY(generic, CastedCoercion)
 
 namespace generic {
 
-class CastedCoercion : public hilti::expression::ResolvedOperatorBase {
+class CastedCoercion : public hilti::expression::ResolvedOperator {
 public:
-    using hilti::expression::ResolvedOperatorBase::ResolvedOperatorBase;
+    using hilti::expression::ResolvedOperator::ResolvedOperator;
 
     struct Operator : public hilti::trait::isOperator {
         Operator() = default;

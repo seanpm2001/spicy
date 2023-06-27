@@ -90,7 +90,7 @@ static std::string renderExpressionType(const ExpressionPtr& e) {
 }
 
 static std::string renderOperand(const operator_::Operand& op, const node::Range<Expression>& exprs) {
-    auto t = operator_::type(op.type, exprs, exprs);
+    auto t = op.type;
     std::string s = (t ? fmt("%s", *t) : "<no-type>");
 
     if ( op.default_ )
@@ -189,7 +189,7 @@ struct Printer : visitor::PreOrder {
             out << std::string(*n);
     }
 
-    void operator()(Module* n) final {
+    void operator()(declaration::Module* n) final {
         printDoc(n->documentation());
         out.beginLine();
         out << "module " << n->id() << " {" << out.newline();
@@ -244,7 +244,7 @@ struct Printer : visitor::PreOrder {
 
     void operator()(ctor::Enum* n) final {
         assert(n->type()->type()->typeID());
-        out << *n->type()->type()->typeID() << "::" << n->label()->id();
+        out << *n->type()->type()->typeID() << "::" << n->value()->id();
     }
 
     void operator()(ctor::Error* n) final { out << "error(\"" << n->value() << "\")"; }
@@ -1117,8 +1117,7 @@ std::string hilti::detail::renderOperatorPrototype(const NodeDerivedPtr<expressi
         case operator_::Kind::Call: {
             assert(exprs.size() == 2);
             auto id = exprs[0];
-            auto ops =
-                operator_::type(o->operator_().operands()[1].type, exprs, exprs)->as<type::OperandList>()->operands();
+            auto ops = o->operator_().operands()[1].type->as<type::OperandList>()->operands();
             auto args =
                 util::join(util::transform(ops, [&](auto x) { return fmt("<%s>", renderOperand(x, exprs)); }), ", ");
             return fmt("%s(%s)", id, args);
@@ -1128,8 +1127,7 @@ std::string hilti::detail::renderOperatorPrototype(const NodeDerivedPtr<expressi
             assert(exprs.size() == 3);
             auto self = exprs[0];
             auto id = exprs[1];
-            auto ops =
-                operator_::type(o->operator_().operands()[2].type, exprs, exprs)->as<type::OperandList>()->operands();
+            auto ops = o->operator_().operands()[2].type->as<type::OperandList>()->operands();
             auto args =
                 util::join(util::transform(ops, [&](auto x) { return fmt("<%s>", renderOperand(x, exprs)); }), ", ");
             return fmt("<%s>.%s(%s)", renderExpressionType(self), id, args);

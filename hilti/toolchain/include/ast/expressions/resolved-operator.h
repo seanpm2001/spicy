@@ -21,13 +21,13 @@ public:
     const auto& operator_() const { return *_operator; }
     auto kind() const { return _operator->kind(); }
 
-    // ResolvedOperator interface with common implementation.
+    // ResolvedOperator interface with common implementations.
     auto operands() const { return children<Expression>(1, -1); }
     auto result() const { return child<QualifiedType>(0); }
     auto op0() const { return child<Expression>(1); }
     auto op1() const { return child<Expression>(2); }
     auto op2() const { return child<Expression>(3); }
-    auto hasOp0() const { return ! children().empty(); }
+    auto hasOp0() const { return children().size() >= 2; }
     auto hasOp1() const { return children().size() >= 3; }
     auto hasOp2() const { return children().size() >= 4; }
 
@@ -38,8 +38,6 @@ public:
 #endif
 
     QualifiedTypePtr type() const final { return result(); }
-    bool isLhs() const final { return operator_().isLhs(); }
-    bool isTemporary() const final { return isLhs(); }
 
     node::Properties properties() const final {
         auto p = node::Properties{{"kind", to_string(_operator->kind())}};
@@ -47,9 +45,8 @@ public:
     }
 
 protected:
-    ResolvedOperator(Nodes children, OperatorPtr op, Meta meta)
-        : Expression(std::move(children), std::move(meta)), _operator(std::move(op)) {
-        setChild(0, _operator->result(Node::children<Expression>(1, -1))); // TODO: Right?
+    ResolvedOperator(const Operator* op, const QualifiedTypePtr& result, const Expressions& operands, Meta meta)
+        : Expression(node::flatten(result, operands), std::move(meta)), _operator(op) {
         type::pruneWalk(child(0)->as<QualifiedType>());
     }
 
@@ -62,7 +59,7 @@ protected:
     }
 
 private:
-    OperatorPtr _operator = nullptr;
+    const Operator* _operator = nullptr;
 };
 
 namespace resolved_operator {
@@ -77,8 +74,7 @@ namespace resolved_operator {
  */
 inline ExpressionPtr setOp0(const expression::ResolvedOperator& r, ExpressionPtr e) {
     auto x = r._clone().as<expression::ResolvedOperator>();
-    x.setOp0(std::move(e));
-    return x;
+     x;
 }
 
 /**

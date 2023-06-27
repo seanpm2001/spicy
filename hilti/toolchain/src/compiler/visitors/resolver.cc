@@ -8,18 +8,19 @@
 #include <hilti/ast/ast-context.h>
 #include <hilti/ast/ctors/reference.h>
 #include <hilti/ast/declaration.h>
+#include <hilti/ast/declarations/imported-module.h>
 #include <hilti/ast/declarations/local-variable.h>
 #include <hilti/ast/declarations/parameter.h>
 #include <hilti/ast/detail/operator-registry.h>
 #include <hilti/ast/expressions/deferred.h>
-#include <hilti/ast/expressions/name.h>
 #include <hilti/ast/expressions/keyword.h>
 #include <hilti/ast/expressions/list-comprehension.h>
+#include <hilti/ast/expressions/name.h>
 #include <hilti/ast/expressions/type.h>
 #include <hilti/ast/expressions/typeinfo.h>
 #include <hilti/ast/node.h>
 #include <hilti/ast/operator.h>
-//#include <hilti/ast/operators/struct.h>
+// #include <hilti/ast/operators/struct.h>
 #include <hilti/ast/scope.h>
 #include <hilti/ast/type.h>
 #include <hilti/ast/types/function.h>
@@ -32,6 +33,7 @@
 #include <hilti/compiler/unit.h>
 #include <hilti/global.h>
 
+#include "ast/builder/builder.h"
 #include "base/timing.h"
 
 using namespace hilti;
@@ -43,6 +45,13 @@ inline const hilti::logging::DebugStream Operator("operator");
 
 namespace {
 
+struct TypeUnifier : visitor::PreOrder {
+    TypeUnifier(ASTContext* ctx) : ctx(ctx) {}
+    ASTContext* ctx;
+
+    void operator()(QualifiedType* t) final { t->unify(ctx); }
+};
+
 struct Visitor : visitor::PostOrder {
     explicit Visitor(Builder* builder, const ASTRootPtr& root) : root(root), builder(builder) {}
 
@@ -50,9 +59,9 @@ struct Visitor : visitor::PostOrder {
     Builder* builder;
 
     bool modified = false;
-    std::map<ID, QualifiedType> auto_params; // miapping of `auto` parameters inferred, indexed by canonical ID
 
 #if 0
+    std::map<ID, QualifiedType> auto_params; // mapping of `auto` parameters inferred, indexed by canonical ID
     std::set<const Node*> seen;
 
     void preDispatch(const Node& n, int level) override {
@@ -291,37 +300,29 @@ struct Visitor : visitor::PostOrder {
         }
     }
 
-    void operator()(const declaration::ImportedModule& m, position_t p) {
-        std::shared_ptr<Unit> imported_unit = m.unit();
+#endif
 
-        if ( ! imported_unit ) {
-            std::string name;
-            Result<std::shared_ptr<Unit>> u;
+    void operator()(declaration::ImportedModule* m) final {
+        auto current_module = m->parent<declaration::Module>();
+        assert(current_module);
 
-            if ( m.path().empty() ) {
-                name = m.id().str();
-                u = Unit::fromImport(_context, m.id(), m.parseExtension(), unit->extension(), m.scope(),
-                                     m.searchDirectories());
-            }
-            else {
-                name = m.path().native();
-                u = Unit::fromSource(_context, m.path(), m.scope(), unit->extension());
-            }
+        if ( m->uid() )
+            return;
 
-            if ( u )
-                imported_unit = *u;
-            else {
-                logger().error(util::fmt("cannot import module '%s': %s", name, u.error()), m.meta().location());
-                return;
-            }
+        auto uid = builder->context()->importModule(m->id(), m->scope(), m->parseExtension(),
+                                                    current_module->uid().process_extension, m->searchDirectories());
+
+        if ( ! uid ) {
+            logger().error(util::fmt("cannot import module '%s': %s", m->id(), uid.error()), m->meta().location());
+            return;
         }
 
-        if ( unit->addDependency(imported_unit) || ! m.unit() ) {
-            logChange(p.node, "imported");
-            p.node.as<declaration::ImportedModule>().setUnit(imported_unit);
-            modified = true;
-        }
+        m->setUID(*uid);
+        current_module->addDependency(*uid);
+        modified = true;
     }
+
+#if 0
 
     void operator()(const declaration::Type& u, position_t p) {
         if ( u.type().typeID() )
@@ -1019,6 +1020,9 @@ std::vector<Node> Visitor::matchOverloads(const std::vector<Operator>& candidate
 
 bool hilti::detail::ast::resolve(Builder* builder, const ASTRootPtr& root) {
     util::timing::Collector _("hilti/compiler/ast/resolver");
+
+    auto v0 = TypeUnifier(builder->context());
+    hilti::visitor::visit(v0, root);
 
     auto v1 = Visitor(builder, root);
     hilti::visitor::visit(v1, root);

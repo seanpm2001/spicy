@@ -16,8 +16,6 @@ public:
     auto expression() const { return child<Expression>(0); }
 
     QualifiedTypePtr type() const final { return expression()->type(); }
-    bool isLhs() const final { return expression()->isLhs(); }
-    bool isTemporary() const final { return expression()->isTemporary(); }
 
     static auto create(ASTContext* ctx, const ExpressionPtr& expr, const Meta& meta = {}) {
         return NodeDerivedPtr<Grouping>(new Grouping({expr}, meta));

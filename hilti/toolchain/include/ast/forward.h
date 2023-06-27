@@ -17,7 +17,6 @@ class Ctor;
 class Declaration;
 class Expression;
 class Function;
-class Module;
 class QualifiedType;
 class Statement;
 class UnqualifiedType;
@@ -98,6 +97,7 @@ class Member;
 class Move;
 class Name;
 class PendingCoerced;
+class ResolvedOperator;
 class Ternary;
 class TypeInfo;
 class TypeWrapped;
@@ -227,17 +227,18 @@ using CtorPtr = std::shared_ptr<Ctor>;
 using DeclarationPtr = std::shared_ptr<Declaration>;
 using ExpressionPtr = std::shared_ptr<Expression>;
 using FunctionPtr = std::shared_ptr<Function>;
-using ModulePtr = std::shared_ptr<Module>;
+using ModulePtr = std::shared_ptr<declaration::Module>;
 using NodePtr = std::shared_ptr<Node>;
-using OperatorPtr = std::shared_ptr<Operator>;
 using StatementPtr = std::shared_ptr<Statement>;
 using UnqualifiedTypePtr = std::shared_ptr<UnqualifiedType>;
 using QualifiedTypePtr = std::shared_ptr<QualifiedType>;
+using ResolvedOperatorPtr = std::shared_ptr<expression::ResolvedOperator>;
+using UnresolvedOperatorPtr = std::shared_ptr<expression::UnresolvedOperator>;
+using OperandListPtr = std::shared_ptr<type::OperandList>;
 
 using Attributes = std::vector<AttributePtr>;
 using Declarations = std::vector<DeclarationPtr>;
 using Expressions = std::vector<ExpressionPtr>;
-using Operators = std::vector<OperatorPtr>;
 using Statements = std::vector<StatementPtr>;
 using QualifiedTypes = std::vector<QualifiedTypePtr>;
 using UnqualifiedTypes = std::vector<UnqualifiedTypePtr>;
@@ -245,5 +246,7 @@ using UnqualifiedTypes = std::vector<UnqualifiedTypePtr>;
 class Builder;
 class ASTContext;
 class Nodes;
+
+using BuilderPtr = std::shared_ptr<Builder>;
 
 } // namespace hilti

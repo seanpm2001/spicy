@@ -9,7 +9,7 @@
 
 #include <hilti/ast/declaration.h>
 
-#include "ast/module.h"
+#include "ast/declarations/module.h"
 
 namespace hilti {
 

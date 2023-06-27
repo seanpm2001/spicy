@@ -29,13 +29,13 @@ struct Visitor : hilti::visitor::PreOrder {
 #if 0
     // Helpers
 
-    result_t op0(const expression::ResolvedOperatorBase& o, bool lhs = false) { return cg->compile(o.op0(), lhs); }
+    result_t op0(const expression::ResolvedOperator& o, bool lhs = false) { return cg->compile(o.op0(), lhs); }
 
-    result_t op1(const expression::ResolvedOperatorBase& o, bool lhs = false) { return cg->compile(o.op1(), lhs); }
+    result_t op1(const expression::ResolvedOperator& o, bool lhs = false) { return cg->compile(o.op1(), lhs); }
 
-    result_t op2(const expression::ResolvedOperatorBase& o, bool lhs = false) { return cg->compile(o.op2(), lhs); }
+    result_t op2(const expression::ResolvedOperator& o, bool lhs = false) { return cg->compile(o.op2(), lhs); }
 
-    result_t binary(const expression::ResolvedOperatorBase& o, const std::string& x) {
+    result_t binary(const expression::ResolvedOperator& o, const std::string& x) {
         return fmt("%s %s %s", op0(o), x, op1(o));
     }
 
@@ -47,7 +47,7 @@ struct Visitor : hilti::visitor::PreOrder {
         return node::transform(exprs, [&](const auto& e) { return cg->compile(e); });
     }
 
-    auto tupleArguments(const expression::ResolvedOperatorBase& o, const Expression& op) {
+    auto tupleArguments(const expression::ResolvedOperator& o, const Expression& op) {
         auto ctor = op.as<expression::Ctor>().ctor();
 
         if ( auto x = ctor.tryAs<ctor::Coerced>() )
@@ -56,7 +56,7 @@ struct Visitor : hilti::visitor::PreOrder {
         return compileExpressions(ctor.as<ctor::Tuple>().value());
     }
 
-    auto methodArguments(const expression::ResolvedOperatorBase& o) {
+    auto methodArguments(const expression::ResolvedOperator& o) {
         auto ops = o.op2();
 
         // If the argument list was the result of a coercion unpack its result.
@@ -735,15 +735,15 @@ struct Visitor : hilti::visitor::PreOrder {
 
     /// Struct
 
-    auto memberAccess(const expression::ResolvedOperatorBase& o, const std::string& self, const std::string& member) {
+    auto memberAccess(const expression::ResolvedOperator& o, const std::string& self, const std::string& member) {
         return fmt("%s.%s", self, cxx::ID(member));
     }
 
-    auto memberAccess(const expression::ResolvedOperatorBase& o, const std::string& member, bool lhs = false) {
+    auto memberAccess(const expression::ResolvedOperator& o, const std::string& member, bool lhs = false) {
         return memberAccess(o, cg->compile(o.op0(), lhs), member);
     }
 
-    result_t structMember(const expression::ResolvedOperatorBase& o, const Expression& op1) {
+    result_t structMember(const expression::ResolvedOperator& o, const Expression& op1) {
         const auto& op0 = o.op0();
         auto id = op1.as<expression::Member>().id();
         auto attr = memberAccess(o, id);

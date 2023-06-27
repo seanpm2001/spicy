@@ -3,44 +3,29 @@
 #pragma once
 
 #include <map>
-#include <utility>
+#include <memory>
 #include <vector>
 
-#include <hilti/ast/expression.h>
-#include <hilti/ast/expressions/resolved-operator.h>
-#include <hilti/ast/expressions/unresolved-operator.h>
 #include <hilti/ast/operator.h>
-#include <hilti/ast/types/struct.h>
+
+#define REGISTER_OPERATOR(cls)                                                                                         \
+    namespace {                                                                                                        \
+    static hilti::operator_::Register<cls> _operator##cls;                                                             \
+    }
 
 namespace hilti::operator_ {
 
 /** Singleton registering available operators. */
 class Registry {
 public:
-    using OperatorMap = std::map<Kind, std::vector<OperatorPtr>>;
-
     /** Returns a map of all available operators. */
-    const auto& all() const { return _operators; }
-
-    /** Returns a map of all available operators. */
-    const auto& allOfKind(Kind kind) const { return _operators.at(kind); }
+    const auto& byKind(Kind kind) const { return _operators_by_kind.at(kind); }
+    const auto& byMethodID(const ID& id) const { return _operators_by_method.at(id); }
 
     /** Registers an Operator as available. */
-    void register_(Kind kind, OperatorPtr info) { _operators[kind].push_back(std::move(info)); }
+    void register_(std::unique_ptr<Operator> op);
 
-    void printDebug() {
-#if 0
-        // Can't print this at registratin time as that's happening through
-        // global constructors.
-        for ( auto a : _operators ) {
-            for ( const auto& info : a.second ) {
-                int status;
-                auto n = abi::__cxa_demangle(info.typename_().c_str(), nullptr, nullptr, &status);
-                HILTI_DEBUG(logging::debug::Overloads, hilti::util::fmt("registered %s for operator '%s'", (n ? n : info.typename_().c_str()), to_string(info.kind())));
-            }
-        }
-#endif
-    }
+    void init(ASTContext* ctx);
 
     /** Returns a singleton instance of the current class.  */
     static auto& singleton() {
@@ -49,15 +34,18 @@ public:
     }
 
 private:
-    OperatorMap _operators;
+    std::vector<std::unique_ptr<Operator>> _operators;
+    std::map<Kind, std::vector<Operator*>> _operators_by_kind;
+    std::map<ID, std::vector<Operator*>> _operators_by_method;
 };
 
 /** Helper class to register an operator on instantiation. */
+template<typename T>
 class Register {
 public:
-    Register(Kind k, const OperatorPtr& c) { Registry::singleton().register_(k, c); }
+    Register() { Registry::singleton().register_(std::make_unique<T>()); }
 };
 
-inline const auto& registry() { return Registry::singleton(); }
+inline auto& registry() { return Registry::singleton(); }
 
 } // namespace hilti::operator_

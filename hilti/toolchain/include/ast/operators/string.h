@@ -5,13 +5,17 @@
 #include <string>
 #include <vector>
 
-#include <hilti/ast/builder/expression.h>
 #include <hilti/ast/operators/common.h>
 #include <hilti/ast/types/bool.h>
 #include <hilti/ast/types/bytes.h>
 #include <hilti/ast/types/string.h>
 
 namespace hilti::operator_ {
+HILTI_OPERATOR(string, Equal);
+HILTI_OPERATOR(string, Encode);
+} // namespace hilti::operator_
+
+#if 0
 
 STANDARD_OPERATOR_2(string, Equal, type::Bool(), type::String(), type::String(),
                     "Compares two strings lexicographically.")
@@ -59,3 +63,4 @@ BEGIN_OPERATOR_CUSTOM(string, Modulo)
 END_OPERATOR_CUSTOM
 
 } // namespace hilti::operator_
+#endif

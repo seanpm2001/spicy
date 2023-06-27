@@ -17,8 +17,8 @@
 #include <hilti/rt/types/reference.h>
 
 #include <hilti/ast/ctor.h>
+#include <hilti/ast/declarations/module.h>
 #include <hilti/ast/expression.h>
-#include <hilti/ast/module.h>
 #include <hilti/ast/operator.h>
 #include <hilti/ast/statement.h>
 #include <hilti/ast/type.h>
@@ -66,7 +66,7 @@ class Unit {
 public:
     Unit(const std::shared_ptr<Context>& context);
 
-    void setModule(const hilti::Module& m, const hilti::Unit& hilti_unit);
+    void setModule(const ::hilti::declaration::Module& m);
     cxx::ID moduleID() const { return _module_id; }
 
     void setUsesGlobals() { _uses_globals = true; }

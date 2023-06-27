@@ -28,8 +28,6 @@ public:
     auto scope() const { return output()->scope(); }
 
     QualifiedTypePtr type() const final { return child<QualifiedType>(4); }
-    bool isLhs() const final { return false; }
-    bool isTemporary() const final { return true; }
 
     static auto create(ASTContext* ctx, const ExpressionPtr& input, const ExpressionPtr& output, const ID& id,
                        const ExpressionPtr& cond, const Meta& meta = {}) {
