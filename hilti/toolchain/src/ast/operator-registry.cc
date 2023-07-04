@@ -10,12 +10,15 @@ namespace hilti::logging::debug {
 inline const DebugStream OperatorRegistry("operator-registry");
 } // namespace hilti::logging::debug
 
-void Registry::register_(std::unique_ptr<Operator> op) { _operators.push_back(std::move(op)); }
+void Registry::register_(std::unique_ptr<Operator> op) { _pending.push_back(std::move(op)); }
 
-void Registry::init(ASTContext* ctx) {
+void Registry::initPending(ASTContext* ctx) {
+    if ( _pending.empty() )
+        return;
+
     Builder builder(ctx);
 
-    for ( auto& op : _operators ) {
+    for ( auto&& op : _pending ) {
         op->init(&builder, ctx->root());
         _operators_by_kind[op->kind()].push_back(op.get());
 
@@ -24,6 +27,7 @@ void Registry::init(ASTContext* ctx) {
             _operators_by_method[id].push_back(op.get());
         }
 
+
         int status;
         const auto& op_ = *op;
         std::string n = abi::__cxa_demangle(typeid(op_).name(), nullptr, nullptr, &status);
@@ -31,5 +35,9 @@ void Registry::init(ASTContext* ctx) {
         HILTI_DEBUG(hilti::logging::debug::OperatorRegistry,
                     hilti::util::fmt("initialized operator %s::%s for '%s'", op->signature().ns, n,
                                      to_string(op->kind())));
+
+        _operators.push_back(std::move(op));
     }
+
+    _pending.clear();
 }

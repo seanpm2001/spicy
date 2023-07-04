@@ -21,6 +21,7 @@
 #include <hilti/ast/node.h>
 #include <hilti/ast/operator.h>
 // #include <hilti/ast/operators/struct.h>
+#include <hilti/ast/scope-lookup.h>
 #include <hilti/ast/scope.h>
 #include <hilti/ast/type.h>
 #include <hilti/ast/types/function.h>
@@ -35,6 +36,7 @@
 
 #include "ast/builder/builder.h"
 #include "base/timing.h"
+#include "compiler/coercion.h"
 
 using namespace hilti;
 
@@ -45,15 +47,8 @@ inline const hilti::logging::DebugStream Operator("operator");
 
 namespace {
 
-struct TypeUnifier : visitor::PreOrder {
-    TypeUnifier(ASTContext* ctx) : ctx(ctx) {}
-    ASTContext* ctx;
-
-    void operator()(QualifiedType* t) final { t->unify(ctx); }
-};
-
-struct Visitor : visitor::PostOrder {
-    explicit Visitor(Builder* builder, const ASTRootPtr& root) : root(root), builder(builder) {}
+struct Resolver : visitor::PostOrder {
+    explicit Resolver(Builder* builder, const ASTRootPtr& root) : root(root), builder(builder) {}
 
     const ASTRootPtr& root;
     Builder* builder;
@@ -78,30 +73,334 @@ struct Visitor : visitor::PostOrder {
     };
 #endif
 
-#if 0
     // Log debug message recording resolving a epxxression.
-    void logChange(const Node& old, const Expression& nexpr) {
+    void logChange(const Node* old, const DeclarationPtr& ndecl) {
         HILTI_DEBUG(logging::debug::Resolver,
-                    util::fmt("[%s] %s -> expression %s (%s)", old.typename_(), old, nexpr, old.location()));
+                    util::fmt("%s \"%s\" -> declaration %s (%s)", ID(ID(old->typename_()).local()).local(), *old,
+                              ndecl->canonicalID(), old->location()));
+    }
+
+    void logChange(const Node* old, const ExpressionPtr& nexpr) {
+        HILTI_DEBUG(logging::debug::Resolver, util::fmt("%s %s -> expression %s (%s)", ID(old->typename_()).local(),
+                                                        *old, *nexpr, old->location()));
     }
 
     // Log debug message recording resolving a statement.
-    void logChange(const Node& old, const Statement& nstmt) {
-        HILTI_DEBUG(logging::debug::Resolver,
-                    util::fmt("[%s] %s -> statement %s (%s)", old.typename_(), old, nstmt, old.location()));
+    void logChange(const Node* old, const StatementPtr& nstmt) {
+        HILTI_DEBUG(logging::debug::Resolver, util::fmt("%s %s -> statement %s (%s)", ID(old->typename_()).local(),
+                                                        *old, *nstmt, old->location()));
     }
 
     // Log debug message recording resolving a type.
-    void logChange(const Node& old, const TypePtr& ntype) {
+    void logChange(const Node* old, const QualifiedTypePtr& ntype) {
         HILTI_DEBUG(logging::debug::Resolver,
-                    util::fmt("[%s] %s -> type %s (%s)", old.typename_(), old, ntype, old.location()));
+                    util::fmt("%s %s -> type %s (%s)", ID(old->typename_()).local(), *old, *ntype, old->location()));
     }
 
-    void logChange(const Node& old, const std::string& msg) {
+    void logChange(const Node* old, const std::string& msg) {
         HILTI_DEBUG(logging::debug::Resolver,
-                    util::fmt("[%s] %s -> %s (%s)", old.typename_(), old, msg, old.location()));
+                    util::fmt("%s %s -> %s (%s)", ID(old->typename_()).local(), *old, msg, old->location()));
     }
 
+    void operator()(expression::Name* u) final {
+        if ( u->declaration() )
+            return;
+
+        auto resolved = scope::lookupID<Declaration>(u->id(), u, "declaration");
+        if ( ! resolved ) {
+            if ( u->id() == ID("__dd") )
+                // Provide better error message
+                u->addError("$$ is not available in this context", node::ErrorPriority::High);
+            else
+                u->addError(resolved.error(), node::ErrorPriority::High);
+
+            return;
+        }
+
+        logChange(u, resolved->first);
+        u->setDeclaration(resolved->first);
+        modified = true;
+    }
+
+    // Helpers for operator resolving
+    static std::pair<bool, std::optional<std::vector<const Operator*>>> getFunctionCallCandidates(
+        expression::UnresolvedOperator* u) {
+        assert(u->operands().size() > 0);
+
+        std::vector<const Operator*> candidates;
+
+        auto callee = u->op0()->tryAs<expression::Name>();
+        if ( ! callee )
+            return std::make_pair(true, std::move(candidates));
+
+        for ( const Node* n = u; n; n = n->parent() ) {
+            if ( ! n->scope() )
+                continue;
+
+            for ( const auto& r : n->scope()->lookupAll(callee->id()) ) {
+                auto d = r.node->tryAs<declaration::Function>();
+                if ( ! d ) {
+                    u->addError(util::fmt("ID '%s' resolves to something other than just functions", callee->id()));
+                    return std::make_pair(false, std::nullopt);
+                }
+
+                if ( r.external && d->linkage() != declaration::Linkage::Public ) {
+                    u->addError(util::fmt("function has not been declared public: %s", r.qualified));
+                    return std::make_pair(false, std::nullopt);
+                }
+
+                candidates.emplace_back(d->operator_());
+            }
+        }
+
+        return std::make_pair(true, std::move(candidates));
+    }
+
+    // If an expression is a reference, dereference it; otherwise return the
+    // expression itself.
+    ExpressionPtr derefOperand(const ExpressionPtr& op) {
+        if ( ! type::isReferenceType(op->type()) )
+            return op;
+
+#if 0
+        //TODO
+        if ( op->type()->isA<type::ValueReference>() )
+            return operator_::value_reference::Deref::create({op}, op->meta());
+        else if ( op->type()->isA<type::StrongReference>() )
+            return operator_::strong_reference::Deref::create({op}, op->meta());
+        else if ( op->type()->isA<type::WeakReference>() )
+            return operator_::weak_reference::Deref::create({op}, op->meta());
+        else
+#endif
+        logger().internalError("unknown reference type");
+    }
+
+    std::vector<ResolvedOperatorPtr> matchOperators(expression::UnresolvedOperator* u,
+                                                    const std::vector<const Operator*> candidates,
+                                                    bool disallow_type_changes = false) {
+        const std::array<bitmask<CoercionStyle>, 4> styles = {
+            CoercionStyle::OperandMatching | CoercionStyle::TryExactMatch,
+            CoercionStyle::OperandMatching | CoercionStyle::TryExactMatch | CoercionStyle::TryCoercion,
+            CoercionStyle::OperandMatching | CoercionStyle::TryExactMatch | CoercionStyle::TryConstPromotion,
+            CoercionStyle::OperandMatching | CoercionStyle::TryExactMatch | CoercionStyle::TryConstPromotion |
+                CoercionStyle::TryCoercion,
+        };
+
+        auto deref_operands = [&](const node::Range<Expression>& ops) {
+            return node::transform(ops, [this](const auto& op) { return derefOperand(op); });
+        };
+
+        auto try_candidate = [&](const Operator* candidate, const node::Range<Expression>& operands, auto style,
+                                 const Meta& meta, const auto& dbg_msg) -> ResolvedOperatorPtr {
+
+#if 0
+        // TODO
+            auto noperands = coerceOperands(operands, candidate.operands(), style);
+            if ( ! noperands ) {
+                if ( ! (style & CoercionStyle::DisallowTypeChanges) ) {
+                    // If any of the operands is a reference type, try the derefed operands, too.
+                    for ( const auto& op : operands ) {
+                        if ( type::isReferenceType(op.type()) )
+                            noperands = coerceOperands(node::Range<Expression>(deref_operands(operands)),
+                                                       candidate.operands(), style);
+                    }
+                }
+            }
+
+            if ( ! noperands )
+                return {};
+#else
+            // TODO: This is just a dummy version.
+            if ( candidate->operands().size() != operands.size() )
+                return {};
+
+            for ( auto i = 0U; i < operands.size(); ++i ) {
+                if ( ! type::isResolved(operands[i]->type()) )
+                    return {};
+
+                if ( ! type::sameType(operands[i]->type(), candidate->operands()[i].type) )
+                    return {};
+            }
+
+            auto noperands = operands;
+#endif
+
+            auto r = candidate->instantiate(builder, noperands, meta);
+            if ( ! r ) {
+                u->addError(r.error());
+                return {};
+            }
+
+            assert(*r);
+
+#if 0
+        // TODO
+            // Fold any constants right here in case downstream resolving depends
+            // on finding a constant (like for coercion).
+            if ( auto ctor = detail::foldConstant(r); ctor && *ctor )
+                r = expression::Ctor(**ctor, r.meta());
+#endif
+
+            // Some operators may not be able to determine their type before the
+            // resolver had a chance to provide the information needed. They will
+            // return "auto" in that case (specifically, that's the case for Spicy
+            // unit member access). Note we can't check if type::isResolved() here
+            // because operators may legitimately return other unresolved types
+            // (e.g., IDs that still need to be looked up).
+            if ( (*r)->type()->isAuto() )
+                return {};
+
+            HILTI_DEBUG(logging::debug::Operator, util::fmt("-> %s, resolves to %s", dbg_msg, **r))
+            return *r;
+        };
+
+        auto try_all_candidates = [&](std::vector<ResolvedOperatorPtr>* resolved,
+                                      std::set<operator_::Kind>* kinds_resolved, operator_::Priority priority) {
+            for ( auto style : styles ) {
+                if ( disallow_type_changes )
+                    style |= CoercionStyle::DisallowTypeChanges;
+
+                HILTI_DEBUG(logging::debug::Operator, util::fmt("style: %s", to_string(style)));
+                logging::DebugPushIndent _(logging::debug::Operator);
+
+                for ( const auto& c : candidates ) {
+                    if ( priority != c->signature().priority )
+                        // Not looking at operators of this priority right now.
+                        continue;
+
+                    if ( priority == operator_::Priority::Low && kinds_resolved->count(c->kind()) )
+                        // Already have a higher priority match for this operator kind.
+                        continue;
+
+                    HILTI_DEBUG(logging::debug::Operator, util::fmt("candidate: %s", c->print()));
+                    logging::DebugPushIndent _(logging::debug::Operator);
+
+                    if ( auto r = try_candidate(c, u->operands(), style, u->meta(), "candidate matches") ) {
+                        kinds_resolved->insert(c->kind());
+                        resolved->push_back(std::move(r));
+                    }
+                    else {
+                        auto operands = u->operands();
+                        // Try to swap the operators for commutative operators.
+                        if ( operator_::isCommutative(c->kind()) && operands.size() == 2 ) {
+                            if ( auto r = try_candidate(c, node::Range<Expression>({operands[1], operands[0]}), style,
+                                                        u->meta(), "candidate matches with operands swapped") ) {
+                                kinds_resolved->insert(c->kind());
+                                resolved->emplace_back(std::move(r));
+                            }
+                        }
+                    }
+                }
+
+                if ( resolved->size() )
+                    return;
+            }
+        };
+
+        HILTI_DEBUG(logging::debug::Operator, util::fmt("trying to resolve: %s (%s)", u->print(), u->location()));
+        logging::DebugPushIndent _(logging::debug::Operator);
+
+        std::set<operator_::Kind> kinds_resolved;
+        std::vector<ResolvedOperatorPtr> resolved;
+
+        try_all_candidates(&resolved, &kinds_resolved, operator_::Priority::Normal);
+        if ( resolved.size() )
+            return resolved;
+
+        try_all_candidates(&resolved, &kinds_resolved, operator_::Priority::Low);
+        return resolved;
+    }
+
+    void operator()(expression::UnresolvedOperator* u) final {
+        std::vector<const Operator*> candidates;
+
+        if ( u->kind() == operator_::Kind::Call ) {
+            if ( ! expression::isResolved(*u->op1()) )
+                return;
+
+            auto [valid, functions] = getFunctionCallCandidates(u);
+            if ( ! valid )
+                return;
+
+            candidates = *functions;
+        }
+        else if ( u->kind() == operator_::Kind::MemberCall )
+            candidates = operator_::registry().byMethodID(u->op1()->as<expression::Member>()->id());
+
+        if ( candidates.empty() )
+            candidates = operator_::registry().byKind(u->kind());
+
+
+        auto matches = matchOperators(u, candidates, u->kind() == operator_::Kind::Cast);
+        if ( matches.empty() )
+            return;
+
+        if ( matches.size() > 1 ) {
+            std::vector<std::string> context = {"candidates:"};
+            for ( const auto& op : matches )
+                context.emplace_back(util::fmt("- %s [%s]", op->print()));
+
+            u->addError(util::fmt("operator usage is ambiguous: %s", u->print()), std::move(context));
+            return;
+        }
+
+        logChange(u, matches[0]);
+        u->parent()->replaceChild(u, std::move(matches[0]));
+        modified = true;
+    }
+
+    void operator()(type::Name* u) final {
+        if ( u->declaration() )
+            return;
+
+        if ( auto resolved = scope::lookupID<declaration::Type>(u->id(), u, "type") ) {
+            logChange(u, resolved->first);
+            u->setDeclaration(resolved->first);
+            modified = true;
+        }
+        else
+            u->addError(resolved.error(), node::ErrorPriority::High);
+
+#if 0
+        // Note: We accept types here even when they aren't fully resolved yet,
+        // so that we can handle dependency cycles.
+
+        const auto& d = resolved->first->as<declaration::Type>();
+        auto t = d.type();
+        t = addTypeID(std::move(t), resolved->second, d.attributes());
+
+        if ( d.isOnHeap() ) {
+            auto replace = false;
+
+            if ( p.parent().tryAs<Declaration>() )
+                replace = true;
+
+            if ( p.parent().isA<declaration::LocalVariable>() && ! p.parent(2).isA<statement::Declaration>() )
+                replace = false;
+
+            if ( replace )
+                t = type::ValueReference(std::move(t), Location("<on-heap-replacement>"));
+        }
+
+        logChange(p.node, t);
+        p.node = hilti::type::pruneWalk(std::move(t)); // alias to avoid visitor cycles
+        modified = true;
+#endif
+    }
+
+    void operator()(ctor::Tuple* u) final {
+        if ( type::isResolved(u->type()) || ! expression::isResolved(u->value()) )
+            return;
+
+        auto elems = node::transform(u->value(), [](const auto& e) { return e->type(); });
+        auto t = builder->qualifiedType(builder->typeTuple(elems, u->meta()), true);
+
+        logChange(u, t);
+        u->setType(t);
+        modified = true;
+    }
+
+#if 0
     // Attempt to infer a common type from a list of expression.
     hilti::TypePtrPtr typeForExpressions(position_t* p, node::Range<Expression> exprs) {
         hilti::TypePtrPtr t;
@@ -138,23 +437,8 @@ struct Visitor : visitor::PostOrder {
         return t;
     }
 
-    // If an expression is a reference, dereference it; otherwise return the
-    // expression itself.
-    Expression derefOperand(const Expression& op) {
-        if ( ! type::isReferenceType(op.type()) )
-            return op;
 
-        if ( op.type().isA<type::ValueReference>() )
-            return operator_::value_reference::Deref::Operator().instantiate({op}, op.meta());
-        else if ( op.type().isA<type::StrongReference>() )
-            return operator_::strong_reference::Deref::Operator().instantiate({op}, op.meta());
-        else if ( op.type().isA<type::WeakReference>() )
-            return operator_::weak_reference::Deref::Operator().instantiate({op}, op.meta());
-        else
-            logger().internalError("unknown reference type");
-    }
-
-    void operator()(const ctor::List& u, position_t p) {
+    void operator()(ctor::List* u) final {
         if ( type::isResolved(u.type()) )
             return;
 
@@ -165,7 +449,7 @@ struct Visitor : visitor::PostOrder {
         }
     }
 
-    void operator()(const ctor::Map& u, position_t p) {
+    void operator()(ctor::Map* u) final {
         if ( type::isResolved(u.keyType()) && type::isResolved(u.valueType()) )
             return;
 
@@ -202,7 +486,7 @@ struct Visitor : visitor::PostOrder {
         modified = true;
     }
 
-    void operator()(const ctor::Optional& u, position_t p) {
+    void operator()(ctor::Optional* u) final {
         if ( type::isResolved(u.type()) || ! u.value() || ! type::isResolved(u.value()->type()) )
             return;
 
@@ -211,7 +495,7 @@ struct Visitor : visitor::PostOrder {
         modified = true;
     }
 
-    void operator()(const ctor::Result& u, position_t p) {
+    void operator()(ctor::Result* u) final {
         if ( type::isResolved(u.type()) || ! u.value() || ! type::isResolved(u.value()->type()) )
             return;
 
@@ -220,7 +504,7 @@ struct Visitor : visitor::PostOrder {
         modified = true;
     }
 
-    void operator()(const ctor::Set& u, position_t p) {
+    void operator()(ctor::Set* u) final {
         if ( type::isResolved(u.type()) )
             return;
 
@@ -231,7 +515,7 @@ struct Visitor : visitor::PostOrder {
         }
     }
 
-    void operator()(const ctor::Struct& u, position_t p) {
+    void operator()(ctor::Struct* u) final {
         if ( type::isResolved(u.type()) )
             return;
 
@@ -253,18 +537,7 @@ struct Visitor : visitor::PostOrder {
         modified = true;
     }
 
-    void operator()(const ctor::Tuple& u, position_t p) {
-        if ( type::isResolved(u.type()) || ! expression::isResolved(u.value()) )
-            return;
-
-        auto types = node::transform(u.value(), [](const auto& e) -> Type { return Type(e.type()); });
-
-        logChange(p.node, type::Tuple(types));
-        p.node.as<ctor::Tuple>().setElementTypes(std::move(types));
-        modified = true;
-    }
-
-    void operator()(const ctor::ValueReference& u, position_t p) {
+    void operator()(ctor::ValueReference* u) final {
         if ( type::isResolved(u.type()) || ! type::isResolved(u.expression().type()) )
             return;
 
@@ -273,7 +546,7 @@ struct Visitor : visitor::PostOrder {
         modified = true;
     }
 
-    void operator()(const ctor::Vector& u, position_t p) {
+    void operator()(ctor::Vector* u) final {
         if ( type::isResolved(u.type()) )
             return;
 
@@ -284,7 +557,7 @@ struct Visitor : visitor::PostOrder {
         }
     }
 
-    void operator()(const declaration::Function& u, position_t p) {
+    void operator()(declaration::Function* u) final {
         if ( u.linkage() != declaration::Linkage::Struct && u.id().namespace_() ) {
             // See if the namespace refers to a struct. If so, change linkage
             // because that's what the normalizer will look for when linking
@@ -324,7 +597,7 @@ struct Visitor : visitor::PostOrder {
 
 #if 0
 
-    void operator()(const declaration::Type& u, position_t p) {
+    void operator()(declaration::Type* u) final {
         if ( u.type().typeID() )
             return;
 
@@ -336,7 +609,7 @@ struct Visitor : visitor::PostOrder {
         modified = true;
     }
 
-    void operator()(const expression::Deferred& e, position_t p) {
+    void operator()(expression::Deferred* e) final {
         if ( type::isResolved(e.type()) )
             return;
 
@@ -347,7 +620,7 @@ struct Visitor : visitor::PostOrder {
         }
     }
 
-    void operator()(const expression::Keyword& e, position_t p) {
+    void operator()(expression::Keyword* e) final {
         if ( e.kind() != expression::keyword::Kind::Scope )
             return;
 
@@ -359,7 +632,7 @@ struct Visitor : visitor::PostOrder {
         modified = true;
     }
 
-    void operator()(const expression::ListComprehension& e, position_t p) {
+    void operator()(expression::ListComprehension* e) final {
         if ( ! type::isResolved(e.type()) && type::isResolved(e.output().type()) ) {
             logChange(p.node, e.output().type());
             p.node.as<expression::ListComprehension>().setElementType(e.output().type());
@@ -380,41 +653,6 @@ struct Visitor : visitor::PostOrder {
         }
     }
 
-    void operator()(const expression::UnresolvedID& u, position_t p) {
-        auto resolved = scope::lookupID<Declaration>(u.id(), p, "declaration");
-        if ( ! resolved ) {
-            if ( u.id() == ID("__dd") )
-                // Provide better error message
-                p.node.addError("$$ is not available in this context", node::ErrorPriority::High);
-            else
-                p.node.addError(resolved.error(), node::ErrorPriority::High);
-
-            return;
-        }
-
-        if ( auto x = resolved->first->tryAs<declaration::Type>() ) {
-            // Resolve to to type expression, with type ID set.
-            auto t = addTypeID(x->type(), resolved->second, x->attributes());
-            logChange(p.node, t);
-            p.node = expression::Type_(t, u.meta());
-            modified = true;
-        }
-        else {
-            // If we are inside a call expression, leave it alone, operator
-            // resolving will take care of that.
-            auto op = p.parent().tryAs<expression::UnresolvedOperator>();
-            if ( op && op->kind() == operator_::Kind::Call )
-                return;
-
-            auto n = expression::ResolvedID(resolved->second, NodeRef(resolved->first), u.meta());
-            if ( ! expression::isResolved(n) )
-                return;
-
-            logChange(p.node, n);
-            p.node = n;
-            modified = true;
-        }
-    }
 
     // Helpers for operator resolving
     bool resolveOperator(const expression::UnresolvedOperator& u, position_t p);
@@ -425,7 +663,7 @@ struct Visitor : visitor::PostOrder {
     std::vector<Node> matchOverloads(const std::vector<Operator>& candidates, const node::Range<Expression>& operands,
                                      const Meta& meta, bool disallow_type_changes = false);
 
-    void operator()(const expression::UnresolvedOperator& u, position_t p) {
+    void operator()(expression::UnresolvedOperator* u) final {
         if ( u.kind() == operator_::Kind::Call && resolveFunctionCall(u, p) )
             return;
 
@@ -438,7 +676,7 @@ struct Visitor : visitor::PostOrder {
         resolveOperator(u, p);
     }
 
-    void operator()(const statement::For& u, position_t p) {
+    void operator()(statement::For* u) final {
         if ( type::isResolved(u.local().type()) )
             return;
 
@@ -457,7 +695,7 @@ struct Visitor : visitor::PostOrder {
         modified = true;
     }
 
-    void operator()(const Function& f, position_t p) {
+    void operator()(Function* f) final {
         if ( ! f.ftype().result().type().isA<type::Auto>() )
             return;
 
@@ -475,7 +713,7 @@ struct Visitor : visitor::PostOrder {
         }
     }
 
-    void operator()(const type::Enum& m, type::Visitor::position_t& p) override {
+    void operator()(type::Enum* m) final {
         if ( type::isResolved(p.node.as<Type>()) )
             return;
 
@@ -488,49 +726,18 @@ struct Visitor : visitor::PostOrder {
         modified = true;
     }
 
-    void operator()(const type::UnresolvedID& u, type::Visitor::position_t& p) override {
-        auto resolved = scope::lookupID<declaration::Type>(u.id(), p, "type");
-        if ( ! resolved ) {
-            p.node.addError(resolved.error(), node::ErrorPriority::High);
-            return;
-        }
-
-        // Note: We accept types here even when they aren't fully resolved yet,
-        // so that we can handle dependency cycles.
-
-        const auto& d = resolved->first->as<declaration::Type>();
-        auto t = d.type();
-        t = addTypeID(std::move(t), resolved->second, d.attributes());
-
-        if ( d.isOnHeap() ) {
-            auto replace = false;
-
-            if ( p.parent().tryAs<Declaration>() )
-                replace = true;
-
-            if ( p.parent().isA<declaration::LocalVariable>() && ! p.parent(2).isA<statement::Declaration>() )
-                replace = false;
-
-            if ( replace )
-                t = type::ValueReference(std::move(t), Location("<on-heap-replacement>"));
-        }
-
-        logChange(p.node, t);
-        p.node = hilti::type::pruneWalk(std::move(t)); // alias to avoid visitor cycles
-        modified = true;
-    }
 #endif
 };
 
 // Visitor to resolve any auto parameters that we inferred during the main resolver pass.
 struct VisitorApplyAutoParameters : visitor::PreOrder {
-    VisitorApplyAutoParameters(const ::Visitor& v) : visitor(v) {}
+    VisitorApplyAutoParameters(const ::Resolver& v) : visitor(v) {}
 
-    const ::Visitor& visitor;
+    const ::Resolver& visitor;
     bool modified = false;
 
 #if 0
-    void operator()(const declaration::Parameter& u, position_t p) {
+    void operator()(declaration::Parameter* u) final {
         if ( ! u.type().isA<type::Auto>() )
             return;
 
@@ -907,112 +1114,6 @@ void Visitor::recordAutoParameters(const TypePtr& type, const Expression& args) 
     }
 }
 
-std::vector<Node> Visitor::matchOverloads(const std::vector<Operator>& candidates,
-                                          const node::Range<Expression>& operands, const Meta& meta,
-                                          bool disallow_type_changes) {
-    const std::array<bitmask<CoercionStyle>, 4> styles = {
-        CoercionStyle::OperandMatching | CoercionStyle::TryExactMatch,
-        CoercionStyle::OperandMatching | CoercionStyle::TryExactMatch | CoercionStyle::TryCoercion,
-        CoercionStyle::OperandMatching | CoercionStyle::TryExactMatch | CoercionStyle::TryConstPromotion,
-        CoercionStyle::OperandMatching | CoercionStyle::TryExactMatch | CoercionStyle::TryConstPromotion |
-            CoercionStyle::TryCoercion,
-    };
-
-    auto deref_operands = [&](const node::Range<Expression>& ops) {
-        return node::transform(ops, [this](const auto& op) { return Node(derefOperand(op)); });
-    };
-
-    auto try_candidate = [&](const auto& candidate, const node::Range<Expression>& ops, auto style,
-                             const auto& dbg_msg) -> std::optional<Expression> {
-        auto nops = coerceOperands(ops, candidate.operands(), style);
-        if ( ! nops ) {
-            if ( ! (style & CoercionStyle::DisallowTypeChanges) ) {
-                // If any of the operands is a reference type, try the derefed operands, too.
-                for ( const auto& op : ops ) {
-                    if ( type::isReferenceType(op.type()) )
-                        nops =
-                            coerceOperands(node::Range<Expression>(deref_operands(ops)), candidate.operands(), style);
-                }
-            }
-        }
-
-        if ( ! nops )
-            return {};
-
-        auto r = candidate.instantiate(nops->second, meta);
-
-        // Fold any constants right here in case downstream resolving depends
-        // on finding a constant (like for coercion).
-        if ( auto ctor = detail::foldConstant(r); ctor && *ctor )
-            r = expression::Ctor(**ctor, r.meta());
-
-        // Some operators may not be able to determine their type before the
-        // resolver had a chance to provide the information needed. They will
-        // return "auto" in that case (specifically, that's the case for Spicy
-        // unit member access). Note we can't check if type::isResolved() here
-        // because operators may legitimately return other unresolved types
-        // (e.g., IDs that still need to be looked up).
-        if ( r.type() == type::auto_ )
-            return {};
-
-        HILTI_DEBUG(logging::debug::Operator, util::fmt("-> %s, resolves to %s %s", dbg_msg, to_node(r),
-                                                        (r.isConstant() ? "(const)" : "(non-const)")));
-        return r;
-    };
-
-    auto try_all_candidates = [&](std::vector<Node>* resolved, std::set<operator_::Kind>* kinds_resolved,
-                                  operator_::Priority priority) {
-        for ( auto style : styles ) {
-            if ( disallow_type_changes )
-                style |= CoercionStyle::DisallowTypeChanges;
-
-            HILTI_DEBUG(logging::debug::Operator, util::fmt("style: %s", to_string(style)));
-            logging::DebugPushIndent _(logging::debug::Operator);
-
-            for ( const auto& c : candidates ) {
-                if ( priority != c.priority() )
-                    // Not looking at operators of this priority right now.
-                    continue;
-
-                if ( priority == operator_::Priority::Low && kinds_resolved->count(c.kind()) )
-                    // Already have a higher priority match for this operator kind.
-                    continue;
-
-                HILTI_DEBUG(logging::debug::Operator, util::fmt("candidate: %s", c.typename_()));
-                logging::DebugPushIndent _(logging::debug::Operator);
-
-                if ( auto r = try_candidate(c, operands, style, "candidate matches") ) {
-                    kinds_resolved->insert(c.kind());
-                    resolved->emplace_back(std::move(*r));
-                }
-                else {
-                    // Try to swap the operators for commutative operators.
-                    if ( operator_::isCommutative(c.kind()) && operands.size() == 2 ) {
-                        if ( auto r = try_candidate(c, node::Range<Expression>({operands[1], operands[0]}), style,
-                                                    "candidate matches with operands swapped") ) {
-                            kinds_resolved->insert(c.kind());
-                            resolved->emplace_back(std::move(*r));
-                        }
-                    }
-                }
-            }
-
-            if ( resolved->size() )
-                return;
-        }
-    };
-
-    std::set<operator_::Kind> kinds_resolved;
-    std::vector<Node> resolved;
-
-    try_all_candidates(&resolved, &kinds_resolved, operator_::Priority::Normal);
-    if ( resolved.size() )
-        return resolved;
-
-    try_all_candidates(&resolved, &kinds_resolved, operator_::Priority::Low);
-    return resolved;
-}
-
 #endif
 
 } // anonymous namespace
@@ -1021,10 +1122,7 @@ std::vector<Node> Visitor::matchOverloads(const std::vector<Operator>& candidate
 bool hilti::detail::ast::resolve(Builder* builder, const ASTRootPtr& root) {
     util::timing::Collector _("hilti/compiler/ast/resolver");
 
-    auto v0 = TypeUnifier(builder->context());
-    hilti::visitor::visit(v0, root);
-
-    auto v1 = Visitor(builder, root);
+    auto v1 = Resolver(builder, root);
     hilti::visitor::visit(v1, root);
 
     auto v2 = VisitorApplyAutoParameters(v1);

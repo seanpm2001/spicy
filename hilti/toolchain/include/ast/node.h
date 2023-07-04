@@ -24,6 +24,7 @@
 
 #define HILTI_NODE(CLASS)                                                                                              \
     NodePtr _clone(ASTContext* ctx) const final { return NodeDerivedPtr<CLASS>(new CLASS(*this)); }                    \
+    std::string _typename() const final { return util::typename_(*this); }                                             \
     void dispatch(::hilti::visitor::Dispatcher& v) final;                                                              \
     friend class hilti::builder::NodeBuilder;
 
@@ -181,7 +182,7 @@ public:
     void setInheritScope(bool inherit) { _inherit_scope = inherit; }
 
     const auto& location() const { return _meta.location(); }
-    std::string typename_() const { return typeid(*this).name(); }
+    std::string typename_() const { return _typename(); }
     uintptr_t identity() const { return reinterpret_cast<uintptr_t>(this); }
 
     /**
@@ -252,7 +253,7 @@ public:
                 continue;
 
             if ( auto t = (*c)->tryAs<T>() )
-                n.insert(t);
+                n.push_back(t);
         }
 
         return n;
@@ -294,6 +295,8 @@ public:
         if ( _children[idx] )
             _children[idx]->_parent = this;
     }
+
+    void replaceChild(Node* old, NodePtr new_);
 
     void destroyChildren();
 
@@ -428,6 +431,7 @@ public:
     /** Renders the node as HILTI source code. */
     operator std::string() const { return print(); }
 
+    virtual std::string _typename() const { return util::typename_(*this); }
     virtual void dispatch(visitor::Dispatcher& v) = 0;
 
     Node& operator=(const Node& other) = delete;
@@ -592,7 +596,7 @@ auto filter(const hilti::node::Set<X>& x, F f) {
     hilti::node::Set<X> y;
     for ( const auto& i : x ) {
         if ( f(i) )
-            y.insert(i);
+            y.push_back(i);
     }
 
     return y;

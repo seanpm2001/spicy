@@ -12,6 +12,9 @@
 #include <hilti/ast/scope.h>
 #include <hilti/ast/type.h>
 
+#include "ast/declarations/constant.h"
+#include "ast/expressions/ctor.h"
+
 
 using namespace hilti;
 
@@ -46,6 +49,9 @@ static auto createRefs(const NodeSet& refs, const std::string& id, bool external
 
 
 std::vector<Scope::Referee> Scope::_findID(const Scope* scope, const ID& id, bool external) const {
+    if ( ! scope )
+        return {};
+
     // Try all subpaths.
     //
     // TODO: This method needs a cleanup, pretty ugly.

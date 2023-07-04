@@ -16,7 +16,8 @@ namespace hilti {
 namespace node {
 
 template<typename T>
-using Set = std::set<std::shared_ptr<T>>;
+// TODO: Remove? It's not a set, we need the ordering
+using Set = std::vector<std::shared_ptr<T>>;
 
 /**
  * A constant iterator over a range of nodes (`node::Range`). Internally, this
@@ -28,7 +29,7 @@ class RangeIterator {
     using BaseIterator = std::vector<NodePtr>::const_iterator;
 
 public:
-    using value_type = BaseIterator::value_type;
+    using value_type = std::shared_ptr<T>;
     using difference_type = BaseIterator::difference_type;
     using pointer = BaseIterator::pointer;
     using reference = BaseIterator::reference;
@@ -96,6 +97,7 @@ class Range {
 public:
     using iterator = RangeIterator<T>;
     using const_iterator = RangeIterator<T>;
+    using value_type = typename iterator::value_type;
 
     explicit Range() {}
     Range(typename std::vector<NodeDerivedPtr<T>>::const_iterator begin,
@@ -107,7 +109,7 @@ public:
     Range(std::vector<NodePtr>::const_iterator begin, std::vector<NodePtr>::const_iterator end)
         : _begin(begin), _end(end) {}
 
-    explicit Range(const std::vector<NodePtr>& nodes) : Range(nodes.begin(), nodes.end()) {}
+    //    explicit Range(const std::vector<NodePtr>& nodes) : Range(nodes.begin(), nodes.end()) {}
 
     Range(const Range& other) = default;
     Range(Range&& other) noexcept = default;

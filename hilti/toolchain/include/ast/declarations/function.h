@@ -22,19 +22,7 @@ class Function;
 
 namespace function {
 
-class Operator : public hilti::Operator {
-public:
-    ~Operator() final {}
-
-    operator_::Signature signature(Builder* builder) const final;
-    Result<ResolvedOperatorPtr> instantiate(Builder* builder, const expression::UnresolvedOperator* op) const final;
-
-private:
-    friend class declaration::Function;
-    void setDeclaration(declaration::Function* f);
-
-    declaration::Function* _fdecl = nullptr;
-};
+using Operator = hilti::FunctionCall;
 
 } // namespace function
 
@@ -49,26 +37,28 @@ public:
     const auto& operator_() const { return _operator; }
 
     /**
-     * Returns the parent declaration associated with the function, if any. For
-     * methods, this will the declaration of the corresponding struct type.
-     */
-    auto parent() const { return _parent; }
-
-    /**
      * If the parent declaration associated with the function refers to a valid
      * struct type, returns that type.
      */
     type::StructPtr parentStructType() const {
+        assert(false && "TODO");
+#if 0
         if ( ! _parent )
             return nullptr;
 
         return _parent->as<declaration::Type>()->type()->tryAs<type::Struct>();
+#endif
     }
 
     void setFunction(const FunctionPtr& f) { setChild(0, f); }
-    void setParent(DeclarationPtr p) { _parent = std::move(p); }
+    // void setParent(DeclarationPtr p) { _parent = std::move(p); }
 
     std::string displayName() const final { return "function"; }
+
+    node::Properties properties() const final {
+        auto p = node::Properties{{"operator", (_operator ? "set" : "not set")}};
+        return Declaration::properties() + p;
+    }
 
     static auto create(ASTContext* ctx, const FunctionPtr& function, declaration::Linkage linkage = Linkage::Private,
                        const Meta& meta = {}) {
@@ -89,7 +79,7 @@ protected:
 
 private:
     const Operator* _operator;
-    DeclarationPtr _parent = nullptr;
+    // DeclarationPtr _parent = nullptr;
 };
 
 } // namespace hilti::declaration

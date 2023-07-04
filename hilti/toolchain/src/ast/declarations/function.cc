@@ -11,31 +11,3 @@
 
 using namespace hilti;
 using namespace hilti::operator_;
-
-void declaration::function::Operator::setDeclaration(declaration::Function* fdecl) { _fdecl = fdecl; }
-
-operator_::Signature declaration::function::Operator::Operator::signature(Builder* builder) const {
-    assert(_fdecl);
-
-    auto op0 = operator_::Operand{{}, builder->qualifiedType(builder->typeAny(), true)}; // IDs won't be resolved
-    auto op1 = operator_::Operand{{},
-                                  type::OperandList::fromParameters(builder->context(),
-                                                                    _fdecl->function()->ftype()->parameters())};
-
-    return {.kind = Kind::Call,
-            .operands = builder->typeOperandList({op0, op1}),
-            .result = _fdecl->function()->ftype()->result()};
-}
-
-Result<ResolvedOperatorPtr> declaration::function::Operator::instantiate(
-    Builder* builder, const expression::UnresolvedOperator* op) const {
-    assert(_fdecl);
-
-    auto callee = builder->expressionName(_fdecl->id(), op->meta());
-    auto args = op->operands()[1];
-
-    callee->setDeclaration(_fdecl->as<Declaration>());
-
-    return {operator_::function::Call::create(builder->context(), this, signature(builder).result,
-                                              {std::move(callee), std::move(args)}, op->meta())};
-}

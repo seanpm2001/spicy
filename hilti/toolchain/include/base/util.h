@@ -72,7 +72,16 @@ extern void cannot_be_reached() __attribute__((noreturn));
 /** Returns a type's demangled C++ name. */
 template<typename T>
 std::string typename_() {
-    return demangle(typeid(T).name());
+    std::string id = demangle(typeid(T).name());
+    if ( id.find("hilti::") == 0 )
+        id = id.substr(sizeof("hilti::") - 1);
+
+    return id;
+}
+
+template<typename T>
+std::string typename_(const T&) {
+    return typename_<T>();
 }
 
 /** sprintf-style string formatting. */

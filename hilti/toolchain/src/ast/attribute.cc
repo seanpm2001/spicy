@@ -5,6 +5,9 @@
 #include <hilti/ast/type.h>
 #include <hilti/ast/visitor.h>
 
+#include "ast/ctors/string.h"
+#include "ast/expressions/ctor.h"
+
 using namespace hilti;
 
 Attribute::~Attribute() = default;
@@ -23,11 +26,9 @@ Result<std::string> Attribute::valueAsString() const {
     if ( ! hasValue() )
         return result::Error(hilti::util::fmt("attribute '%s' requires a string", _tag));
 
-    /* TODO
-     * if ( auto e = value()->tryAs<expression::Ctor>() )
-     *     if ( auto s = e->ctor()->tryAs<ctor::String>() )
-     *         return s->value();
-     */
+    if ( auto e = value()->tryAs<expression::Ctor>() )
+        if ( auto s = e->ctor()->tryAs<ctor::String>() )
+            return s->value();
 
     return result::Error(hilti::util::fmt("value for attribute '%s' must be a string", _tag));
 }
@@ -62,7 +63,8 @@ Result<int64_t> Attribute::valueAsInteger() const {
  *     auto ne = coerceExpression(*x, dst);
  *     if ( ! ne.coerced )
  *         return result::Error(
- *             util::fmt("cannot coerce attribute's expression from type '%s' to '%s' (%s)", x->get().type(), dst, tag()));
+ *             util::fmt("cannot coerce attribute's expression from type '%s' to '%s' (%s)", x->get().type(), dst,
+ * tag()));
  *
  *     if ( ne.nexpr ) {
  *         children()[0] = *ne.nexpr;
@@ -92,7 +94,7 @@ hilti::node::Set<Attribute> AttributeSet::findAll(std::string_view tag) const {
 
     for ( const auto& a : attributes() )
         if ( a->tag() == tag )
-            result.insert(a);
+            result.push_back(a);
 
     return result;
 }

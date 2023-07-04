@@ -31,7 +31,7 @@ public:
         hilti::node::Set<declaration::Field> x;
         for ( const auto& f : fields() ) {
             if ( f->id() == id )
-                x.insert(f);
+                x.push_back(f);
         }
 
         return x;

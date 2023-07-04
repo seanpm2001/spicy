@@ -45,7 +45,7 @@ node::Set<declaration::Property> declaration::Module::moduleProperties(const std
 
     for ( const auto& d : declarations() ) {
         if ( auto p = d->tryAs<declaration::Property>(); p && (! id || p->id() == id) )
-            props.insert(p);
+            props.push_back(p);
     }
 
     return props;

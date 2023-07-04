@@ -106,6 +106,10 @@ class UnresolvedOperator;
 class Void;
 } // namespace expression
 
+namespace operator_::function {
+class Call;
+}
+
 namespace statement {
 class Assert;
 class Block;

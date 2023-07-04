@@ -18,6 +18,8 @@ public:
 
     auto value() const { return children<Expression>(1, -1); }
 
+    void setType(QualifiedTypePtr t) { setChild(0, std::move(t)); }
+
     static auto create(ASTContext* ctx, const Expressions& exprs, const Meta& meta = {}) {
         auto type = _inferType(ctx, exprs, meta);
         return NodeDerivedPtr<Tuple>(new Tuple(node::flatten(type, exprs), meta));

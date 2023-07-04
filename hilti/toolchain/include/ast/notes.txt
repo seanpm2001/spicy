@@ -48,6 +48,11 @@ Main changes:
       going to be resolved, and `Unknown` if the type has been
       determined to be finally unresolvable.
 
+    - To render AST nodes and reheated objects in a way that's
+      user-presentable, use `print()` methods. In contrast, `render()`
+      is limited to dump out debug information, in particular the AST
+      (TODO: name render to something debugish?)
+
 Node/AST semantics:
 
     - `Node::clone()` -> shallow copy

@@ -77,12 +77,14 @@ public:
     virtual void operator()(hilti::expression::Move*) {}
     virtual void operator()(hilti::expression::Name*) {}
     virtual void operator()(hilti::expression::PendingCoerced*) {}
+    virtual void operator()(hilti::expression::ResolvedOperator*) {}
     virtual void operator()(hilti::expression::Ternary*) {}
     virtual void operator()(hilti::expression::TypeInfo*) {}
     virtual void operator()(hilti::expression::TypeWrapped*) {}
     virtual void operator()(hilti::expression::Type_*) {}
     virtual void operator()(hilti::expression::UnresolvedOperator*) {}
     virtual void operator()(hilti::expression::Void*) {}
+    virtual void operator()(hilti::operator_::function::Call*) {}
     virtual void operator()(hilti::statement::Assert*) {}
     virtual void operator()(hilti::statement::Block*) {}
     virtual void operator()(hilti::statement::Break*) {}

@@ -22,23 +22,41 @@ struct Visitor : hilti::visitor::PreOrder {
     Visitor(CodeGen* cg, bool lhs) : cg(cg), lhs(lhs) {}
 
     CodeGen* cg;
-    bool lhs;
+    bool lhs; // TODO
 
     std::optional<cxx::Expression> result;
 
-#if 0
     // Helpers
 
-    result_t op0(const expression::ResolvedOperator& o, bool lhs = false) { return cg->compile(o.op0(), lhs); }
+    cxx::Expression op0(expression::ResolvedOperator* o) { return cg->compile(o->op0(), lhs); }
 
-    result_t op1(const expression::ResolvedOperator& o, bool lhs = false) { return cg->compile(o.op1(), lhs); }
+    cxx::Expression op1(expression::ResolvedOperator* o) { return cg->compile(o->op1(), lhs); }
 
-    result_t op2(const expression::ResolvedOperator& o, bool lhs = false) { return cg->compile(o.op2(), lhs); }
+    cxx::Expression op2(expression::ResolvedOperator* o) { return cg->compile(o->op2(), lhs); }
 
-    result_t binary(const expression::ResolvedOperator& o, const std::string& x) {
+    cxx::Expression binary(expression::ResolvedOperator* o, const std::string& x) {
         return fmt("%s %s %s", op0(o), x, op1(o));
     }
 
+    void operator()(operator_::function::Call* n) final {
+        // 1st operand directly references a function, validator ensures that.
+        auto f = n->op0()->as<expression::Name>()->declaration()->as<declaration::Function>();
+
+        auto name = op0(n);
+
+        if ( auto a = f->function()->attributes()->find("&cxxname") ) {
+            if ( auto s = a->valueAsString() )
+                name = cxx::Expression(*s);
+            else
+                logger().error(s.error(), n->location());
+        }
+
+        const auto& values = n->op1()->as<expression::Ctor>()->ctor()->as<ctor::Tuple>()->value();
+        result = fmt("%s(%s)", name,
+                     util::join(cg->compileCallArguments(values, f->function()->ftype()->parameters()), ", "));
+    }
+
+#if 0
     auto compileExpressions(const std::vector<Expression>& exprs) {
         return util::transform(exprs, [&](const auto& e) { return cg->compile(e); });
     }
@@ -1203,5 +1221,5 @@ cxx::Expression CodeGen::compile(const NodeDerivedPtr<expression::ResolvedOperat
         return lhs ? _makeLhs(*x, o->type()) : *x;
 
     hilti::render(std::cerr, o);
-    logger().internalError(fmt("operator failed to compile: %s", detail::renderOperatorPrototype(o)));
+    logger().internalError(fmt("operator failed to compile: %s", o->print()));
 }

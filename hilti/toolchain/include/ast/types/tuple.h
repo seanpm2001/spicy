@@ -53,7 +53,7 @@ protected:
     HILTI_NODE(Element);
 
 private:
-    std::optional<ID> _id;
+    ID _id;
 };
 
 using ElementPtr = std::shared_ptr<Element>;

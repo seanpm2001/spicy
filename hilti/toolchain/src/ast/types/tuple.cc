@@ -23,5 +23,5 @@ std::optional<std::pair<int, std::shared_ptr<type::tuple::Element>>> type::Tuple
 }
 
 std::string type::tuple::Element::_render() const {
-    return _id ? util::fmt("[id: %s]", *_id) : "";
+    return _id ? util::fmt("[id: %s]", _id) : "";
 }

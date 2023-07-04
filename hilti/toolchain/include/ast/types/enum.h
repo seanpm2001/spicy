@@ -106,7 +106,9 @@ public:
     }
 
     static auto create(ASTContext* ctx, enum_::Labels labels, Meta meta = {}) {
-        return NodeDerivedPtr<Enum>(new Enum(_normalizeLabels(ctx, std::move(labels)), std::move(meta)));
+        auto t = NodeDerivedPtr<Enum>(new Enum({}, std::move(meta)));
+        t->_setLabels(ctx, std::move(labels));
+        return t;
     }
 
     static auto create(ASTContext* ctx, Wildcard _, Meta m = Meta()) {
@@ -132,7 +134,7 @@ protected:
 private:
     bool _initialized = false;
 
-    static Declarations _normalizeLabels(ASTContext* ctx, enum_::Labels labels);
+    Declarations _setLabels(ASTContext* ctx, enum_::Labels labels);
 };
 
 } // namespace hilti::type

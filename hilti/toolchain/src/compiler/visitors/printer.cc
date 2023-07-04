@@ -28,80 +28,6 @@ static const ID& _currentScope() { return _scopes.back(); }
 static void _pushScope(ID id) { _scopes.push_back(std::move(id)); }
 static void _popScope() { _scopes.pop_back(); }
 
-static std::string renderOperator(operator_::Kind kind, const std::vector<std::string>& ops) {
-    switch ( kind ) {
-        case operator_::Kind::Add: return fmt("add %s[%s]", ops[0], ops[1]);
-        case operator_::Kind::Begin: return fmt("begin(%s)", ops[0]);
-        case operator_::Kind::BitAnd: return fmt("%s & %s", ops[0], ops[1]);
-        case operator_::Kind::BitOr: return fmt("%s | %s", ops[0], ops[1]);
-        case operator_::Kind::BitXor: return fmt("%s ^ %s", ops[0], ops[1]);
-        case operator_::Kind::Call: return fmt("%s%s", ops[0], ops[1]);
-        case operator_::Kind::Cast: return fmt("cast<%s>(%s)", ops[1], ops[0]);
-        case operator_::Kind::CustomAssign: return fmt("%s = %s", ops[0], ops[1]);
-        case operator_::Kind::DecrPostfix: return fmt("%s--", ops[0]);
-        case operator_::Kind::DecrPrefix: return fmt("--%s", ops[0]);
-        case operator_::Kind::Delete: return fmt("delete %s[%s]", ops[0], ops[1]);
-        case operator_::Kind::Deref: return fmt("(*%s)", ops[0]);
-        case operator_::Kind::Difference: return fmt("%s - %s", ops[0], ops[1]);
-        case operator_::Kind::DifferenceAssign: return fmt("%s -= %s", ops[0], ops[1]);
-        case operator_::Kind::Division: return fmt("%s / %s", ops[0], ops[1]);
-        case operator_::Kind::DivisionAssign: return fmt("%s /= %s", ops[0], ops[1]);
-        case operator_::Kind::Equal: return fmt("%s == %s", ops[0], ops[1]);
-        case operator_::Kind::End: return fmt("end(%s)", ops[0]);
-        case operator_::Kind::Greater: return fmt("%s > %s", ops[0], ops[1]);
-        case operator_::Kind::GreaterEqual: return fmt("%s >= %s", ops[0], ops[1]);
-        case operator_::Kind::HasMember: return fmt("%s?.%s", ops[0], ops[1]);
-        case operator_::Kind::In: return fmt("%s in %s", ops[0], ops[1]);
-        case operator_::Kind::IncrPostfix: return fmt("%s++", ops[0]);
-        case operator_::Kind::IncrPrefix: return fmt("++%s", ops[0]);
-        case operator_::Kind::Index: return fmt("%s[%s]", ops[0], ops[1]);
-        case operator_::Kind::IndexAssign: return fmt("%s[%s] = %s", ops[0], ops[1], ops[2]);
-        case operator_::Kind::Lower: return fmt("%s < %s", ops[0], ops[1]);
-        case operator_::Kind::LowerEqual: return fmt("%s <= %s", ops[0], ops[1]);
-        case operator_::Kind::Member: return fmt("%s.%s", ops[0], ops[1]);
-        case operator_::Kind::MemberCall: return fmt("%s.%s%s", ops[0], ops[1], ops[2]);
-        case operator_::Kind::Modulo: return fmt("%s %% %s", ops[0], ops[1]);
-        case operator_::Kind::Multiple: return fmt("%s * %s", ops[0], ops[1]);
-        case operator_::Kind::MultipleAssign: return fmt("%s *= %s", ops[0], ops[1]);
-        case operator_::Kind::Negate: return fmt("~%s", ops[0]);
-        case operator_::Kind::New: return fmt("new %s%s", ops[0], ops[1]);
-        case operator_::Kind::Pack: return fmt("pack%s", ops[0]);
-        case operator_::Kind::Power: return fmt("%s ** %s", ops[0], ops[1]);
-        case operator_::Kind::ShiftLeft: return fmt("%s << %s", ops[0], ops[1]);
-        case operator_::Kind::ShiftRight: return fmt("%s >> %s", ops[0], ops[1]);
-        case operator_::Kind::SignNeg: return fmt("-%s", ops[0]);
-        case operator_::Kind::SignPos: return fmt("+%s", ops[0]);
-        case operator_::Kind::Size: return fmt("|%s|", ops[0]);
-        case operator_::Kind::Sum: return fmt("%s + %s", ops[0], ops[1]);
-        case operator_::Kind::SumAssign: return fmt("%s += %s", ops[0], ops[1]);
-        case operator_::Kind::TryMember: return fmt("%s.?%s", ops[0], ops[1]);
-        case operator_::Kind::Unequal: return fmt("%s != %s", ops[0], ops[1]);
-        case operator_::Kind::Unpack: return fmt("unpack<%s>(%s)", ops[0], ops[1]);
-        case operator_::Kind::Unknown: logger().internalError("\"unknown\" operator");
-        case operator_::Kind::Unset: return fmt("unset %s", ops[0]);
-    }
-
-    util::cannot_be_reached();
-}
-
-static std::string renderExpressionType(const ExpressionPtr& e) {
-    auto const_ = (e->isConstant() && type::isMutable(e->type()) ? "const " : "");
-    return fmt("%s%s", const_, e->type());
-}
-
-static std::string renderOperand(const operator_::Operand& op, const node::Range<Expression>& exprs) {
-    auto t = op.type;
-    std::string s = (t ? fmt("%s", *t) : "<no-type>");
-
-    if ( op.default_ )
-        s = fmt("%s=%s", s, *op.default_);
-
-    if ( op.optional || op.default_ )
-        s = fmt("[%s]", s);
-
-    return s;
-}
-
 namespace {
 
 struct Printer : visitor::PreOrder {
@@ -786,15 +712,11 @@ struct Printer : visitor::PreOrder {
         out.endLine();
     }
 
-#if 0
     void operator()(expression::ResolvedOperator* n) final {
-        out << renderOperator(n->operator_().kind(), node::transform(n->operands(), [](auto o) { return fmt("%s", o); }));
+        out << operator_::detail::print(n->kind(), n->operands());
     }
-#endif
-
     void operator()(expression::UnresolvedOperator* n) final {
-        out << renderOperator(n->kind(),
-                              node::transform(n->operands(), [](auto& o) -> std::string { return fmt("%s", *o); }));
+        out << operator_::detail::print(n->kind(), n->operands());
     }
 
     ////// Types
@@ -1035,7 +957,7 @@ struct Printer : visitor::PreOrder {
             out << "tuple<";
 
             auto types = node::transform(n->elements(), [](const auto& x) -> std::string {
-                return x->id() ? fmt("%s: %s", *x->id(), *x->type()) : fmt("%s", *x->type());
+                return x->id() ? fmt("%s: %s", x->id(), *x->type()) : fmt("%s", *x->type());
             });
 
             out << util::join(types, ", ") << '>';
@@ -1107,70 +1029,4 @@ void hilti::detail::printAST(const NodePtr& root, printer::Stream& stream) {
     }
 
     Printer(stream).dispatch(root);
-}
-
-std::string hilti::detail::renderOperatorPrototype(const NodeDerivedPtr<expression::ResolvedOperator>& o) {
-    const auto& op = o->operator_();
-    const auto& exprs = o->operands();
-
-    switch ( op.kind() ) {
-        case operator_::Kind::Call: {
-            assert(exprs.size() == 2);
-            auto id = exprs[0];
-            auto ops = o->operator_().operands()[1].type->as<type::OperandList>()->operands();
-            auto args =
-                util::join(util::transform(ops, [&](auto x) { return fmt("<%s>", renderOperand(x, exprs)); }), ", ");
-            return fmt("%s(%s)", id, args);
-        }
-
-        case operator_::Kind::MemberCall: {
-            assert(exprs.size() == 3);
-            auto self = exprs[0];
-            auto id = exprs[1];
-            auto ops = o->operator_().operands()[2].type->as<type::OperandList>()->operands();
-            auto args =
-                util::join(util::transform(ops, [&](auto x) { return fmt("<%s>", renderOperand(x, exprs)); }), ", ");
-            return fmt("<%s>.%s(%s)", renderExpressionType(self), id, args);
-        }
-
-        default:
-            return renderOperator(op.kind(), util::transform(op.operands(), [&](auto x) {
-                                      return fmt("<%s>", renderOperand(x, exprs));
-                                  }));
-    }
-}
-
-static std::string _renderOperatorInstance(operator_::Kind kind, const node::Range<Expression>& exprs) {
-    switch ( kind ) {
-        case operator_::Kind::Call: {
-            assert(exprs.size() == 2);
-            const auto& id = exprs[0];
-            auto ops = exprs[1]->as<expression::Ctor>()->ctor()->as<ctor::Tuple>()->value();
-            auto args =
-                util::join(node::transform(ops, [&](auto x) { return fmt("<%s>", renderExpressionType(x)); }), ", ");
-            return fmt("%s(%s)", id, args);
-        }
-
-        case operator_::Kind::MemberCall: {
-            assert(exprs.size() == 3);
-            const auto& self = exprs[0];
-            const auto& id = exprs[1];
-            auto ops = exprs[2]->as<expression::Ctor>()->ctor()->as<ctor::Tuple>()->value();
-            auto args =
-                util::join(node::transform(ops, [&](auto x) { return fmt("<%s>", renderExpressionType(x)); }), ", ");
-            return fmt("<%s>.%s(%s)", renderExpressionType(self), id, args);
-        }
-
-        default:
-            return renderOperator(kind,
-                                  node::transform(exprs, [&](auto x) { return fmt("<%s>", renderExpressionType(x)); }));
-    }
-}
-
-std::string hilti::detail::renderOperatorInstance(const NodeDerivedPtr<expression::ResolvedOperator>& o) {
-    return _renderOperatorInstance(o->operator_().kind(), o->operands());
-}
-
-std::string hilti::detail::renderOperatorInstance(const NodeDerivedPtr<expression::UnresolvedOperator>& o) {
-    return _renderOperatorInstance(o->kind(), o->operands());
 }

@@ -74,15 +74,16 @@ inline bool isResolved(const hilti::node::Range<Expression>& exprs, type::Resolv
     return std::all_of(exprs.begin(), exprs.end(), [&](const auto& e) { return isResolved(e, rstate); });
 }
 
-/**
- * Returns true if the types of all expressions in a set have been resolved.
- *
- * @param exprs expressions expressions to check
- * @param rstate internal parameter, leave unset
+/*
+ * #<{(|*
+ *  * Returns true if the types of all expressions in a set have been resolved.
+ *  *
+ *  * @param exprs expressions expressions to check
+ *  * @param rstate internal parameter, leave unset
+ *  |)}>#
+ * inline bool isResolved(const hilti::node::Set<Expression>& exprs, type::ResolvedState* rstate = nullptr) {
+ *     return std::all_of(exprs.begin(), exprs.end(), [&](const auto& e) { return isResolved(e, rstate); });
+ * }
  */
-inline bool isResolved(const hilti::node::Set<Expression>& exprs, type::ResolvedState* rstate = nullptr) {
-    return std::all_of(exprs.begin(), exprs.end(), [&](const auto& e) { return isResolved(e, rstate); });
-}
-
 } // namespace expression
 } // namespace hilti

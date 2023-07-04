@@ -60,7 +60,8 @@ public:
     node::Set<type::function::Parameter> parameters() const final {
         node::Set<type::function::Parameter> result;
         for ( auto&& p : children<function::Parameter>(1, -1) )
-            result.insert(p);
+            result.push_back(p);
+
         return result;
     }
 

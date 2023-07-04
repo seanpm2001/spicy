@@ -16,7 +16,7 @@
 #include <hilti/ast/type.h>
 #include <hilti/ast/types/integer.h>
 #include <hilti/ast/types/reference.h>
-#include <hilti/ast/types/unresolved-id.h>
+#include <hilti/ast/types/name.h>
 #include <hilti/base/logger.h>
 #include <hilti/compiler/plugin.h>
 #include <hilti/global.h>

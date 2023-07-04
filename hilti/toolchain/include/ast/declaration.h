@@ -55,6 +55,8 @@ public:
     /** Returns the declaration's linkage. */
     auto linkage() const { return _linkage; }
 
+    auto fullyQualifiedID() const { return _fqid; }
+
     /**
      * Returns the canonical ID associated with the declaration. Canonical IDs
      * are automatically computed during AST processing and guaranteed to be
@@ -62,10 +64,15 @@ public:
      */
     const auto& canonicalID() const { return _canonical_id; }
 
+    // Set by the resolver.
+    void setFullyQualifiedID(ID id) { _fqid = std::move(id); }
+
     /** Implements the `Declaration` interface. */
     /**
      * Associates a canonical ID with the declaration. To be called from AST
      * processing.
+     *
+     * Set by the resolver.
      */
     void setCanonicalID(ID id) { _canonical_id = std::move(id); }
 
@@ -78,6 +85,7 @@ public:
     node::Properties properties() const override {
         auto p = node::Properties{{"id", _id},
                                   {"linkage", declaration::to_string(_linkage)},
+                                  {"fqid", _fqid},
                                   {"canonical-id", _canonical_id}};
 
         return Node::properties() + p;
@@ -94,7 +102,8 @@ protected:
         if ( ! n )
             return false;
 
-        return Node::isEqual(other) && _id == n->_id && _linkage == n->linkage() && _canonical_id == n->_canonical_id;
+        return Node::isEqual(other) && _id == n->_id && _linkage == n->linkage() && _fqid == n->_fqid &&
+               _canonical_id == n->_canonical_id;
     }
 
     HILTI_NODE_BASE(Declaration);
@@ -102,6 +111,7 @@ protected:
 private:
     ID _id;
     declaration::Linkage _linkage;
+    ID _fqid;
     ID _canonical_id;
 };
 

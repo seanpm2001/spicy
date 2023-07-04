@@ -6,6 +6,8 @@
 #include <hilti/ast/type.h>
 #include <hilti/ast/visitor.h>
 
+#include "global.h"
+
 using namespace hilti;
 
 Expression::~Expression() = default;

@@ -4,19 +4,16 @@
 #include <sstream>
 
 #include <hilti/ast/ctors/enum.h>
+#include <hilti/ast/declarations/constant.h>
 #include <hilti/ast/declarations/imported-module.h>
 #include <hilti/ast/declarations/module.h>
 #include <hilti/ast/declarations/type.h>
 #include <hilti/ast/expressions/ctor.h>
-#include <hilti/ast/declarations/module.h>
 #include <hilti/ast/node.h>
 #include <hilti/ast/type.h>
 #include <hilti/ast/visitor.h>
 #include <hilti/base/util.h>
 #include <hilti/compiler/detail/visitors.h>
-
-#include "ast/declarations/constant.h"
-#include "ast/expressions/ctor.h"
 
 using namespace hilti;
 
@@ -39,7 +36,6 @@ std::string Node::render(bool include_location) const {
 
     // Prettify the name a bit.
     auto name = util::demangle(typename_());
-    name = util::replace(name, "hilti::", "");
 
     if ( util::startsWith(name, "detail::") )
         name = util::join(util::slice(util::split(name, "::"), 2), "::");
@@ -47,6 +43,7 @@ std::string Node::render(bool include_location) const {
     auto location = (include_location && meta().location()) ? util::fmt(" (%s)", meta().location().render(true)) : "";
     auto prune = (pruneWalk() ? " (prune)" : "");
     auto no_inherit_scope = (inheritScope() ? "" : " (no-inherit-scope)");
+    auto parent = (_parent ? "" : " [no parent]");
 
 #if 0
     // TODO: Move into the corresponding sub-classes.
@@ -54,7 +51,7 @@ std::string Node::render(bool include_location) const {
         type = util::fmt(" (type: %s [@t:%p])", x->type(), x->type().identity());
 #endif
 
-    auto s = util::fmt("%s%s%s%s%s", name, sprops, prune, no_inherit_scope, location);
+    auto s = util::fmt("%s%s%s%s%s%s", name, sprops, prune, parent, no_inherit_scope, location);
 
     if ( auto derived_render = _render(); ! derived_render.empty() )
         s += std::string(" ") + derived_render;
@@ -95,6 +92,16 @@ std::string Node::print() const {
     return out.str();
 }
 
+void Node::replaceChild(Node* old, NodePtr new_) {
+    for ( auto i = 0; i < _children.size(); i++ ) {
+        if ( _children[i].get() == old ) {
+            setChild(i, std::move(new_));
+            return;
+        }
+    }
+
+    logger().internalError("child not found");
+}
 
 void Node::replaceChildren(Nodes children) {
     clearChildren();

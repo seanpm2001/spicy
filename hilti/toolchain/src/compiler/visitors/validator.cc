@@ -10,6 +10,7 @@
 #include <hilti/ast/node.h>
 #include <hilti/ast/type.h>
 #include <hilti/ast/types/function.h>
+#include <hilti/ast/types/unknown.h>
 #include <hilti/base/logger.h>
 #include <hilti/base/timing.h>
 #include <hilti/compiler/detail/visitors.h>
@@ -52,6 +53,7 @@ struct VisitorPost : visitor::PreOrder, VisitorBase {
     }
 
     void operator()(type::Auto* t) final { error("automatic type has not been resolved", t, node::ErrorPriority::Low); }
+    void operator()(type::Unknown* t) final { error("type could not be determined", t, node::ErrorPriority::Low); }
 #if 0
     void preDispatch(const Node& n, int level) override {
         // Validate that identifier names are not reused.

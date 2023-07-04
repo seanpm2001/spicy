@@ -913,7 +913,7 @@ struct VisitorTypeInfoDynamic : hilti::visitor::PreOrder {
         for ( const auto& e : n->elements() ) {
             elems.push_back(
                 fmt("::hilti::rt::type_info::tuple::Element{ \"%s\", %s, hilti::rt::tuple::elementOffset<%s, %d>() }",
-                    e->id() ? *e->id() : ID(), cg->typeInfo(e->type()), ttype, i));
+                    e->id() ? e->id() : ID(), cg->typeInfo(e->type()), ttype, i));
             ++i;
         }
 
@@ -1001,7 +1001,7 @@ cxx::Type CodeGen::compile(const QualifiedTypePtr& t, codegen::TypeUsage usage) 
             if ( base_type )
                 return std::move(*base_type);
 
-            logger().internalError(fmt("codegen: type %s does not support use as storage", t->render()), t);
+            logger().internalError(fmt("codegen: type %s does not support use as storage", t->type()->render()), t);
             break;
 
         case codegen::TypeUsage::CopyParameter:
@@ -1011,7 +1011,7 @@ cxx::Type CodeGen::compile(const QualifiedTypePtr& t, codegen::TypeUsage usage) 
             if ( base_type )
                 return fmt("%s", *base_type);
 
-            logger().internalError(fmt("codegen: type %s does not support use as copy-parameter ", t->render()), t);
+            logger().internalError(fmt("codegen: type %s does not support use as copy-parameter ", t->type()->render()), t);
             break;
 
         case codegen::TypeUsage::InParameter:
@@ -1021,7 +1021,7 @@ cxx::Type CodeGen::compile(const QualifiedTypePtr& t, codegen::TypeUsage usage) 
             if ( base_type )
                 return fmt("const %s&", *base_type);
 
-            logger().internalError(fmt("codegen: type %s does not support use as in-parameter ", t->render()), t);
+            logger().internalError(fmt("codegen: type %s does not support use as in-parameter ", t->type()->render()), t);
             break;
 
         case codegen::TypeUsage::InOutParameter:
@@ -1031,7 +1031,7 @@ cxx::Type CodeGen::compile(const QualifiedTypePtr& t, codegen::TypeUsage usage) 
             if ( base_type )
                 return fmt("%s&", *base_type);
 
-            logger().internalError(fmt("codegen: type %s does not support use as inout-parameter ", t->render()), t);
+            logger().internalError(fmt("codegen: type %s does not support use as inout-parameter ", t->type()->render()), t);
             break;
 
         case codegen::TypeUsage::FunctionResult:
@@ -1041,7 +1041,7 @@ cxx::Type CodeGen::compile(const QualifiedTypePtr& t, codegen::TypeUsage usage) 
             if ( base_type )
                 return std::move(*base_type);
 
-            logger().internalError(fmt("codegen: type %s does not support use as function result", t->render()), t);
+            logger().internalError(fmt("codegen: type %s does not support use as function result", t->type()->render()), t);
             break;
 
         case codegen::TypeUsage::Ctor:
@@ -1051,11 +1051,11 @@ cxx::Type CodeGen::compile(const QualifiedTypePtr& t, codegen::TypeUsage usage) 
             if ( x->base_type )
                 return std::move(*x->base_type);
 
-            logger().internalError(fmt("codegen: type %s does not support use as storage", t->render()), t);
+            logger().internalError(fmt("codegen: type %s does not support use as storage", t->type()->render()), t);
             break;
 
         case codegen::TypeUsage::None:
-            logger().internalError(fmt("codegen: type compilation with 'None' usage", t->render()), t);
+            logger().internalError(fmt("codegen: type compilation with 'None' usage", t->type()->render()), t);
             break;
         default: util::cannot_be_reached();
     }

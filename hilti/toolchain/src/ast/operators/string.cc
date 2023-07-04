@@ -25,15 +25,16 @@ public:
                 .doc = "Compares two strings lexicographically."};
     }
 
-    Result<ResolvedOperatorPtr> instantiate(Builder* builder, const UnresolvedOperator* op) const final {
-        return {operator_::string::Equal::create(builder->context(), this, result(builder, op), op->operands(),
-                                                 op->meta())};
+    Result<ResolvedOperatorPtr> instantiate(Builder* builder, node::Range<Expression> operands,
+                                            const Meta& meta) const final {
+        return {operator_::string::Equal::create(builder->context(), this, result(builder, operands, meta), operands,
+                                                 meta)};
     }
 };
 
 REGISTER_OPERATOR(Equal);
 
-class Encode : public Operator {
+class Encode : public MethodCall {
 public:
     operator_::Signature signature(Builder* builder) const final {
         return {.kind = Kind::MemberCall,
@@ -53,9 +54,10 @@ public:
                 .doc = "Compares two strings lexicographically."};
     }
 
-    Result<ResolvedOperatorPtr> instantiate(Builder* builder, const UnresolvedOperator* op) const final {
-        return {operator_::string::Encode::create(builder->context(), this, result(builder, op), op->operands(),
-                                                  op->meta())};
+    Result<ResolvedOperatorPtr> instantiate(Builder* builder, node::Range<Expression> operands,
+                                            const Meta& meta) const final {
+        return {operator_::string::Encode::create(builder->context(), this, result(builder, operands, meta), operands,
+                                                  meta)};
     }
 };
 

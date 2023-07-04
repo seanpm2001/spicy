@@ -14,7 +14,7 @@ type::enum_::Label::~Label() {}
 
 std::string type::enum_::Label::_render() const { return util::fmt("[id: %s value: %" PRIu64 "]", _id, _value); }
 
-Declarations type::Enum::_normalizeLabels(ASTContext* ctx, enum_::Labels labels) {
+Declarations type::Enum::_setLabels(ASTContext* ctx, enum_::Labels labels) {
     auto max = std::max_element(labels.begin(), labels.end(),
                                 [](const auto& l1, const auto& l2) { return l1->value() < l2->value(); });
     auto next_value = (max != labels.end() ? (*max)->value() + 1 : 0);
@@ -25,19 +25,19 @@ Declarations type::Enum::_normalizeLabels(ASTContext* ctx, enum_::Labels labels)
         if ( util::tolower(l->id()) == "undef" )
             throw std::out_of_range("reserved enum label 'Undef' cannot be redefined");
 
-        std::shared_ptr<type::enum_::Label> nlabel;
+        NodeDerivedPtr<type::enum_::Label> nlabel;
 
-        if ( l->value() < 0 )
-            nlabel = type::enum_::Label::create(ctx, l->id(), next_value++, l->meta())->as<type::enum_::Label>();
-        else
+        if ( l->value() >= 0 )
             nlabel = std::move(l);
+        else
+            nlabel = type::enum_::Label::create(ctx, l->id(), next_value++, as<type::Enum>(), l->meta());
 
         auto d = declaration::Constant::create(ctx, nlabel->id(),
                                                expression::Ctor::create(ctx, ctor::Enum::create(ctx, nlabel)));
         nlabels.push_back(std::move(d));
     }
 
-    auto undef_label = type::enum_::Label::create(ctx, ID("Undef"), -1)->as<type::enum_::Label>();
+    auto undef_label = type::enum_::Label::create(ctx, ID("Undef"), -1, as<type::Enum>(), meta())->as<type::enum_::Label>();
     auto undef = declaration::Constant::create(ctx, undef_label->id(),
                                                expression::Ctor::create(ctx, ctor::Enum::create(ctx, undef_label)));
     nlabels.emplace_back(std::move(std::move(undef)));

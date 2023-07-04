@@ -98,6 +98,7 @@ public:
     /** For internal use. Use ``type::isReferenceType` instead. */
     virtual bool _isReferenceType() const { return false; }
 
+    // TODO: Can we get rid of this?
     /** For internal use. Use ``type::isResolved` instead. */
     virtual bool _isResolved(type::ResolvedState* rstate) const { return true; }
 
@@ -192,6 +193,8 @@ public:
 
     static QualifiedTypePtr createAuto(ASTContext* ctx, const Meta& m = Meta());
 
+    static void unifyTypes(ASTContext* ctx, const NodePtr& root);
+
 protected:
     friend class ASTContext;
 
@@ -260,6 +263,7 @@ inline bool isViewable(const QualifiedTypePtr& t) { return t->type()->viewType()
 inline bool takesArguments(const UnqualifiedTypePtr& t) { return ! t->parameters().empty(); }
 inline bool takesArguments(const QualifiedTypePtr& t) { return ! t->type()->parameters().empty(); }
 
+// TODO: Can we get rid of these?
 namespace detail {
 // Internal backend for the `isResolved()`.
 extern bool isResolved(const hilti::UnqualifiedType& t, ResolvedState* rstate);
@@ -273,10 +277,18 @@ inline extern bool isResolved(const hilti::QualifiedTypePtr& t, ResolvedState* r
 } // namespace detail
 
 /** Returns true if the type has been fully resolved, including all sub-types it may include. */
-extern bool isResolved(const UnqualifiedType& t);
-inline bool isResolved(const UnqualifiedTypePtr& t) { return isResolved(*t); }
-inline bool isResolved(const QualifiedType& t) { return isResolved(t.type()); }
-inline bool isResolved(const QualifiedTypePtr& t) { return isResolved(t->type()); }
+extern bool isResolved(const UnqualifiedType& t);                              // TODO:Can we get rid of this?
+inline bool isResolved(const UnqualifiedTypePtr& t) { return isResolved(*t); } // TODO:Can we get rid of this?
+inline bool isResolved(const QualifiedType& t) { return t.unified() && ! t.isAuto(); }
+inline bool isResolved(const QualifiedType* t) { return t->unified() && ! t->isAuto(); }
+inline bool isResolved(const QualifiedTypePtr& t) { return t->unified() && ! t->isAuto(); }
+
+inline bool sameType(const QualifiedTypePtr& t1, const QualifiedTypePtr& t2) {
+    if ( ! isResolved(t1) || ! isResolved(t2) )
+        return false;
+
+    return t1->unified() == t2->unified();
+}
 
 namespace detail {
 // Internal backends for the `pruneWalk()`.

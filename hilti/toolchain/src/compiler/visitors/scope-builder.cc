@@ -12,15 +12,16 @@
 #include <hilti/ast/expressions/list-comprehension.h>
 #include <hilti/ast/statements/declaration.h>
 #include <hilti/ast/types/function.h>
+#include <hilti/ast/types/name.h>
 #include <hilti/ast/types/reference.h>
 #include <hilti/ast/types/struct.h>
-#include <hilti/ast/types/unresolved-id.h>
 #include <hilti/compiler/detail/visitors.h>
 #include <hilti/compiler/unit.h>
 
 #include "ast/builder/builder.h"
 #include "ast/declarations/type.h"
 #include "base/timing.h"
+#include "global.h"
 
 using namespace hilti;
 
@@ -32,51 +33,19 @@ struct Visitor : visitor::PostOrder {
     const ASTRootPtr& root;
     Builder* builder;
 
-    void operator()(declaration::Module* m) final {
-        // Insert module name into global scope.
-        root->getOrCreateScope()->insert(m->as<declaration::Module>());
-    }
-
-    void operator()(declaration::GlobalVariable* d) final {
-        if ( d->parent()->isA<declaration::Module>() )
-            d->parent()->getOrCreateScope()->insert(d->as<declaration::GlobalVariable>());
-    }
-
-    void operator()(declaration::Type* d) final {
-        if ( d->parent()->isA<declaration::Module>() )
-            d->parent()->getOrCreateScope()->insert(d->as<declaration::Type>());
-    }
-
     void operator()(declaration::Constant* d) final {
-        if ( d->parent()->isA<declaration::Module>() )
-            d->parent()->getOrCreateScope()->insert(d->as<declaration::Constant>());
+        d->parent()->getOrCreateScope()->insert(d->as<Declaration>());
     }
 
     void operator()(declaration::Expression* d) final {
-        if ( d->parent()->isA<declaration::Module>() )
-            d->parent()->getOrCreateScope()->insert(d->as<declaration::Expression>());
+        d->parent()->getOrCreateScope()->insert(d->as<Declaration>());
     }
+
+    void operator()(declaration::Function* d) final {
+        auto x = d->parent();
+        x->getOrCreateScope()->insert(d->as<Declaration>());
 
 #if 0
-    void operator()(declaration::Field* f) final {
-        if ( auto func = f.inlineFunction() ) {
-            for ( auto&& x : func->ftype().parameterRefs() )
-                p.node.scope()->insert(std::move(x));
-        }
-
-        if ( f.isStatic() )
-            // Insert static member into struct's namespace. We create new
-            // declarations here (rather than point to instances already
-            // existing inside the AST) as that's (a) easier and (b) ok
-            // because everything is checked to be fully resolved already.
-            //
-            p.parent(2).scope()->insert(NodeRef(p.node));
-    }
-
-    void operator()(declaration::Function* f) final {
-        if ( d.parent()->isA<Module>() )
-            d.parent()->scope()->insert(NodeRef(p.node));
-
         for ( auto&& x : f.function().ftype().parameterRefs() )
             p.node.scope()->insert(std::move(x));
 
@@ -121,7 +90,40 @@ struct Visitor : visitor::PostOrder {
             for ( auto&& x : t.parameterRefs() )
                 p.node.scope()->insert(NodeRef(x));
         }
+#endif
     }
+
+    void operator()(declaration::GlobalVariable* d) final {
+        if ( d->parent()->isA<declaration::Module>() )
+            d->parent()->getOrCreateScope()->insert(d->as<declaration::GlobalVariable>());
+    }
+
+    void operator()(declaration::Module* m) final {
+        // Insert module name into global scope.
+        root->getOrCreateScope()->insert(m->as<declaration::Module>());
+    }
+
+    void operator()(declaration::Type* d) final {
+        if ( d->parent()->isA<declaration::Module>() )
+            d->parent()->getOrCreateScope()->insert(d->as<declaration::Type>());
+    }
+
+#if 0
+    void operator()(declaration::Field* f) final {
+        if ( auto func = f.inlineFunction() ) {
+            for ( auto&& x : func->ftype().parameterRefs() )
+                p.node.scope()->insert(std::move(x));
+        }
+
+        if ( f.isStatic() )
+            // Insert static member into struct's namespace. We create new
+            // declarations here (rather than point to instances already
+            // existing inside the AST) as that's (a) easier and (b) ok
+            // because everything is checked to be fully resolved already.
+            //
+            p.parent(2).scope()->insert(NodeRef(p.node));
+    }
+
 
     void operator()(declaration::ImportedModule* m) final {
         if ( const auto& cached = context->lookupUnit(m.id(), m.scope(), unit->extension()) ) {

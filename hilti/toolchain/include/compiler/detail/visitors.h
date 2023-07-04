@@ -41,18 +41,6 @@ void printAST(const NodePtr& root, std::ostream& out, bool compact = false);
  */
 void printAST(const NodePtr& root, printer::Stream& stream); // NOLINT
 
-/** Returns a string with the prototype for an operator for display. */
-std::string renderOperatorPrototype(const NodeDerivedPtr<expression::UnresolvedOperator>& o);
-
-/** Returns a string with the prototype for an operator for display. */
-std::string renderOperatorPrototype(const NodeDerivedPtr<expression::ResolvedOperator>& o);
-
-/** Returns a string with an instantiated  operator for display. */
-std::string renderOperatorInstance(const NodeDerivedPtr<expression::UnresolvedOperator>& o);
-
-/** Returns a string with an instantiated  operator for display. */
-std::string renderOperatorInstance(const NodeDerivedPtr<expression::ResolvedOperator>& o);
-
 /** Prints a debug dump of a node, including its childrens. */
 void renderNode(const NodePtr& n, std::ostream& out, bool include_scopes = false);
 void renderNode(const NodePtr& n, logging::DebugStream stream, bool include_scopes = false);

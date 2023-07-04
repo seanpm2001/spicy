@@ -3,6 +3,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -17,6 +18,8 @@ struct Operand {
     QualifiedTypePtr type;
     bool optional = false;
     ExpressionPtr default_;
+
+    std::string print() const;
 
     bool operator==(const Operand& other) const {
         return id == other.id && type == other.type && optional == other.optional &&

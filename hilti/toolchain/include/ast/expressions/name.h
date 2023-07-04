@@ -3,8 +3,10 @@
 #pragma once
 
 #include <memory>
+#include <string>
 #include <utility>
 
+#include <hilti/ast/declaration.h>
 #include <hilti/ast/expression.h>
 #include <hilti/ast/id.h>
 #include <hilti/ast/type.h>
@@ -15,14 +17,18 @@ namespace hilti::expression {
 class Name : public Expression {
 public:
     const auto& id() const { return _id; }
-    auto declaration() const { return _declaration; }
+    const auto& declaration() const { return _declaration; }
 
     QualifiedTypePtr type() const final;
 
-    void setDeclaration(DeclarationPtr d) { _declaration = std::move(d); }
+    void setDeclaration(DeclarationPtr d) {
+        _declaration = std::move(d);
+        setChild(0, nullptr);
+    }
 
     node::Properties properties() const final {
-        auto p = node::Properties{{"id", _id}};
+        auto p = node::Properties{{"id", _id},
+                                  {"resolved", (_declaration ? _declaration->canonicalID().str() : std::string("-"))}};
         return Expression::properties() + p;
     }
 

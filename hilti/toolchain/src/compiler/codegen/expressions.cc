@@ -141,16 +141,24 @@ struct Visitor : hilti::visitor::PreOrder {
         result = fmt("(%s) || (%s)", cg->compile(n->op0()), cg->compile(n->op1()));
     }
 
-    void operator()(const expression::Name* n) {
+    void operator()(expression::Name* n) final {
+        if ( ! n->declaration() ) {
+            logger().internalError(fmt("expression::Name left unresolved (%s)", *n), n);
+            return;
+        }
+
+        auto id = n->declaration()->fullyQualifiedID();
+        assert(id);
+
         if ( auto g = n->declaration()->tryAs<declaration::GlobalVariable>() ) {
             if ( cg->options().cxx_enable_dynamic_globals ) {
-                if ( auto ns = n->id().namespace_(); ! ns.empty() )
-                    result = {fmt("%s->%s", cxx::ID(ns, "__globals()"), cxx::ID(n->id().local())), cxx::Side::LHS};
+                if ( auto ns = id.namespace_(); ! ns.empty() )
+                    result = {fmt("%s->%s", cxx::ID(ns, "__globals()"), cxx::ID(id.local())), cxx::Side::LHS};
                 else
-                    result = {fmt("__globals()->%s", cxx::ID(n->id())), cxx::Side::LHS};
+                    result = {fmt("__globals()->%s", cxx::ID(id)), cxx::Side::LHS};
             }
             else
-                result = {fmt("(*%s)", cxx::ID(cg->options().cxx_namespace_intern, cxx::ID(n->id()))), cxx::Side::LHS};
+                result = {fmt("(*%s)", cxx::ID(cg->options().cxx_namespace_intern, cxx::ID(id))), cxx::Side::LHS};
 
             return;
         }
@@ -164,7 +172,7 @@ struct Visitor : hilti::visitor::PreOrder {
             if ( c->value()->type()->isA<type::Enum>() )
                 result = {cxx::ID(cg->compile(c->value())), cxx::Side::LHS};
             else
-                result = {cxx::ID(cg->options().cxx_namespace_intern, cxx::ID(n->id())), cxx::Side::LHS};
+                result = {cxx::ID(cg->options().cxx_namespace_intern, cxx::ID(id)), cxx::Side::LHS};
 
             return;
         }
@@ -175,11 +183,11 @@ struct Visitor : hilti::visitor::PreOrder {
             if ( (f->function()->callingConvention() == function::CallingConvention::Extern ||
                   f->function()->callingConvention() == function::CallingConvention::ExternNoSuspend) &&
                  (! n->parent() || ! n->parent()->isA<operator_::function::Call>()) ) {
-                if ( n->id().namespace_().empty() )
+                if ( id.namespace_().empty() )
                     // Call to local function, don't qualify it.
-                    result = {cxx::ID(n->id()), cxx::Side::LHS};
+                    result = {cxx::ID(id), cxx::Side::LHS};
                 else
-                    result = {cxx::ID(cg->options().cxx_namespace_extern, n->id()), cxx::Side::LHS};
+                    result = {cxx::ID(cg->options().cxx_namespace_extern, id), cxx::Side::LHS};
 
                 return;
             }
@@ -195,7 +203,7 @@ struct Visitor : hilti::visitor::PreOrder {
             return;
         }
 
-        result = {cxx::ID(n->id()), cxx::Side::LHS};
+        result = {cxx::ID(id), cxx::Side::LHS};
     }
 
     void operator()(expression::ResolvedOperator* n) {
@@ -216,12 +224,6 @@ struct Visitor : hilti::visitor::PreOrder {
     }
 
     void operator()(expression::TypeWrapped* n) final { result = cg->compile(n->expression(), lhs); }
-
-    void operator()(expression::Name* n) final {
-        hilti::print(std::cerr, n->as<Node>());
-        hilti::render(std::cerr, n->as<Node>());
-        logger().internalError("unresolved expression ID", n);
-    }
 
     void operator()(expression::UnresolvedOperator* n) final {
         hilti::print(std::cerr, n->as<Node>());

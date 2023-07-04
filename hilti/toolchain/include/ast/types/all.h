@@ -18,6 +18,7 @@
 #include <hilti/ast/types/list.h>
 #include <hilti/ast/types/map.h>
 #include <hilti/ast/types/member.h>
+#include <hilti/ast/types/name.h>
 #include <hilti/ast/types/network.h>
 #include <hilti/ast/types/null.h>
 #include <hilti/ast/types/operand-list.h>
@@ -36,6 +37,5 @@
 #include <hilti/ast/types/type.h>
 #include <hilti/ast/types/union.h>
 #include <hilti/ast/types/unknown.h>
-#include <hilti/ast/types/unresolved-id.h>
 #include <hilti/ast/types/vector.h>
 #include <hilti/ast/types/void.h>

@@ -12,6 +12,7 @@
 #include <hilti/compiler/detail/visitors.h>
 #include <hilti/compiler/unit.h>
 
+#include "ast/builder/builder.h"
 #include "base/timing.h"
 #include "global.h"
 
@@ -248,8 +249,7 @@ struct VisitorComputeCanonicalIDs : visitor::PreOrder {
     // This visitor runs twice, with slightly different behaviour by pass.
     // VisitorComputeCanonicalIDs(int pass) : pass(pass) { assert(pass == 1 || pass == 2); }
 
-
-    std::vector<ID> path;
+    bool modified = false;
 
 #if 0
     ID parent_id;
@@ -257,34 +257,52 @@ struct VisitorComputeCanonicalIDs : visitor::PreOrder {
     Scope* module_scope = nullptr;
 #endif
 
-    auto current() const {
-        ID id;
-        for ( const auto& i : path )
-            id = ID(id, i);
-
-        return id;
-    }
 
     void operator()(Declaration* d) final {
-        // TODO: Eventually we'll bail out if already set, but for now ensure consistency by recomputing and comparing.
-        // if ( d->canonicalID() )
-        //    return;
-        auto old = d->canonicalID();
+        // Compute declaration's fully-qualified ID.
+        ID fqid;
 
-        if ( auto m = d->tryAs<declaration::Module>() ) {
-            auto id = util::fmt("%s_%x", m->id(), util::hash(m->uid()) % 0xffff);
-            path.emplace_back(std::move(id));
+        auto p = d;
+        do {
+            fqid = p->id() + fqid;
+        } while ( (p = p->parent<Declaration>()) );
+
+
+        if ( ! d->fullyQualifiedID() ) {
+            d->setFullyQualifiedID(std::move(fqid));
+
+            if ( auto t = d->tryAs<declaration::Type>() )
+                t->type()->type()->setTypeID(fqid);
+
+            modified = true;
         }
-        else
-            path.emplace_back(d->id());
+        else {
+            if ( fqid != d->fullyQualifiedID() )
+                logger().internalError(util::fmt("fully qualified ID mismatch for %s: %s (old) vs %s (new)", d->id(),
+                                                 d->canonicalID(), fqid));
+        }
 
-        d->setCanonicalID(current());
+        // Compute declaration's globally unique ID.
 
-        // Double-check we always get the same ID.
-        if ( old ) {
-            if ( old != d->canonicalID() )
+        ID cid;
+        p = d;
+
+        do {
+            if ( auto m = p->tryAs<declaration::Module>() )
+                cid = ID(util::fmt("%s_%x", m->id(), util::hash(m->uid()) % 0xffff)) + cid;
+            else
+                cid = p->id() + cid;
+
+        } while ( (p = p->parent<Declaration>()) );
+
+        if ( ! d->canonicalID() ) {
+            d->setCanonicalID(std::move(cid));
+            modified = true;
+        }
+        else {
+            if ( cid != d->canonicalID() )
                 logger().internalError(
-                    util::fmt("canonical ID mismatch for %s: %s (old) vs %s (new)", d->id(), old, d->canonicalID()));
+                    util::fmt("canonical ID mismatch for %s: %s (old) vs %s (new)", d->id(), d->canonicalID(), cid));
         }
 
 #if 0
@@ -378,6 +396,9 @@ void _computeCanonicalIDs(VisitorComputeCanonicalIDs* v, const NodePtr& node, ID
 bool hilti::detail::ast::normalize(Builder* builder, const ASTRootPtr& root) {
     util::timing::Collector _("hilti/compiler/ast/normalizer");
 
+    operator_::registry().initPending(builder->context());
+    QualifiedType::unifyTypes(builder->context(), root);
+
     auto v0 = VisitorConstants();
     ::hilti::visitor::visit(v0, root);
 
@@ -403,5 +424,5 @@ bool hilti::detail::ast::normalize(Builder* builder, const ASTRootPtr& root) {
     ::hilti::visitor::visit(v4, root);
 #endif
 
-    return v0.modified || v1.modified;
+    return v0.modified || v1.modified || v2.modified;
 }

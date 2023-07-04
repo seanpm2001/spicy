@@ -41,7 +41,7 @@ public:
 protected:
     Constant(Nodes children, ID id, declaration::Linkage linkage, Meta meta)
         : Declaration(std::move(children), std::move(id), linkage, std::move(meta)) {
-        assert(children[0]->as<QualifiedType>()->isConstant());
+        assert(! child(0) || child(0)->as<QualifiedType>()->isConstant());
     }
 
     bool isEqual(const Node& other) const override { return other.isA<Constant>() && Declaration::isEqual(other); }

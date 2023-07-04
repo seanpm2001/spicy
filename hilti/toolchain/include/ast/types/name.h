@@ -2,9 +2,12 @@
 
 #pragma once
 
+#include <string>
 #include <utility>
 
 #include <hilti/ast/type.h>
+
+#include "ast/declarations/type.h"
 
 namespace hilti::type {
 
@@ -12,6 +15,15 @@ namespace hilti::type {
 class Name : public UnqualifiedType {
 public:
     auto id() const { return _id; }
+    const auto& declaration() const { return _declaration; }
+
+    void setDeclaration(NodeDerivedPtr<declaration::Type> d) { _declaration = std::move(d); }
+
+    node::Properties properties() const final {
+        auto p = node::Properties{{"id", _id},
+                                  {"resolved", (_declaration ? _declaration->canonicalID().str() : std::string("-"))}};
+        return UnqualifiedType::properties() + p;
+    }
 
     static auto create(ASTContext* ctx, ID id, Meta meta = {}) {
         return NodeDerivedPtr<Name>(new Name(std::move(id), std::move(meta)));
@@ -32,6 +44,7 @@ protected:
 
 private:
     ID _id;
+    NodeDerivedPtr<declaration::Type> _declaration;
 };
 
 } // namespace hilti::type

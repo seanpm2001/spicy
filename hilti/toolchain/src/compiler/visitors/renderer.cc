@@ -2,7 +2,7 @@
 
 #include <hilti/ast/expressions/name.h>
 #include <hilti/ast/expressions/unresolved-operator.h>
-#include <hilti/ast/types/unresolved-id.h>
+#include <hilti/ast/types/name.h>
 #include <hilti/base/logger.h>
 #include <hilti/base/timing.h>
 #include <hilti/compiler/detail/visitors.h>

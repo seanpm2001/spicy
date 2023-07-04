@@ -65,7 +65,8 @@ public:
 
     static auto create(ASTContext* ctx, ID id, ::hilti::function::CallingConvention cc, const type::FunctionPtr& ftype,
                        const AttributeSetPtr& attrs, Meta meta = {}) {
-        return NodeDerivedPtr<Field>(new Field({ftype, attrs, nullptr}, std::move(id), cc, std::move(meta)));
+        return NodeDerivedPtr<Field>(
+            new Field({QualifiedType::create(ctx, ftype, true), attrs, nullptr}, std::move(id), cc, std::move(meta)));
     }
 
     static auto create(ASTContext* ctx, const ID& id, const FunctionPtr& inline_func, const AttributeSetPtr& attrs,

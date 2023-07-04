@@ -451,7 +451,7 @@ Result<Nothing> Driver::initialize() {
 
     _ctx = std::make_shared<Context>(_compiler_options);
 
-    operator_::registry().init(_ctx->astContext().get());
+    operator_::registry().initPending(_ctx->astContext().get());
 
     return Nothing();
 }
@@ -798,9 +798,6 @@ Result<Nothing> Driver::outputUnits() {
 
     bool append = false;
     for ( auto& [uid, unit] : _units ) {
-        if ( ! unit->isCompiledHILTI() )
-            continue;
-
         if ( auto cxx = unit->cxxCode() ) {
             if ( _driver_options.output_cxx ) {
                 auto cxx_path = output_path;

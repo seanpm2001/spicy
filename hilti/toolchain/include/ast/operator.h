@@ -161,6 +161,9 @@ constexpr util::enum_::Value<Kind> kinds[] = {{Kind::Add, "add"},           {Kin
                                               {Kind::Unequal, "!="},        {Kind::Unknown, "<unknown>"},
                                               {Kind::Unpack, "unpack"},     {Kind::Unset, "unset"}};
 
+
+extern std::string print(Kind kind, const Expressions& operands); // print with instantiated operands
+
 } // namespace detail
 
 /**
@@ -214,9 +217,12 @@ public:
     }
 
     auto kind() const { return signature().kind; }
-    auto operands() const { return signature().operands->operands(); }
+    const auto& operands() const { return signature().operands->operands(); }
+    const auto& op0() const { return operands()[0]; }
+    const auto& op1() const { return operands()[1]; }
+    const auto& op2() const { return operands()[2]; }
 
-    virtual QualifiedTypePtr result(Builder* builder, const expression::UnresolvedOperator* op) const {
+    virtual QualifiedTypePtr result(Builder* builder, node::Range<Expression> operands, const Meta& meta) const {
         assert(_signature);
         if ( _signature->result )
             return _signature->result;
@@ -224,8 +230,10 @@ public:
             logger().internalError("operator::Operator::result() not overridden for dynamic operator result");
     }
 
-    virtual Result<ResolvedOperatorPtr> instantiate(Builder* builder,
-                                                    const expression::UnresolvedOperator* op) const = 0;
+    virtual Result<ResolvedOperatorPtr> instantiate(Builder* builder, node::Range<Expression> operands,
+                                                    const Meta& meta) const = 0;
+
+    virtual std::string print() const;
 
 protected:
     friend class operator_::Registry;
@@ -235,6 +243,30 @@ protected:
 
 private:
     std::optional<operator_::Signature> _signature;
+};
+
+class MethodCall : public Operator {
+public:
+    ~MethodCall() override {}
+    std::string print() const final;
+};
+
+class FunctionCall : public Operator {
+public:
+    ~FunctionCall() final {}
+
+    operator_::Signature signature(Builder* builder) const final;
+
+    Result<ResolvedOperatorPtr> instantiate(Builder* builder, node::Range<hilti::Expression> operands,
+                                            const Meta& meta) const final;
+
+    std::string print() const final;
+
+private:
+    friend class declaration::Function;
+    void setDeclaration(declaration::Function* f);
+
+    declaration::Function* _fdecl = nullptr;
 };
 
 } // namespace hilti

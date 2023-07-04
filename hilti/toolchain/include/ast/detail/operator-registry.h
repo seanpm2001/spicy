@@ -19,13 +19,13 @@ namespace hilti::operator_ {
 class Registry {
 public:
     /** Returns a map of all available operators. */
-    const auto& byKind(Kind kind) const { return _operators_by_kind.at(kind); }
-    const auto& byMethodID(const ID& id) const { return _operators_by_method.at(id); }
+    const auto& byKind(Kind kind) { return _operators_by_kind[kind]; }
+    const auto& byMethodID(const ID& id) { return _operators_by_method[id]; }
 
     /** Registers an Operator as available. */
     void register_(std::unique_ptr<Operator> op);
 
-    void init(ASTContext* ctx);
+    void initPending(ASTContext* ctx);
 
     /** Returns a singleton instance of the current class.  */
     static auto& singleton() {
@@ -34,9 +34,10 @@ public:
     }
 
 private:
+    std::vector<std::unique_ptr<Operator>> _pending;
     std::vector<std::unique_ptr<Operator>> _operators;
-    std::map<Kind, std::vector<Operator*>> _operators_by_kind;
-    std::map<ID, std::vector<Operator*>> _operators_by_method;
+    std::map<Kind, std::vector<const Operator*>> _operators_by_kind;
+    std::map<ID, std::vector<const Operator*>> _operators_by_method;
 };
 
 /** Helper class to register an operator on instantiation. */

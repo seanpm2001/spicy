@@ -50,12 +50,14 @@ set(SOURCES
     src/ast/statement.cc
     src/ast/type.cc
     src/ast/scope.cc
+    src/ast/scope-lookup.cc
     src/ast/statements/switch.cc
     src/ast/statements/try.cc
     # src/ast/type.cc
     src/ast/types/enum.cc
     src/ast/types/integer.cc
     # src/ast/types/library.cc
+    src/ast/types/operand-list.cc
     src/ast/types/struct.cc
     src/ast/types/tuple.cc
     src/ast/dispatcher.cc
